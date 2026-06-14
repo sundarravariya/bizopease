@@ -5,13 +5,18 @@ const config: CapacitorConfig = {
   appName: 'BizOpease',
   webDir: 'dist',
   server: {
-    // Native shell loads the live app from its own subdomain, which serves the
+    // Native shell loads the live app from the canonical domain, which serves the
     // SPA at root and reverse-proxies Odoo (/web, /report, /longpolling) — so
     // session cookies + JSON-RPC work same-origin and stay in sync with deploys.
-    url: 'https://dashboard.robifel.in/',
+    // NOTE: must be the FINAL domain. dashboard.robifel.in 301-redirects here, and
+    // a redirect to a host outside this origin makes Capacitor eject to the system
+    // browser — which is why the old build "opened in Chrome" on launch.
+    url: 'https://bizopease.robifel.in/',
     cleartext: false,
     androidScheme: 'https',
     iosScheme: 'https',
+    // Keep these hosts INSIDE the webview instead of bouncing to the browser.
+    allowNavigation: ['bizopease.robifel.in', 'dashboard.robifel.in', '*.robifel.in'],
   },
   plugins: {
     SplashScreen: {
