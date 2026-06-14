@@ -3,7 +3,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { searchRead, createRecord, writeRecord } from '../../../services/odoo';
 import { registerWorkspaceLogins } from '../../../services/workspaceUsers';
 import {
-  Plus, RefreshCw, Search, Eye, List, LayoutGrid,
+  RefreshCw, Search, Eye, List, LayoutGrid,
   Mail, Phone, X, Users, UserCheck, CalendarOff, Building2,
   UserPlus, Copy, Check, KeyRound, ShieldCheck,
 } from 'lucide-react';
@@ -79,65 +79,24 @@ export default function Employees() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ ...blankForm });
 
-  // Portal account creation
-  const blankAcct = { name: '', login: '', password: generatePassword(), jobTitle: '', department: DEPARTMENTS[0], role: 'employee' as 'employee' | 'admin' };
-  const [showCreateAccount, setShowCreateAccount] = useState(false);
-  const [acctForm, setAcctForm] = useState({ ...blankAcct });
-  const [acctCreating, setAcctCreating] = useState(false);
-  const [acctResult, setAcctResult] = useState<{ userId: number; login: string; password: string; name: string } | null>(null);
+  // Optional login account created together with the employee, in one form.
+  const [acct, setAcct] = useState<{ createLogin: boolean; password: string; role: 'employee' | 'admin' }>({ createLogin: true, password: generatePassword(), role: 'employee' });
+  const [creating, setCreating] = useState(false);
+  const [acctResult, setAcctResult] = useState<{ login: string; password: string; name: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const openCreate = () => {
+    setForm({ ...blankForm });
+    setAcct({ createLogin: true, password: generatePassword(), role: 'employee' });
+    setAcctResult(null);
+    setShowCreate(true);
+  };
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
       setTimeout(() => setCopied(null), 2000);
     });
-  };
-
-  const handleCreateAccount = async () => {
-    if (!acctForm.name.trim() || !acctForm.login.trim() || !acctForm.password.trim()) return;
-    setAcctCreating(true);
-    try {
-      const login = acctForm.login.trim().toLowerCase();
-      const userId: number = await createRecord('res.users', {
-        name: acctForm.name.trim(),
-        login,
-        password: acctForm.password,
-        email: login,
-      });
-
-      if (acctForm.role === 'admin') {
-        // Resolve base.group_system ID from ir.model.data then grant it
-        const gd = await searchRead<{ res_id: number }>('ir.model.data', {
-          domain: [['module', '=', 'base'], ['name', '=', 'group_system']],
-          fields: ['res_id'], limit: 1,
-        });
-        if (gd[0]?.res_id) {
-          await writeRecord('res.groups', [gd[0].res_id], { users: [[4, userId]] });
-        }
-      }
-
-      // Create the linked HR employee in the same action (the user account and
-      // the employee record point at each other via user_id).
-      const departmentId = await resolveDepartmentId(acctForm.department);
-      await createRecord('hr.employee', {
-        name: acctForm.name.trim(),
-        work_email: login,
-        job_title: acctForm.jobTitle.trim(),
-        user_id: userId,
-        ...(departmentId ? { department_id: departmentId } : {}),
-      });
-
-      // Register this login so the employee can resolve their workspace at sign-in.
-      registerWorkspaceLogins([login]);
-
-      setAcctResult({ userId, login, password: acctForm.password, name: acctForm.name.trim() });
-      await syncData();
-    } catch (e: any) {
-      showToast('Error: ' + (e.message || 'Could not create account'));
-    } finally {
-      setAcctCreating(false);
-    }
   };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -188,18 +147,72 @@ export default function Employees() {
     return matchSearch && matchDept && matchState;
   });
 
+  // One action: create (or update) the employee AND, optionally, a linked login
+  // account. Idempotent by email — if an employee or user with that email exists,
+  // it links to them instead of creating a duplicate.
   const handleCreate = async () => {
-    const newId = Date.now();
-    const empNum = `RBF-${String(employees.length + 1).padStart(3, '0')}`;
-    const newEmp: Employee = { id: newId, employee_number: empNum, ...form };
+    if (!form.name.trim()) { showToast('Full name is required.'); return; }
+    const email = form.email.trim().toLowerCase();
+    if (acct.createLogin && (!email || !acct.password.trim())) {
+      showToast('Email and a password are required to create a login account.');
+      return;
+    }
+    setCreating(true);
     try {
-      const id = await createRecord('hr.employee', { name: form.name, job_title: form.job_title, work_email: form.email, work_phone: form.phone });
-      newEmp.id = id;
-    } catch { /* offline */ }
-    setEmployees(prev => [...prev, newEmp]);
-    setShowCreate(false);
-    setForm({ ...blankForm });
-    showToast('Employee added successfully!');
+      const departmentId = await resolveDepartmentId(form.department);
+      const empVals: Record<string, any> = {
+        name: form.name.trim(),
+        job_title: form.job_title || false,
+        work_email: email || false,
+        work_phone: form.phone || false,
+        ...(departmentId ? { department_id: departmentId } : {}),
+      };
+
+      let createdLogin: { login: string; password: string } | null = null;
+
+      if (acct.createLogin) {
+        // Find or create the user, then link it to the employee.
+        const existingUser = await searchRead<{ id: number }>('res.users', { domain: [['login', '=', email]], fields: ['id'], limit: 1 });
+        let userId = existingUser[0]?.id;
+        if (!userId) {
+          userId = await createRecord('res.users', { name: form.name.trim(), login: email, password: acct.password, email });
+          createdLogin = { login: email, password: acct.password };
+        }
+        if (acct.role === 'admin') {
+          const gd = await searchRead<{ res_id: number }>('ir.model.data', { domain: [['module', '=', 'base'], ['name', '=', 'group_system']], fields: ['res_id'], limit: 1 });
+          if (gd[0]?.res_id) await writeRecord('res.groups', [gd[0].res_id], { users: [[4, userId]] });
+        }
+        empVals.user_id = userId;
+        registerWorkspaceLogins([email]);
+      }
+
+      // Find or create the employee (no duplicate when the email already exists).
+      let employeeId: number | undefined;
+      if (email) {
+        const existingEmp = await searchRead<{ id: number }>('hr.employee', { domain: [['work_email', '=', email]], fields: ['id'], limit: 1 });
+        employeeId = existingEmp[0]?.id;
+      }
+      if (employeeId) {
+        await writeRecord('hr.employee', [employeeId], empVals);
+      } else {
+        await createRecord('hr.employee', empVals);
+      }
+
+      await syncData();
+
+      if (createdLogin) {
+        // Show the credentials screen (keeps the modal open).
+        setAcctResult({ login: createdLogin.login, password: createdLogin.password, name: form.name.trim() });
+      } else {
+        setShowCreate(false);
+        showToast(acct.createLogin ? 'Employee saved and linked to the existing login.' : 'Employee added successfully!');
+        setForm({ ...blankForm });
+      }
+    } catch (e: any) {
+      showToast('Error: ' + (e?.message || 'Could not save employee'));
+    } finally {
+      setCreating(false);
+    }
   };
 
   // Get leave history for drawer
@@ -239,12 +252,8 @@ export default function Employees() {
           <button onClick={syncData} disabled={loading} className='btn-secondary text-xs px-3 py-2 flex items-center gap-1.5'>
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Sync
           </button>
-          <button onClick={() => { setAcctForm({ ...blankAcct, password: generatePassword() }); setAcctResult(null); setShowCreateAccount(true); }}
-            className='btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 border-[#7367f0]/40 text-[#7367f0]'>
-            <UserPlus size={13} /> Create Account
-          </button>
-          <button onClick={() => setShowCreate(true)} className='btn-primary text-xs px-3 py-2 flex items-center gap-1.5'>
-            <Plus size={13} /> Add Employee
+          <button onClick={openCreate} className='btn-primary text-xs px-3 py-2 flex items-center gap-1.5'>
+            <UserPlus size={13} /> Add Employee
           </button>
         </div>
       </div>
@@ -452,102 +461,122 @@ export default function Employees() {
         </div>
       )}
 
-      {/* Create Portal Account Modal */}
-      {showCreateAccount && (
+      {/* Add Employee (+ optional linked login) Modal */}
+      {showCreate && (
         <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
-          <div className='absolute inset-0 bg-black/60 backdrop-blur-sm' onClick={() => { setShowCreateAccount(false); setAcctResult(null); }} />
-          <div className={`relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${isDark ? 'bg-[#161b2e] border border-[#2a3250]' : 'bg-white border border-gray-200'}`}>
-
-            {/* Header */}
-            <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
-              <div className='flex items-center gap-2'>
-                <div className='w-7 h-7 rounded-lg bg-[#7367f0]/15 flex items-center justify-center'>
-                  <ShieldCheck size={14} className='text-[#7367f0]' />
-                </div>
-                <h3 className={`font-black text-sm ${th}`}>Create Employee Portal Account</h3>
-              </div>
-              <button onClick={() => { setShowCreateAccount(false); setAcctResult(null); }} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={15} /></button>
+          <div className='absolute inset-0 bg-black/60 backdrop-blur-sm' onClick={() => { setShowCreate(false); setAcctResult(null); }} />
+          <div className={`relative w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] ${isDark ? 'bg-[#161b2e] border border-[#2a3250]' : 'bg-white border border-gray-200'}`}>
+            <div className='flex items-center justify-between'>
+              <h3 className={`font-black text-sm ${th}`}>{acctResult ? 'Login Created' : 'Add New Employee'}</h3>
+              <button onClick={() => { setShowCreate(false); setAcctResult(null); }} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
             </div>
 
             {!acctResult ? (
-              <div className='p-5 space-y-4'>
-                <p className={`text-xs ${ts}`}>Creates an Odoo internal user. They log in to the portal URL with the credentials below. They get <strong>employee-level access only</strong> (no admin powers).</p>
-
-                <div className='space-y-3'>
-                  <div>
+              <>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                  <div className='sm:col-span-2'>
                     <label className='label'>Full Name <span className='text-red-400'>*</span></label>
-                    <input value={acctForm.name} onChange={e => setAcctForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder='e.g. Rahul Sharma' className={`${inp} w-full`} />
+                    <input placeholder='Full name' value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={`${inp} w-full`} />
                   </div>
                   <div>
-                    <label className='label'>Login Email <span className='text-red-400'>*</span></label>
-                    <input type='email' value={acctForm.login} onChange={e => setAcctForm(f => ({ ...f, login: e.target.value }))}
-                      placeholder='rahul@robifel.in' className={`${inp} w-full`} />
+                    <label className='label'>Job Title</label>
+                    <input placeholder='e.g. Sales Executive' value={form.job_title} onChange={e => setForm({ ...form, job_title: e.target.value })} className={`${inp} w-full`} />
                   </div>
                   <div>
-                    <label className='label'>Initial Password <span className='text-red-400'>*</span></label>
-                    <div className='flex gap-2'>
-                      <input value={acctForm.password} onChange={e => setAcctForm(f => ({ ...f, password: e.target.value }))}
-                        className={`${inp} w-full font-mono text-xs`} />
-                      <button type='button' onClick={() => setAcctForm(f => ({ ...f, password: generatePassword() }))}
-                        title='Regenerate' className={`p-2 rounded-lg border text-xs flex-shrink-0 ${isDark ? 'border-[#2a3250] hover:bg-white/5 text-[#5a6a8a]' : 'border-gray-200 hover:bg-gray-50 text-gray-400'}`}>
-                        <KeyRound size={13} />
-                      </button>
-                    </div>
-                    <p className={`text-[10px] mt-1 ${ts}`}>Share this with the employee and ask them to change it on first login.</p>
+                    <label className='label'>Department</label>
+                    <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className={`${inp} w-full`}>
+                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
                   </div>
+                  <div>
+                    <label className='label'>Email {acct.createLogin && <span className='text-red-400'>*</span>}</label>
+                    <input type='email' placeholder='name@robifel.in' value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={`${inp} w-full`} />
+                  </div>
+                  <div>
+                    <label className='label'>Phone</label>
+                    <input type='tel' placeholder='+91 98765 43210' value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={`${inp} w-full`} />
+                  </div>
+                  <div>
+                    <label className='label'>Date Joined</label>
+                    <input type='date' value={form.date_joined} onChange={e => setForm({ ...form, date_joined: e.target.value })} className={`${inp} w-full`} />
+                  </div>
+                  <div>
+                    <label className='label'>Manager</label>
+                    <input placeholder='Manager name' value={form.manager} onChange={e => setForm({ ...form, manager: e.target.value })} className={`${inp} w-full`} />
+                  </div>
+                  <div>
+                    <label className='label'>Leave Balance (days)</label>
+                    <input type='number' min={0} placeholder='20' value={form.leave_balance || ''} onChange={e => setForm({ ...form, leave_balance: Number(e.target.value) })} className={`${inp} w-full`} />
+                  </div>
+                  <div>
+                    <label className='label'>Status</label>
+                    <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value as Employee['state'] })} className={`${inp} w-full`}>
+                      <option value='active'>Active</option>
+                      <option value='on_leave'>On Leave</option>
+                      <option value='suspended'>Suspended</option>
+                    </select>
+                  </div>
+                </div>
 
-                  {/* Role */}
-                  <div>
-                    <label className='label'>Portal Role</label>
-                    <div className='grid grid-cols-2 gap-2'>
-                      {(['employee', 'admin'] as const).map(r => (
-                        <button key={r} type='button' onClick={() => setAcctForm(f => ({ ...f, role: r }))}
-                          className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all text-left ${acctForm.role === r
-                            ? r === 'admin' ? 'border-rose-500/50 bg-rose-500/10 text-rose-400' : 'border-[#7367f0]/50 bg-[#7367f0]/10 text-[#7367f0]'
-                            : isDark ? 'border-[#2a3250] text-[#5a6a8a] hover:border-[#3a4260]' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
-                          <div className='font-bold capitalize'>{r === 'employee' ? 'Employee' : 'Admin'}</div>
-                          <div className={`text-[10px] mt-0.5 font-normal ${acctForm.role === r ? '' : ts}`}>
-                            {r === 'employee' ? 'Tasks, returns, orders only' : 'Full admin access to portal'}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    {acctForm.role === 'admin' && (
-                      <p className='text-[10px] text-rose-400 mt-1.5 font-medium'>Admin accounts have full Odoo system access. Use with caution.</p>
-                    )}
-                  </div>
+                {/* Login account — created together with the employee, linked via user_id */}
+                <div className={`rounded-xl border p-3 space-y-3 ${isDark ? 'border-[#2a3250] bg-[#111827]/40' : 'border-gray-200 bg-gray-50'}`}>
+                  <label className='flex items-center gap-2.5 cursor-pointer'>
+                    <input type='checkbox' checked={acct.createLogin} onChange={e => setAcct(a => ({ ...a, createLogin: e.target.checked }))}
+                      className='w-4 h-4 rounded text-brand-violet' />
+                    <span className={`text-xs font-bold flex items-center gap-1.5 ${th}`}><ShieldCheck size={13} className='text-[#7367f0]' /> Also create a login account for this employee</span>
+                  </label>
 
-                  <div className='grid grid-cols-2 gap-3'>
-                    <div>
-                      <label className='label'>Job Title</label>
-                      <input value={acctForm.jobTitle} onChange={e => setAcctForm(f => ({ ...f, jobTitle: e.target.value }))}
-                        placeholder='e.g. Warehouse Staff' className={`${inp} w-full`} />
+                  {acct.createLogin && (
+                    <div className='space-y-3 pt-1'>
+                      <p className={`text-[11px] ${ts}`}>A portal login is created and linked to this employee (using the email above). If an employee or user with that email already exists, they're linked instead of duplicated.</p>
+                      <div>
+                        <label className='label'>Initial Password <span className='text-red-400'>*</span></label>
+                        <div className='flex gap-2'>
+                          <input value={acct.password} onChange={e => setAcct(a => ({ ...a, password: e.target.value }))} className={`${inp} w-full font-mono text-xs`} />
+                          <button type='button' onClick={() => setAcct(a => ({ ...a, password: generatePassword() }))}
+                            title='Regenerate' className={`p-2 rounded-lg border text-xs flex-shrink-0 ${isDark ? 'border-[#2a3250] hover:bg-white/5 text-[#5a6a8a]' : 'border-gray-200 hover:bg-gray-50 text-gray-400'}`}>
+                            <KeyRound size={13} />
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className='label'>Portal Role</label>
+                        <div className='grid grid-cols-2 gap-2'>
+                          {(['employee', 'admin'] as const).map(r => (
+                            <button key={r} type='button' onClick={() => setAcct(a => ({ ...a, role: r }))}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all text-left ${acct.role === r
+                                ? r === 'admin' ? 'border-rose-500/50 bg-rose-500/10 text-rose-400' : 'border-[#7367f0]/50 bg-[#7367f0]/10 text-[#7367f0]'
+                                : isDark ? 'border-[#2a3250] text-[#5a6a8a] hover:border-[#3a4260]' : 'border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+                              <div className='font-bold capitalize'>{r === 'employee' ? 'Employee' : 'Admin'}</div>
+                              <div className={`text-[10px] mt-0.5 font-normal ${acct.role === r ? '' : ts}`}>
+                                {r === 'employee' ? 'Tasks, returns, orders only' : 'Full admin access to portal'}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        {acct.role === 'admin' && (
+                          <p className='text-[10px] text-rose-400 mt-1.5 font-medium'>Admin accounts have full Odoo system access. Use with caution.</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <label className='label'>Department</label>
-                      <select value={acctForm.department} onChange={e => setAcctForm(f => ({ ...f, department: e.target.value }))} className={`${inp} w-full`}>
-                        {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className='flex gap-2 pt-1'>
-                  <button onClick={handleCreateAccount} disabled={acctCreating || !acctForm.name.trim() || !acctForm.login.trim() || !acctForm.password.trim()}
+                  <button onClick={handleCreate} disabled={creating || !form.name.trim() || (acct.createLogin && (!form.email.trim() || !acct.password.trim()))}
                     className='btn-primary text-xs px-4 py-2 flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50'>
-                    {acctCreating ? <><RefreshCw size={12} className='animate-spin' /> Creating…</> : <><UserPlus size={12} /> Create Account</>}
+                    {creating ? <><RefreshCw size={12} className='animate-spin' /> Saving…</> : <><UserPlus size={12} /> {acct.createLogin ? 'Create Employee + Login' : 'Add Employee'}</>}
                   </button>
-                  <button onClick={() => { setShowCreateAccount(false); setAcctResult(null); }} className='btn-secondary text-xs px-4 py-2'>Cancel</button>
+                  <button onClick={() => { setShowCreate(false); setAcctResult(null); }} className='btn-secondary text-xs px-4 py-2'>Cancel</button>
                 </div>
-              </div>
+              </>
             ) : (
-              <div className='p-5 space-y-4'>
+              <div className='space-y-4'>
                 <div className='flex items-center gap-2 text-green-400'>
                   <Check size={18} />
-                  <span className='font-bold text-sm'>Account created successfully!</span>
+                  <span className='font-bold text-sm'>Employee + login created!</span>
                 </div>
-                <p className={`text-xs ${ts}`}>A login <strong className={th}>and</strong> a linked HR employee record were created together. Share these credentials with <strong className={th}>{acctResult.name}</strong> — they can sign in immediately with <strong>{acctForm.role}</strong>-level access.</p>
+                <p className={`text-xs ${ts}`}>A login <strong className={th}>and</strong> a linked HR employee record were created together. Share these credentials with <strong className={th}>{acctResult.name}</strong> — they can sign in immediately with <strong>{acct.role}</strong>-level access.</p>
 
                 <div className={`rounded-xl p-4 space-y-3 ${isDark ? 'bg-[#0f1420] border border-[#2a3250]' : 'bg-gray-50 border border-gray-200'}`}>
                   {[
@@ -576,70 +605,9 @@ export default function Employees() {
                   <p className='text-xs text-amber-500 font-medium'>Ask the employee to change their password after first login via Settings → Profile.</p>
                 </div>
 
-                <button onClick={() => { setShowCreateAccount(false); setAcctResult(null); }} className='btn-primary text-xs px-4 py-2 w-full'>Done</button>
+                <button onClick={() => { setShowCreate(false); setAcctResult(null); setForm({ ...blankForm }); }} className='btn-primary text-xs px-4 py-2 w-full'>Done</button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Create Employee Modal */}
-      {showCreate && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
-          <div className='absolute inset-0 bg-black/60 backdrop-blur-sm' onClick={() => setShowCreate(false)} />
-          <div className={`relative w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] ${isDark ? 'bg-[#161b2e] border border-[#2a3250]' : 'bg-white border border-gray-200'}`}>
-            <div className='flex items-center justify-between'>
-              <h3 className={`font-black text-sm ${th}`}>Add New Employee</h3>
-              <button onClick={() => setShowCreate(false)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
-            </div>
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-              <div className='sm:col-span-2'>
-                <label className='label'>Full Name</label>
-                <input placeholder='Full name' value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Job Title</label>
-                <input placeholder='e.g. Sales Executive' value={form.job_title} onChange={e => setForm({ ...form, job_title: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Department</label>
-                <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className={`${inp} w-full`}>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className='label'>Email</label>
-                <input type='email' placeholder='name@robifel.in' value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Phone</label>
-                <input type='tel' placeholder='+91 98765 43210' value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Date Joined</label>
-                <input type='date' value={form.date_joined} onChange={e => setForm({ ...form, date_joined: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Manager</label>
-                <input placeholder='Manager name' value={form.manager} onChange={e => setForm({ ...form, manager: e.target.value })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Leave Balance (days)</label>
-                <input type='number' min={0} placeholder='20' value={form.leave_balance || ''} onChange={e => setForm({ ...form, leave_balance: Number(e.target.value) })} className={`${inp} w-full`} />
-              </div>
-              <div>
-                <label className='label'>Status</label>
-                <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value as Employee['state'] })} className={`${inp} w-full`}>
-                  <option value='active'>Active</option>
-                  <option value='on_leave'>On Leave</option>
-                  <option value='suspended'>Suspended</option>
-                </select>
-              </div>
-            </div>
-            <div className='flex gap-2 pt-2'>
-              <button onClick={handleCreate} className='btn-primary text-xs px-4 py-2 flex-1'>Add Employee</button>
-              <button onClick={() => setShowCreate(false)} className='btn-secondary text-xs px-4 py-2'>Cancel</button>
-            </div>
           </div>
         </div>
       )}
