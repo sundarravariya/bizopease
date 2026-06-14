@@ -14,7 +14,7 @@
     "cap:android": "npm run cap:sync && npx cap open android",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
-    "deploy": "npm run build:web && scp -r dist/* root@82.180.144.9:/var/www/bizopease/"
+    "deploy": "npm run build:web && scp -r dist/* root@82.180.144.9:/var/www/bizopease-portal/"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
