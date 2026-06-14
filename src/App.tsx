@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/layout/AppLayout';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import { AppLockProvider } from './components/AppLock';
 import NfcAutoPunch from './components/NfcAutoPunch';
 
@@ -139,8 +140,9 @@ function InnerApp() {
     <>
       {isAuthenticated && <NfcAutoPunch />}
       <Routes>
-        {/* Login */}
+        {/* Login + public signup */}
         <Route path="/login" element={isAuthenticated ? <RoleLanding /> : <Login />} />
+        <Route path="/signup" element={isAuthenticated ? <RoleLanding /> : <Signup />} />
 
         {/* Root — redirect to workspace dashboard or login */}
         <Route path="/" element={<RoleLanding />} />

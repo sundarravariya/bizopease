@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Lock, Mail, Eye, EyeOff, Zap, Sun, Moon, AlertCircle, RefreshCw, ArrowLeft, CheckCircle, Building2 } from 'lucide-react';
@@ -179,6 +180,10 @@ export default function Login() {
                   {lookupLoading ? 'Finding workspace...' : 'Continue →'}
                 </button>
               </form>
+
+              <p className={`text-center text-sm mt-6 ${dark ? 'text-[#6a7a9a]' : 'text-gray-500'}`}>
+                New to {BRAND}? <Link to="/signup" className="text-[#7367f0] font-bold">Create a workspace</Link>
+              </p>
             </>
           )}
 
