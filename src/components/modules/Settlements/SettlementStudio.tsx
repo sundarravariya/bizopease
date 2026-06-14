@@ -45,6 +45,7 @@ const TABS: { key: PartyType; label: string; icon: any; model: string }[] = [
 
 const TXN_STATE: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pending Cash', cls: 'bg-amber-500/15 text-amber-500 border border-amber-500/25' },
+  partial: { label: 'Partially Received', cls: 'bg-orange-500/15 text-orange-500 border border-orange-500/25' },
   received: { label: 'Cash Received', cls: 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/25' },
   agent_paid: { label: 'Agent Paid', cls: 'bg-blue-500/15 text-blue-500 border border-blue-500/25' },
 };
@@ -138,17 +139,26 @@ export default function SettlementStudio() {
           fields: ['id', 'date', 'name', 'transfer_amount', 'deduction_amount', 'expected_cash_amount', 'actual_cash_received', 'received_by_id', 'state'],
           order: 'date desc, id desc', limit: 0,
         });
-        items = (rows || []).map(r => ({
-          id: r.id, date: r.date, title: r.name || 'Transaction',
-          subtitle: Array.isArray(r.received_by_id) ? `Received by ${r.received_by_id[1]}` : 'Bank transfer',
-          amount: r.transfer_amount || 0, direction: 'out', status: r.state,
-          detail: [
-            { label: 'Transfer', value: r.transfer_amount || 0, tone: 'text-blue-400' },
-            { label: 'Deducted', value: r.deduction_amount || 0, tone: 'text-amber-500' },
-            { label: 'Expected', value: r.expected_cash_amount || 0, tone: 'text-violet-400' },
-            { label: 'Received', value: r.actual_cash_received || 0, tone: 'text-emerald-500' },
-          ],
-        }));
+        items = (rows || []).map(r => {
+          const received = r.actual_cash_received || 0;
+          const expected = r.expected_cash_amount || 0;
+          const remaining = Math.max(expected - received, 0);
+          // Derive a "partial" status when some -- but not all -- of the expected cash is in.
+          let status = r.state;
+          if (r.state !== 'received' && r.state !== 'agent_paid' && received > 0 && remaining > 0.01) status = 'partial';
+          const base = Array.isArray(r.received_by_id) ? `Received by ${r.received_by_id[1]}` : 'Bank transfer';
+          return {
+            id: r.id, date: r.date, title: r.name || 'Transaction',
+            subtitle: status === 'partial' ? `${base} - ${inr(remaining)} left to collect` : base,
+            amount: r.transfer_amount || 0, direction: 'out' as const, status,
+            detail: [
+              { label: 'Transfer', value: r.transfer_amount || 0, tone: 'text-blue-400' },
+              { label: 'Deducted', value: r.deduction_amount || 0, tone: 'text-amber-500' },
+              { label: 'Expected', value: expected, tone: 'text-violet-400' },
+              { label: 'Received', value: received, tone: 'text-emerald-500' },
+            ],
+          };
+        });
       } else if (type === 'associate') {
         const rows = await searchRead<any>('flipkart.associate.ledger', {
           domain: [['associate_id', '=', party.id]],
@@ -526,14 +536,25 @@ const TAB_ENTRY_MAP: Record<PartyType, { key: string; label: string }[]> = {
 };
 const EXPENSE_ENTRY = { key: 'expense', label: 'Add Expense' };
 
+// The primary money field for each entry type -- rendered as the big editable
+// number at the top of the sheet.
+const AMOUNT_FIELD: Record<string, { field: string; label: string }> = {
+  bank_transfer: { field: 'transfer_amount', label: 'Transfer Amount' },
+  receive_payment: { field: 'payment_received', label: 'Cash Received' },
+  agent_payment: { field: 'agent_payment_amount', label: 'Agent Payment' },
+  expense: { field: 'expense_amount', label: 'Expense Amount' },
+  associate_transfer: { field: 'transfer_amount', label: 'Transfer Amount' },
+};
+
 function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, partners, onClose, onSaved, onError }: {
   isDark: boolean; activeTab: PartyType; vendors: Ref[]; associates: Ref[]; agents: Ref[]; partners: Ref[];
   onClose: () => void; onSaved: () => void; onError: (m: string) => void;
 }) {
   const tabTypes = TAB_ENTRY_MAP[activeTab] || TAB_ENTRY_MAP.vendor;
   const [entryType, setEntryType] = useState(tabTypes[0].key);
+  const amt = AMOUNT_FIELD[entryType] || AMOUNT_FIELD.bank_transfer;
   const [form, setForm] = useState<Record<string, any>>({ date: new Date().toISOString().slice(0, 10) });
-  const [vendorTxns, setVendorTxns] = useState<Array<{ id: number; name: string; expectedCash: number }>>([]);
+  const [vendorTxns, setVendorTxns] = useState<Array<{ id: number; name: string; expectedCash: number; received: number; remaining: number }>>([]);
   const [saving, setSaving] = useState(false);
   const setF = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
 
@@ -543,12 +564,21 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, part
 
   const loadTxns = async (vendorId: number) => {
     try {
+      // Fetch ALL of the vendor's transactions and keep any that aren't fully
+      // settled (expected > received) -- this includes both pending and PARTIAL.
       const r = await searchRead<any>('flipkart.bill.payment.transaction', {
-        fields: ['id', 'name', 'expected_cash_amount'],
-        domain: [['vendor_id', '=', vendorId], ['payment_received', '=', 0]],
-        limit: 50,
+        fields: ['id', 'name', 'expected_cash_amount', 'actual_cash_received', 'state'],
+        domain: [['vendor_id', '=', vendorId]],
+        order: 'date desc, id desc', limit: 0,
       });
-      setVendorTxns((r || []).map((row: any) => ({ id: row.id, name: row.name, expectedCash: row.expected_cash_amount || 0 })));
+      const open = (r || [])
+        .map((row: any) => {
+          const expectedCash = row.expected_cash_amount || 0;
+          const received = row.actual_cash_received || 0;
+          return { id: row.id, name: row.name, expectedCash, received, remaining: Math.max(expectedCash - received, 0) };
+        })
+        .filter(t => t.remaining > 0.01);
+      setVendorTxns(open);
     } catch { setVendorTxns([]); }
   };
 
@@ -594,16 +624,30 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, part
         ))}
       </div>
 
-      <div className="space-y-3 mt-3">
+      {/* Big editable amount -- uses the device numeric keyboard (inputMode) */}
+      <div className="text-center pt-5 pb-4">
+        <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-[#6a7a9a]' : 'text-gray-400'}`}>{amt.label}</p>
+        <div className="flex items-center justify-center gap-1 mt-1">
+          <span className={`text-3xl font-black ${isDark ? 'text-[#4a5580]' : 'text-gray-300'}`}>Rs.</span>
+          <input
+            inputMode="decimal" type="text" autoFocus
+            value={form[amt.field] || ''}
+            onChange={e => setF(amt.field, e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="0"
+            className={`text-5xl font-black bg-transparent outline-none text-center w-[58%] max-w-[260px] ${isDark ? 'text-white placeholder:text-[#2a3250]' : 'text-gray-900 placeholder:text-gray-200'}`}
+          />
+        </div>
+        {entryType === 'bank_transfer' && expectedCash && (
+          <p className={`text-xs mt-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-400'}`}>Expected cash: <span className="font-black text-[#7367f0]">{inr(parseFloat(expectedCash))}</span></p>
+        )}
+      </div>
+
+      <div className="space-y-3">
         <div><label className={lbl}>Date *</label><input type="date" value={form.date || ''} onChange={e => setF('date', e.target.value)} className={field} /></div>
 
         {entryType === 'bank_transfer' && <>
           <Sel label="Vendor *" value={form.vendor_id} onChange={v => setF('vendor_id', v)} options={vendors} placeholder="Select vendor" />
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={lbl}>Transfer Amount *</label><input type="number" value={form.transfer_amount || ''} onChange={e => setF('transfer_amount', e.target.value)} placeholder="0.00" className={field} /></div>
-            <div><label className={lbl}>Deduction %</label><input type="number" step="0.01" value={form.deduction_percent || ''} onChange={e => setF('deduction_percent', e.target.value)} placeholder="0.00" className={field} /></div>
-          </div>
-          {expectedCash && <div className={`rounded-xl px-3 py-2.5 text-xs ${itemBg}`}>Expected Cash: <span className="font-black text-[#7367f0]">{inr(parseFloat(expectedCash))}</span></div>}
+          <div><label className={lbl}>Deduction %</label><input type="number" step="0.01" inputMode="decimal" value={form.deduction_percent || ''} onChange={e => setF('deduction_percent', e.target.value)} placeholder="0.00" className={field} /></div>
           <div><label className={lbl}>Note</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} className={field} /></div>
         </>}
 
@@ -614,17 +658,19 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, part
               <label className={lbl}>Pending Transaction</label>
               <div className="space-y-1.5 max-h-40 overflow-y-auto">
                 {vendorTxns.map(txn => (
-                  <button key={txn.id} onClick={() => setF('transaction_id', txn.id)}
+                  <button key={txn.id} onClick={() => { setF('transaction_id', txn.id); if (!form.payment_received) setF('payment_received', String(txn.remaining)); }}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-left text-xs transition-all ${form.transaction_id === txn.id ? 'border-[#7367f0] bg-[#7367f0]/10' : isDark ? 'border-[#2a3250] bg-[#12172a]' : 'border-gray-200 bg-gray-50'}`}>
                     <span className={isDark ? 'text-white' : 'text-gray-900'}>{txn.name}</span>
-                    {txn.expectedCash > 0 && <span className="font-black text-emerald-500 ml-2 flex-shrink-0">{inr(txn.expectedCash)}</span>}
+                    <span className="flex flex-col items-end ml-2 flex-shrink-0 text-right">
+                      <span className="font-black text-emerald-500">{inr(txn.remaining)} left</span>
+                      {txn.received > 0 && <span className="text-[10px] text-orange-500">partial - {inr(txn.received)} of {inr(txn.expectedCash)}</span>}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
           )}
           <Sel label="Received By *" value={form.received_by_id} onChange={v => setF('received_by_id', v)} options={associates} placeholder="Select associate" />
-          <div><label className={lbl}>Cash Received *</label><input type="number" value={form.payment_received || ''} onChange={e => setF('payment_received', e.target.value)} placeholder="0.00" className={field} /></div>
           <div><label className={lbl}>Note</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} className={field} /></div>
         </>}
 
@@ -638,7 +684,10 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, part
                   <button key={txn.id} onClick={() => setF('transaction_id', txn.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-left text-xs transition-all ${form.transaction_id === txn.id ? 'border-[#7367f0] bg-[#7367f0]/10' : isDark ? 'border-[#2a3250] bg-[#12172a]' : 'border-gray-200 bg-gray-50'}`}>
                     <span className={isDark ? 'text-white' : 'text-gray-900'}>{txn.name}</span>
-                    {txn.expectedCash > 0 && <span className="font-black text-emerald-500 ml-2 flex-shrink-0">{inr(txn.expectedCash)}</span>}
+                    <span className="flex flex-col items-end ml-2 flex-shrink-0 text-right">
+                      <span className="font-black text-emerald-500">{inr(txn.remaining)} left</span>
+                      {txn.received > 0 && <span className="text-[10px] text-orange-500">partial - {inr(txn.received)} of {inr(txn.expectedCash)}</span>}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -652,20 +701,17 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, part
           </div>
           {form.agent_payment_source === 'associate' && <Sel label="Associate Who Paid *" value={form.received_by_id} onChange={v => setF('received_by_id', v)} options={associates} placeholder="Select associate" />}
           <Sel label="Carrying Agent *" value={form.carrying_agent_id} onChange={v => setF('carrying_agent_id', v)} options={agents} placeholder="Select agent" />
-          <div><label className={lbl}>Agent Payment Amount *</label><input type="number" value={form.agent_payment_amount || ''} onChange={e => setF('agent_payment_amount', e.target.value)} placeholder="0.00" className={field} /></div>
           <div><label className={lbl}>Note</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} className={field} /></div>
         </>}
 
         {entryType === 'expense' && <>
           <Sel label="Paid By (Associate) *" value={form.received_by_id} onChange={v => setF('received_by_id', v)} options={associates} placeholder="Select associate" />
-          <div><label className={lbl}>Expense Amount *</label><input type="number" value={form.expense_amount || ''} onChange={e => setF('expense_amount', e.target.value)} placeholder="0.00" className={field} /></div>
-          <div><label className={lbl}>Expense Description *</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} placeholder="e.g. Delivery charges, packing material…" className={field} /></div>
+          <div><label className={lbl}>Expense Description *</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} placeholder="e.g. Delivery charges, packing material" className={field} /></div>
         </>}
 
         {entryType === 'associate_transfer' && <>
           <Sel label="From Associate *" value={form.from_associate_id} onChange={v => setF('from_associate_id', v)} options={associates} placeholder="Select associate" />
           <Sel label="To Associate *" value={form.to_associate_id} onChange={v => setF('to_associate_id', v)} options={associates} placeholder="Select associate" />
-          <div><label className={lbl}>Transfer Amount *</label><input type="number" value={form.transfer_amount || ''} onChange={e => setF('transfer_amount', e.target.value)} placeholder="0.00" className={field} /></div>
         </>}
       </div>
 

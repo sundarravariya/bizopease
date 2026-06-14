@@ -283,19 +283,26 @@ export default function ExpenseManager() {
               <>
                 <div className={`rounded-2xl p-4 border ${card}`}>
                   <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${sub}`}>Spending by Category</p>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={90}
-                        dataKey="value" nameKey="name" paddingAngle={2}>
-                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
-                      </Pie>
-                      <Tooltip formatter={(val: number) => [inr(val), '']}
-                        contentStyle={{ background: isDark ? '#1e2440' : '#fff', border: '1px solid #2a3250', borderRadius: 12, fontSize: 12 }}
-                        labelStyle={{ color: isDark ? '#fff' : '#111' }} />
-                      <Legend iconType="circle" iconSize={8}
-                        formatter={(v) => <span style={{ fontSize: 11, color: isDark ? '#8897b5' : '#6b7280' }}>{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="relative">
+                    <ResponsiveContainer width="100%" height={230}>
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={62} outerRadius={92}
+                          dataKey="value" nameKey="name" paddingAngle={2}>
+                          {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="transparent" />)}
+                        </Pie>
+                        <Tooltip formatter={(val: number) => [inr(val), '']}
+                          contentStyle={{ background: isDark ? '#1e2440' : '#fff', border: '1px solid #2a3250', borderRadius: 12, fontSize: 12 }}
+                          labelStyle={{ color: isDark ? '#fff' : '#111' }} />
+                        <Legend iconType="circle" iconSize={8}
+                          formatter={(v) => <span style={{ fontSize: 11, color: isDark ? '#8897b5' : '#6b7280' }}>{v}</span>} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {/* Center total -- overlaid on the donut hole */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ bottom: 34 }}>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${sub}`}>Total Spent</span>
+                      <span className={`text-lg font-black ${txt}`}>{inr(totalSpend)}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className={`rounded-2xl border divide-y ${card} ${isDark ? 'divide-[#2a3250]' : 'divide-gray-100'}`}>
                   {[...pieData].sort((a, b) => b.value - a.value).map(c => {
