@@ -18,6 +18,12 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const prefixPath = (path: string) => {
+    if (path === '#') return '#';
+    const db = user?.db || 'robifel';
+    return `/${db}${path}`;
+  };
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifOpen, setNotifOpen] = useState(false);
@@ -101,7 +107,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               ].filter(i => !searchQuery || i.label.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map(item => (
                   <button key={item.path}
-                    onClick={() => { navigate(item.path); setSearchOpen(false); }}
+                    onClick={() => { navigate(prefixPath(item.path)); setSearchOpen(false); }}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${isDark ? 'hover:bg-white/5 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}`}
                   >
                     <span>{item.icon}</span>
@@ -144,7 +150,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           {/* DB indicator */}
           <div className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'bg-[#1e2440] text-[#7367f0] border border-[#2a3250]' : 'bg-violet-50 text-violet-600 border border-violet-100'}`}>
             <Database size={12} />
-            <span>robifel</span>
+            <span>{user?.db || 'robifel'}</span>
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
           </div>
 
@@ -234,7 +240,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                   ].map(item => (
                     <button
                       key={item.label}
-                      onClick={() => { navigate(item.path); setUserOpen(false); }}
+                      onClick={() => { navigate(prefixPath(item.path)); setUserOpen(false); }}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-600 hover:bg-gray-50'}`}
                     >
                       <item.icon size={15} className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'} />

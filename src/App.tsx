@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, Component, ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/layout/AppLayout';
@@ -97,7 +97,7 @@ function PageLoader() {
     <div className="flex items-center justify-center h-full min-h-[50vh]">
       <div className="flex flex-col items-center gap-3">
         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#7367f0] to-[#3d5af1] flex items-center justify-center animate-pulse">
-          <span className="text-white font-black text-base">R</span>
+          <span className="text-white font-black text-base">B</span>
         </div>
         <p className="text-sm text-[#7367f0] font-medium animate-pulse">Loading...</p>
       </div>
@@ -107,14 +107,28 @@ function PageLoader() {
 
 // ─── Guard: redirect to login if not authenticated ──────────────────────────
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  const { isAuthenticated, user } = useAuth();
+  const { workspace } = useParams<{ workspace: string }>();
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Authorization: check if workspace slug matches user's database name
+  if (workspace && workspace.toLowerCase() !== user.db.toLowerCase()) {
+    console.warn(`[Auth] Workspace mismatch: requested "${workspace}", user has "${user.db}"`);
+    return <Navigate to={`/${user.db}/dashboard`} replace />;
+  }
+
+  return <>{children}</>;
 }
 
 // ─── Role-based landing: managers → dashboard, employees → their tasks ───────
 function RoleLanding() {
   const { user } = useAuth();
-  return <Navigate to={user?.is_admin ? '/dashboard' : '/tasks'} replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  const workspaceSlug = user.db || 'robifel';
+  return <Navigate to={`/${workspaceSlug}/${user.is_admin ? 'dashboard' : 'tasks'}`} replace />;
 }
 
 // ─── Inner app (after auth context is available) ────────────────────────────
@@ -125,23 +139,27 @@ function InnerApp() {
     <>
       {isAuthenticated && <NfcAutoPunch />}
       <Routes>
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+        {/* Login */}
+        <Route path="/login" element={isAuthenticated ? <RoleLanding /> : <Login />} />
 
+        {/* Root — redirect to workspace dashboard or login */}
+        <Route path="/" element={<RoleLanding />} />
+
+        {/* Protected app shell nested under /:workspace */}
         <Route
-          path="/"
+          path="/:workspace"
           element={
             <PrivateRoute>
               <AppLayout />
             </PrivateRoute>
           }
         >
-          {/* Default redirect — managers to dashboard, employees to their tasks */}
           <Route index element={<RoleLanding />} />
 
           {/* ─── Dashboard ─── */}
           <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
 
-          {/* ─── Tasks (role-adaptive) ─── */}
+          {/* ─── Tasks ─── */}
           <Route path="tasks" element={<Suspense fallback={<PageLoader />}><Tasks /></Suspense>} />
 
           {/* ─── Sales ─── */}
@@ -194,8 +212,8 @@ function InnerApp() {
           <Route path="flipkart/upload"         element={<Suspense fallback={<PageLoader />}><UploadCenter /></Suspense>} />
           <Route path="flipkart/setup"          element={<Suspense fallback={<PageLoader />}><FlipkartSetup /></Suspense>} />
           <Route path="flipkart/ledger"         element={<Suspense fallback={<PageLoader />}><UnifiedLedger /></Suspense>} />
-          <Route path="flipkart/quick-sale"    element={<Suspense fallback={<PageLoader />}><QuickSaleOrder /></Suspense>} />
-          <Route path="flipkart/create-entry" element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
+          <Route path="flipkart/quick-sale"     element={<Suspense fallback={<PageLoader />}><QuickSaleOrder /></Suspense>} />
+          <Route path="flipkart/create-entry"   element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
 
           {/* ─── B2B ─── */}
           <Route path="b2b/orders" element={<Suspense fallback={<PageLoader />}><B2BOrders /></Suspense>} />
@@ -217,9 +235,12 @@ function InnerApp() {
           <Route path="settings/technical" element={<Suspense fallback={<PageLoader />}><GeneralSettings /></Suspense>} />
           <Route path="settings/profile"   element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
 
-          {/* ─── 404 ─── */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* ─── 404 → dashboard ─── */}
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
+
+        {/* Catch-all: redirect to role landing */}
+        <Route path="*" element={<RoleLanding />} />
       </Routes>
     </>
   );

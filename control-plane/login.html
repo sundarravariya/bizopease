@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizOpease — Sign In</title>
+  <meta name="description" content="Sign in to your BizOpease business workspace" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #08080e;
+      --surface: #0f0f18;
+      --surface2: #17171f;
+      --surface3: #202030;
+      --border: #26263a;
+      --text: #eeeef5;
+      --muted: #8080a0;
+      --accent: #7367f0;
+      --accent2: #9b8ffa;
+      --glow: rgba(115,103,240,0.18);
+      --green: #10b981;
+      --red: #ef4444;
+      --font: 'Plus Jakarta Sans', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── BACKGROUND GLOW ── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(115,103,240,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -10%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(59,130,246,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-wrap {
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── BRAND ── */
+    .brand {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .brand-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .brand-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), #3d5af1);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 8px 20px var(--glow);
+    }
+    .brand-name {
+      font-size: 1.75rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+    }
+    .brand-name span { color: var(--accent); }
+    .brand-sub {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 36px 32px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+      position: relative;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(115,103,240,0.4), transparent);
+    }
+
+    /* ── STEPS ── */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* ── STEP HEADER ── */
+    .step-header { margin-bottom: 24px; }
+    .step-header h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+    .step-header p { color: var(--muted); font-size: 13px; margin-top: 5px; line-height: 1.5; }
+
+    /* ── WORKSPACE FOUND BADGE ── */
+    .ws-found {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 20px;
+    }
+    .ws-found-icon { font-size: 18px; flex-shrink: 0; }
+    .ws-found-text { font-size: 13px; }
+    .ws-found-name { font-weight: 700; color: var(--green); font-size: 14px; }
+    .ws-found-db { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: 11px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap input {
+      width: 100%; padding: 12px 14px 12px 40px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text); font-size: 14px;
+      font-family: var(--font);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    .input-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--glow);
+    }
+    .input-wrap input::placeholder { color: var(--muted); }
+    .input-icon {
+      position: absolute; left: 13px; top: 50%;
+      transform: translateY(-50%); font-size: 16px;
+      pointer-events: none; color: var(--muted);
+    }
+    .input-wrap input.no-icon { padding-left: 14px; }
+
+    /* ── ERROR ALERT ── */
+    .error-box {
+      display: none;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      font-size: 13px; color: #f87171;
+      margin-bottom: 18px;
+      display: none;
+      align-items: center; gap: 8px;
+    }
+    .error-box.show { display: flex; }
+
+    /* ── BTN ── */
+    .btn-primary {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, var(--accent), #3d5af1);
+      color: #fff; font-family: var(--font);
+      font-size: 14px; font-weight: 800;
+      border: none; border-radius: var(--radius-sm);
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 6px 20px var(--glow);
+      letter-spacing: 0.01em;
+      position: relative; overflow: hidden;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 24px var(--glow); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-primary .spinner {
+      display: none; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+    .btn-primary.loading .btn-text { display: none; }
+    .btn-primary.loading .spinner { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-back {
+      background: none; border: none;
+      color: var(--muted); font-size: 13px; font-family: var(--font);
+      font-weight: 600; cursor: pointer; padding: 0;
+      margin-bottom: 20px; display: flex; align-items: center; gap: 6px;
+      transition: color 0.15s;
+    }
+    .btn-back:hover { color: var(--text); }
+
+    /* ── DIVIDER ── */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--muted); font-size: 12px; margin: 20px 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── HELP TEXT ── */
+    .help-text {
+      text-align: center; font-size: 12px; color: var(--muted);
+      margin-top: 18px; line-height: 1.6;
+    }
+    .help-text a { color: var(--accent2); text-decoration: none; }
+    .help-text a:hover { text-decoration: underline; }
+
+    /* ── SUCCESS STATE ── */
+    .success-state {
+      text-align: center; padding: 10px 0;
+    }
+    .success-icon {
+      width: 56px; height: 56px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 50%; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 24px; margin: 0 auto 16px;
+      animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .success-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+    .success-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+    .success-ws-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 8px 14px;
+      font-family: var(--mono); font-size: 13px; color: var(--accent2);
+      margin-bottom: 20px;
+    }
+    .progress-bar {
+      height: 3px; background: var(--surface2);
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #3d5af1);
+      border-radius: 2px;
+      animation: fill 1.8s ease forwards;
+    }
+    @keyframes fill { from { width: 0; } to { width: 100%; } }
+
+    /* ── FOOTER ── */
+    .page-footer {
+      text-align: center; margin-top: 24px;
+      font-size: 12px; color: var(--muted);
+    }
+    .page-footer a { color: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="brand">
+    <div class="brand-logo">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-name">Biz<span>Opease</span></div>
+    </div>
+    <p class="brand-sub">Business Operations Platform</p>
+  </div>
+
+  <div class="card">
+
+    <!-- STEP 1: Enter email -->
+    <div class="step active" id="step-email">
+      <div class="step-header">
+        <h2>Welcome back</h2>
+        <p>Enter your business email to find your workspace</p>
+      </div>
+
+      <div class="error-box" id="email-error">
+        <span>⚠</span><span id="email-error-msg">Error message</span>
+      </div>
+
+      <form id="email-form" onsubmit="handleEmailSubmit(event)">
+        <div class="form-group">
+          <label>Business Email</label>
+          <div class="input-wrap">
+            <span class="input-icon">✉</span>
+            <input type="email" id="email-input" placeholder="you@company.com"
+              autocomplete="email" autocapitalize="none" required />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" id="email-btn">
+          <span class="btn-text">Find My Workspace →</span>
+          <div class="spinner"></div>
+        </button>
+      </form>
+
+      <p class="help-text">
+        New to BizOpease? <a href="/">Get started free</a>
+      </p>
+    </div>
+
+    <!-- STEP 2: Enter password -->
+    <div class="step" id="step-password">
+      <button class="btn-back" onclick="goBack()">← Back</button>
+
+      <div class="step-header">
+        <h2>Enter your password</h2>
+        <p>Signing in to your workspace</p>
+      </div>
+
+      <div class="ws-found" id="ws-found-box">
+        <div class="ws-found-icon">🏢</div>
+        <div>
+          <div class="ws-found-name" id="ws-found-name">Workspace</div>
+          <div class="ws-found-db" id="ws-found-db">db: ws_workspace</div>
+        </div>
+      </div>
+
+      <div class="error-box" id="pass-error">
+        <span>⚠</span><span id="pass-error-msg">Error message</span>
+      </div>
+
+      <form id="pass-form" onsubmit="handlePassSubmit(event)">
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="pass-input" placeholder="••••••••"
+              autocomplete="current-password" required autofocus />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" id="pass-btn">
+          <span class="btn-text">Sign In to Workspace</span>
+          <div class="spinner"></div>
+        </button>
+      </form>
+    </div>
+
+    <!-- STEP 3: Success / redirect -->
+    <div class="step" id="step-success">
+      <div class="success-state">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Signed in successfully</div>
+        <div class="success-sub">Opening your BizOpease workspace...</div>
+        <div class="success-ws-chip">
+          <span>🏢</span>
+          <span id="success-ws-label">workspace</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="page-footer">
+    Super Admin? <a href="/superadmin.html">Admin Panel →</a>
+  </p>
+</div>
+
+<script>
+'use strict';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let foundWorkspace = null; // { tenantId, workspaceName, odooDb }
+let userEmail = '';
+
+// ─── INIT: redirect if already logged in ─────────────────────────────────────
+(function checkExistingAuth() {
+  const stored = localStorage.getItem('bizopease_auth');
+  if (!stored) return;
+  try {
+    const auth = JSON.parse(stored);
+    if (auth.token && auth.workspace) {
+      // Validate token is not expired (JWT exp check)
+      const payload = JSON.parse(atob(auth.token.split('.')[1]));
+      if (payload.exp * 1000 > Date.now()) {
+        window.location.href = '/' + auth.workspace;
+        return;
+      }
+    }
+  } catch {}
+  localStorage.removeItem('bizopease_auth');
+})();
+
+// ─── STEP 1: FIND WORKSPACE BY EMAIL ─────────────────────────────────────────
+async function handleEmailSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById('email-input').value.trim().toLowerCase();
+  if (!email) return;
+
+  userEmail = email;
+  const btn = document.getElementById('email-btn');
+  const errBox = document.getElementById('email-error');
+  errBox.classList.remove('show');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  try {
+    const r = await fetch('/api/auth/find-workspace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await r.json();
+
+    if (!r.ok || data.error) {
+      showError('email-error', 'email-error-msg', data.error || 'No workspace found for this email address.');
+      return;
+    }
+
+    foundWorkspace = data; // { tenantId, workspaceName, odooDb }
+    document.getElementById('ws-found-name').textContent = data.workspaceName || data.tenantId;
+    document.getElementById('ws-found-db').textContent = 'db: ' + data.odooDb;
+    showStep('step-password');
+    setTimeout(() => document.getElementById('pass-input').focus(), 100);
+
+  } catch (ex) {
+    showError('email-error', 'email-error-msg', 'Network error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ─── STEP 2: AUTHENTICATE WITH PASSWORD ──────────────────────────────────────
+async function handlePassSubmit(e) {
+  e.preventDefault();
+  const password = document.getElementById('pass-input').value;
+  if (!password || !foundWorkspace) return;
+
+  const btn = document.getElementById('pass-btn');
+  const errBox = document.getElementById('pass-error');
+  errBox.classList.remove('show');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: userEmail,
+        password,
+        tenantId: foundWorkspace.tenantId
+      })
+    });
+    const data = await r.json();
+
+    if (!r.ok || data.error) {
+      showError('pass-error', 'pass-error-msg', data.error || 'Incorrect password. Please try again.');
+      return;
+    }
+
+    // ── SUCCESS ──
+    localStorage.setItem('bizopease_auth', JSON.stringify({
+      token: data.token,
+      workspace: data.workspace,
+      workspaceName: data.workspaceName,
+      odooDb: data.odooDb,
+      email: userEmail,
+      odooSessionId: data.odooSessionId || ''
+    }));
+
+    document.getElementById('success-ws-label').textContent = data.workspaceName || data.workspace;
+    showStep('step-success');
+
+    // Redirect after animation
+    setTimeout(() => {
+      window.location.href = '/' + data.workspace;
+    }, 1800);
+
+  } catch (ex) {
+    showError('pass-error', 'pass-error-msg', 'Network error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function showStep(stepId) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById(stepId).classList.add('active');
+}
+
+function goBack() {
+  document.getElementById('pass-input').value = '';
+  document.getElementById('pass-error').classList.remove('show');
+  foundWorkspace = null;
+  showStep('step-email');
+}
+
+function showError(boxId, msgId, msg) {
+  document.getElementById(msgId).textContent = msg;
+  document.getElementById(boxId).classList.add('show');
+}
+</script>
+</body>
+</html>

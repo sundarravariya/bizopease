@@ -24,7 +24,7 @@ import {
   Building2, Receipt, ClipboardList, Contact2,
   CalendarDays, Briefcase, GitPullRequest, Layers,
   BookOpen, Wrench, ShieldCheck, Bell, X,
-  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy, Receipt
+  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy
 } from 'lucide-react';
 
 interface NavItem {
@@ -256,10 +256,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return installed.has(mod);
   };
 
+  const prefixPath = (path?: string) => {
+    if (!path) return undefined;
+    const db = user?.db || 'robifel';
+    return `/${db}${path}`;
+  };
+
   const baseItems = user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV;
   const items = baseItems
     .filter(it => hasModule(it.id))
-    .map(it => it.children ? { ...it, children: it.children.filter(c => hasModule(c.id)) } : it)
+    .map(it => {
+      const path = prefixPath(it.path);
+      const children = it.children
+        ? it.children.filter(c => hasModule(c.id)).map(c => ({ ...c, path: prefixPath(c.path) }))
+        : undefined;
+      return { ...it, path, children };
+    })
     .filter(it => !it.children || it.children.length > 0 || !!it.path);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     // Auto-open the group containing the active path

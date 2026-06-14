@@ -3,396 +3,1499 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BizOpease — Super Admin Control Panel</title>
+  <title>BizOpease — Super Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #09090d;
-      --surface: #12121a;
-      --surface2: #1b1b26;
-      --border: #29293a;
+      --surface: #111118;
+      --surface2: #1a1a24;
+      --surface3: #22222f;
+      --border: #2a2a3a;
+      --border2: #3a3a50;
       --text: #f0f0f5;
-      --muted: #8c8caf;
+      --muted: #8888aa;
       --accent: #7367f0;
-      --accent-glow: rgba(115,103,240,0.15);
+      --accent2: #3d5af1;
+      --accent-glow: rgba(115,103,240,0.2);
       --green: #10b981;
+      --green-dim: rgba(16,185,129,0.12);
       --red: #ef4444;
+      --red-dim: rgba(239,68,68,0.12);
       --yellow: #f59e0b;
-      --radius: 16px;
-      --radius-sm: 10px;
+      --yellow-dim: rgba(245,158,11,0.12);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59,130,246,0.12);
+      --radius: 14px;
+      --radius-sm: 9px;
+      --radius-xs: 6px;
       --font: 'Plus Jakarta Sans', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --sidebar: 230px;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; overflow-x: hidden; }
+    a { color: inherit; text-decoration: none; }
     button { cursor: pointer; border: none; outline: none; font-family: var(--font); }
     input, select, textarea { font-family: var(--font); outline: none; }
 
-    /* Login Screen */
-    #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(ellipse at 50% 0%, rgba(115,103,240,0.08) 0%, transparent 60%); }
-    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px 40px; width: 100%; max-width: 420px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-    .login-header { text-align: center; margin-bottom: 30px; }
-    .login-header h2 { font-size: 1.8rem; font-weight: 800; }
-    .login-header h2 span { color: var(--accent); }
-    .login-header p { font-size: 0.85rem; color: var(--muted); margin-top: 5px; }
+    /* ── TOAST ── */
+    #toast { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast-item { padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+      min-width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); transition: opacity .3s; }
+    .toast-item.success { background: var(--green-dim); border: 1px solid rgba(16,185,129,0.3); color: #34d399; }
+    .toast-item.error   { background: var(--red-dim);   border: 1px solid rgba(239,68,68,0.3);  color: #f87171; }
+    .toast-item.info    { background: var(--blue-dim);  border: 1px solid rgba(59,130,246,0.3); color: #93c5fd; }
 
-    .form-group { margin-bottom: 20px; }
-    .form-group label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.05em; }
-    .form-group input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text); font-size: 14px; transition: border-color 0.2s; }
-    .form-group input:focus { border-color: var(--accent); }
-    .btn-login { width: 100%; padding: 13px; background: var(--accent); color: white; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; box-shadow: 0 4px 16px var(--accent-glow); transition: opacity 0.2s; }
-    .btn-login:hover { opacity: 0.9; }
-    .login-error { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; }
+    /* ── LOGIN ── */
+    #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh;
+      background: radial-gradient(ellipse at 50% 0%, rgba(115,103,240,0.1) 0%, transparent 70%); }
+    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 44px 40px; width: 100%; max-width: 420px; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+    .login-brand { text-align: center; margin-bottom: 32px; }
+    .login-brand h1 { font-size: 2rem; font-weight: 900; letter-spacing: -0.04em; }
+    .login-brand h1 span { color: var(--accent); }
+    .login-brand p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .login-err { color: var(--red); font-size: 13px; margin-bottom: 16px; text-align: center;
+      background: var(--red-dim); padding: 10px; border-radius: var(--radius-xs); display: none; }
 
-    /* Dashboard Shell */
+    /* ── FORM CONTROLS ── */
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 7px; letter-spacing: 0.06em; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 11px 14px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); font-size: 14px; transition: border-color 0.2s; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+    .form-group select option { background: var(--surface2); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* ── BUTTONS ── */
+    .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px;
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; transition: all 0.15s; }
+    .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px var(--accent-glow); }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--surface3); border-color: var(--border2); }
+    .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); }
+    .btn-success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+    .btn-success:hover { background: rgba(16,185,129,0.2); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-xs { padding: 4px 9px; font-size: 11px; border-radius: var(--radius-xs); }
+    .btn-full { width: 100%; justify-content: center; padding: 12px; font-size: 15px; }
+    .btn-icon { width: 32px; height: 32px; padding: 0; border-radius: var(--radius-xs);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+
+    /* ── SHELL ── */
     #admin-screen { display: none; min-height: 100vh; }
     .shell { display: flex; min-height: 100vh; }
-    .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; }
-    .sb-logo { padding: 24px 20px; border-bottom: 1px solid var(--border); text-align: center; }
-    .sb-logo h2 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
-    .sb-logo h2 span { color: var(--accent); }
-    .sb-logo .badge { display: inline-block; background: var(--surface2); color: var(--muted); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-    .sb-nav { flex: 1; padding: 12px; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--radius-sm); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; margin-bottom: 2px; }
+    /* ── SIDEBAR ── */
+    .sidebar { width: var(--sidebar); background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; flex-shrink: 0; }
+    .sb-logo { padding: 20px 16px; border-bottom: 1px solid var(--border); }
+    .sb-logo h2 { font-size: 1.25rem; font-weight: 900; letter-spacing: -0.03em; }
+    .sb-logo h2 span { color: var(--accent); }
+    .sb-logo .sb-badge { display: inline-block; background: rgba(115,103,240,0.15);
+      color: var(--accent); font-size: 9px; font-weight: 800; padding: 2px 8px;
+      border-radius: 20px; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .sb-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+    .sb-section { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted);
+      letter-spacing: 0.1em; padding: 12px 8px 6px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 10px 10px;
+      border-radius: var(--radius-sm); color: var(--muted); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .14s; border: 1px solid transparent; margin-bottom: 1px; }
     .nav-item:hover { background: var(--surface2); color: var(--text); }
     .nav-item.active { background: var(--surface2); border-color: var(--border); color: var(--accent); }
+    .nav-item .ico { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; background: var(--red); color: #fff; font-size: 10px; font-weight: 800;
+      padding: 1px 6px; border-radius: 10px; }
+    .sb-footer { padding: 12px 8px; border-top: 1px solid var(--border); }
+    .btn-signout { width: 100%; padding: 9px 12px; background: var(--surface2); color: var(--muted);
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; transition: all 0.2s;
+      display: flex; align-items: center; gap: 8px; border: 1px solid transparent; }
+    .btn-signout:hover { background: var(--red-dim); color: var(--red); border-color: rgba(239,68,68,0.2); }
 
-    .sb-footer { padding: 16px; border-top: 1px solid var(--border); }
-    .btn-signout { width: 100%; padding: 9px; background: var(--surface2); color: var(--muted); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; transition: all 0.2s; }
-    .btn-signout:hover { background: rgba(239,68,68,0.1); color: var(--red); }
-
-    /* Main view area */
-    .main { flex: 1; overflow-y: auto; padding: 32px; }
+    /* ── MAIN AREA ── */
+    .main { flex: 1; overflow-y: auto; padding: 28px 32px; min-width: 0; }
     .page { display: none; }
     .page.active { display: block; }
-    .page-header { margin-bottom: 28px; }
-    .page-header h1 { font-size: 1.6rem; font-weight: 800; }
-    .page-header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    .page-head-left h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.03em; }
+    .page-head-left p { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .page-head-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-    /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-    .stat-val { font-size: 1.8rem; font-weight: 800; color: var(--text); margin-bottom: 4px; }
-    .stat-lbl { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; font-weight: 600; }
+    /* ── STATS GRID ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; cursor: default; transition: border-color 0.2s; }
+    .stat-card:hover { border-color: var(--border2); }
+    .stat-val { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.04em; margin-bottom: 3px; }
+    .stat-lbl { font-size: 11px; text-transform: uppercase; color: var(--muted);
+      letter-spacing: 0.06em; font-weight: 700; }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .c-green { border-color: rgba(16,185,129,0.3); }
+    .c-green .stat-val { color: var(--green); }
+    .c-red { border-color: rgba(239,68,68,0.3); }
+    .c-red .stat-val { color: var(--red); }
+    .c-yellow { border-color: rgba(245,158,11,0.3); }
+    .c-yellow .stat-val { color: var(--yellow); }
+    .c-accent { border-color: rgba(115,103,240,0.3); }
+    .c-accent .stat-val { color: var(--accent); }
 
-    /* Tables */
-    .table-container { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 1rem; }
-    table { width: 100%; border-collapse: collapse; text-align: left; }
-    th { padding: 14px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; }
-    td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
-    tr:last-child td { border-bottom: none; }
+    /* ── TABLES ── */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; }
+    .table-toolbar { padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .search-box { display: flex; align-items: center; gap: 8px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px; flex: 1; min-width: 200px; }
+    .search-box input { background: none; border: none; color: var(--text); font-size: 13px; flex: 1; }
+    .filter-select { background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text); font-size: 13px; }
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th { padding: 11px 16px; background: var(--surface2); border-bottom: 1px solid var(--border);
+      font-size: 10px; text-transform: uppercase; font-weight: 800; color: var(--muted);
+      letter-spacing: 0.07em; text-align: left; white-space: nowrap; }
+    .tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px;
+      vertical-align: middle; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: rgba(255,255,255,0.015); }
+    .tbl .empty-row td { text-align: center; color: var(--muted); padding: 40px; }
+    .tbl .actions { display: flex; gap: 5px; flex-wrap: wrap; }
 
-    /* Status Badge */
-    .badge-status { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .badge-active { background: rgba(16,185,129,0.15); color: var(--green); }
-    .badge-unpaid { background: rgba(239,68,68,0.15); color: var(--red); }
-    .badge-expired { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    /* ── BADGES ── */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px;
+      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-active  { background: var(--green-dim); color: var(--green); }
+    .badge-unpaid  { background: var(--red-dim);   color: var(--red);   }
+    .badge-expired { background: var(--yellow-dim); color: var(--yellow);}
+    .badge-pro     { background: rgba(115,103,240,0.15); color: var(--accent); }
+    .badge-starter { background: var(--surface3); color: var(--muted); }
+    .badge-trial   { background: var(--blue-dim); color: var(--blue); }
 
-    /* Buttons */
-    .btn-action { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--surface2); border: 1px solid var(--border); color: var(--text); transition: background 0.15s; margin-right: 4px; }
-    .btn-action:hover { background: var(--surface3); }
-    .btn-accent { background: var(--accent); color: white; border: none; }
-    .btn-accent:hover { opacity: 0.9; }
+    /* ── CARDS / PANELS ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .card-header h3 { font-size: 14px; font-weight: 700; }
+    .card-header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .card-body { padding: 20px; }
+    .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-    /* Settings Box */
-    .settings-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; max-width: 600px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; }
+    /* ── MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      width: 100%; max-width: 480px; box-shadow: 0 24px 64px rgba(0,0,0,0.6); }
+    .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 15px; font-weight: 800; }
+    .modal-body { padding: 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 10px; }
+    .modal-close { background: none; color: var(--muted); font-size: 18px; line-height: 1;
+      padding: 2px 6px; border-radius: 4px; }
+    .modal-close:hover { color: var(--text); background: var(--surface2); }
+
+    /* ── LOGS TERMINAL ── */
+    .terminal-wrap { background: #06060a; border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; }
+    .terminal-bar { display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+    .terminal-dots { display: flex; gap: 6px; }
+    .terminal-dots span { width: 12px; height: 12px; border-radius: 50%; }
+    .terminal-dots .d1 { background: #ef4444; }
+    .terminal-dots .d2 { background: #f59e0b; }
+    .terminal-dots .d3 { background: #10b981; }
+    #logs-terminal { font-family: var(--mono); font-size: 12px; line-height: 1.6;
+      color: #a0c4d0; padding: 16px; min-height: 400px; max-height: 600px;
+      overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+
+    /* ── BACKUP TABLE ── */
+    .backup-date-group { margin-bottom: 16px; }
+    .backup-date-label { font-size: 12px; font-weight: 700; color: var(--muted); padding: 8px 0 6px;
+      display: flex; align-items: center; gap: 8px; }
+    .backup-date-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .backup-files { display: flex; flex-direction: column; gap: 6px; }
+    .backup-file-row { display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 10px 14px; }
+    .backup-file-name { font-family: var(--mono); font-size: 12px; color: var(--text); }
+    .backup-file-size { font-size: 11px; color: var(--muted); }
+
+    /* ── 2FA QR ── */
+    .qr-box { text-align: center; padding: 20px; }
+    .qr-box img { border: 4px solid white; border-radius: 8px; margin-bottom: 12px; }
+    .secret-display { font-family: var(--mono); background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px; font-size: 14px; text-align: center;
+      letter-spacing: 0.12em; color: var(--accent); word-break: break-all; }
+
+    /* ── EXPIRY COUNTDOWN ── */
+    .days-badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 700; }
+    .days-danger { background: var(--red-dim); color: var(--red); }
+    .days-warn   { background: var(--yellow-dim); color: var(--yellow); }
+    .days-ok     { background: var(--green-dim); color: var(--green); }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    /* ── CONFIG SECTION HEADER ── */
+    .cfg-section { margin-bottom: 24px; }
+    .cfg-section-title { font-size: 12px; font-weight: 800; text-transform: uppercase;
+      color: var(--muted); letter-spacing: 0.08em; margin-bottom: 14px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+    /* ── MRR HIGHLIGHT ── */
+    .mrr-box { background: linear-gradient(135deg, rgba(115,103,240,0.1), rgba(61,90,241,0.05));
+      border: 1px solid rgba(115,103,240,0.2); border-radius: var(--radius); padding: 20px 24px;
+      margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .mrr-val { font-size: 2.2rem; font-weight: 900; color: var(--accent); letter-spacing: -0.04em; }
+    .mrr-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; margin-top: 3px; }
+    .mrr-potential { font-size: 13px; color: var(--muted); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .main { padding: 16px; }
+      .section-grid { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Sign In Screen -->
-  <div id="login-screen">
-    <div class="login-card">
-      <div class="login-header">
-        <h2>Biz<span>Opease</span></h2>
-        <p>SaaS Operations Super Admin Panel</p>
-      </div>
-      <div class="login-error" id="login-err-msg"></div>
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <h1>Biz<span>Opease</span></h1>
+      <p>Super Admin Control Panel</p>
+    </div>
+    <div class="login-err" id="login-err"></div>
+    <div id="login-form-wrap">
       <form id="login-form" onsubmit="handleLogin(event)">
         <div class="form-group">
           <label>Username</label>
-          <input type="text" id="admin-user" required placeholder="superadmin" />
+          <input type="text" id="sa-user" autocomplete="username" placeholder="bizopeaseadmin" required />
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="admin-pass" required placeholder="••••••••" />
+          <input type="password" id="sa-pass" autocomplete="current-password" placeholder="••••••••" required />
         </div>
-        <button type="submit" class="btn-login">Sign In</button>
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
+      </form>
+    </div>
+    <div id="twofa-form-wrap" style="display:none;">
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px;">Enter the 6-digit code from your authenticator app</p>
+      <form id="twofa-form" onsubmit="handleTwoFa(event)">
+        <div class="form-group">
+          <label>2FA Code</label>
+          <input type="text" id="sa-2fa-code" maxlength="6" placeholder="000000" autocomplete="one-time-code" required
+            style="text-align:center;font-size:1.4rem;letter-spacing:0.2em;font-family:var(--mono);" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Verify &amp; Login</button>
+        <button type="button" class="btn btn-secondary btn-full" style="margin-top:8px;" onclick="backToLogin()">Back</button>
       </form>
     </div>
   </div>
+</div>
 
-  <!-- Admin Screen Shell -->
-  <div id="admin-screen">
-    <div class="shell">
-      <!-- Sidebar -->
-      <div class="sidebar">
-        <div class="sb-logo">
-          <h2>Biz<span>Opease</span></h2>
-          <span class="badge">Super Admin</span>
+<!-- ═══════════════════════════════════════════════════
+     ADMIN SHELL
+══════════════════════════════════════════════════════ -->
+<div id="admin-screen">
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="sb-logo">
+        <h2>Biz<span>Opease</span></h2>
+        <div class="sb-badge">Super Admin</div>
+      </div>
+      <div class="sb-nav">
+        <div class="sb-section">Overview</div>
+        <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+          <span class="ico">📊</span> Dashboard
         </div>
-        <div class="sb-nav">
-          <div class="nav-item active" onclick="showPage('workspaces')">💼 Workspaces</div>
-          <div class="nav-item" onclick="showPage('config')">⚙️ Configurations</div>
-          <div class="nav-item" onclick="showPage('logs')">📝 System Logs</div>
+
+        <div class="sb-section">Tenants</div>
+        <div class="nav-item" id="nav-workspaces" onclick="showPage('workspaces')">
+          <span class="ico">🏢</span> All Workspaces
         </div>
-        <div class="sb-footer">
-          <button class="btn-signout" onclick="handleSignOut()">Sign Out</button>
+        <div class="nav-item" id="nav-create" onclick="showPage('create')">
+          <span class="ico">➕</span> New Workspace
+        </div>
+        <div class="nav-item" id="nav-expiring" onclick="showPage('expiring')">
+          <span class="ico">⏰</span> Expiring Soon
+          <span class="nav-badge" id="expiring-badge" style="display:none">0</span>
+        </div>
+
+        <div class="sb-section">System</div>
+        <div class="nav-item" id="nav-backups" onclick="showPage('backups')">
+          <span class="ico">💾</span> Backups
+        </div>
+        <div class="nav-item" id="nav-logs" onclick="showPage('logs')">
+          <span class="ico">🖥️</span> Live Logs
+        </div>
+        <div class="nav-item" id="nav-security" onclick="showPage('security')">
+          <span class="ico">🔐</span> Security / 2FA
+        </div>
+        <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+          <span class="ico">⚙️</span> Settings
+        </div>
+      </div>
+      <div class="sb-footer">
+        <button class="btn-signout" onclick="handleSignOut()">
+          <span>↩</span> Sign Out
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <!-- ══ DASHBOARD ══ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>Dashboard</h1>
+            <p>Real-time overview of your BizOpease SaaS platform</p>
+          </div>
+          <div class="page-head-right">
+            <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">⟳ Refresh</button>
+          </div>
+        </div>
+
+        <div class="mrr-box" id="mrr-box">
+          <div>
+            <div class="mrr-val" id="mrr-val">—</div>
+            <div class="mrr-label">Monthly Recurring Revenue</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:14px;font-weight:700;" id="potential-mrr-val">—</div>
+            <div class="mrr-label">Potential MRR (all workspaces)</div>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="stats-container"></div>
+
+        <div class="table-wrap" style="margin-top:8px;">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <div><h3>Recent Workspaces</h3><p>Last 10 registered tenants</p></div>
+            <button class="btn btn-secondary btn-sm" onclick="showPage('workspaces')">View All →</button>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Workspace</th><th>Plan</th><th>Status</th><th>Odoo DB</th><th>Expires</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recent-workspaces-list">
+              <tr class="empty-row"><td colspan="6">Loading...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Main Contents -->
-      <div class="main">
-        <!-- page 1: workspaces list -->
-        <div id="page-workspaces" class="page active">
-          <div class="page-header">
-            <h1>Tenant Workspaces</h1>
-            <p>Monitor and manage active subscription databases</p>
+      <!-- ══ ALL WORKSPACES ══ -->
+      <div class="page" id="page-workspaces">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>All Workspaces</h1>
+            <p id="ws-count-label">Loading tenant databases...</p>
           </div>
-
-          <div class="stats-grid" id="stats-container">
-            <!-- stats columns render dynamically -->
+          <div class="page-head-right">
+            <button class="btn btn-primary btn-sm" onclick="showPage('create')">+ New Workspace</button>
           </div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-toolbar">
+            <div class="search-box">
+              <span>🔍</span>
+              <input type="text" id="ws-search" placeholder="Search workspaces..." oninput="filterWorkspaces()" />
+            </div>
+            <select class="filter-select" id="ws-status-filter" onchange="filterWorkspaces()">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="expired">Expired</option>
+            </select>
+            <select class="filter-select" id="ws-plan-filter" onchange="filterWorkspaces()">
+              <option value="">All Plans</option>
+              <option value="starter">Starter</option>
+              <option value="pro">Pro</option>
+            </select>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Subdomain / Workspace</th><th>Odoo DB</th><th>Admin Email</th>
+                <th>Plan</th><th>Status</th><th>Expires</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="workspaces-list">
+              <tr class="empty-row"><td colspan="7">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Subdomain</th>
-                  <th>Company Name</th>
-                  <th>Status</th>
-                  <th>Expires On</th>
-                  <th>Odoo Database</th>
-                  <th>Plan Type</th>
-                  <th>Action Commands</th>
-                </tr>
-              </thead>
-              <tbody id="workspaces-list">
-                <!-- table rows render dynamically -->
-              </tbody>
-            </table>
+      <!-- ══ CREATE WORKSPACE ══ -->
+      <div class="page" id="page-create">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>New Workspace</h1>
+            <p>Manually provision a new Odoo tenant database</p>
+          </div>
+        </div>
+        <div style="max-width:580px;">
+          <div class="card">
+            <div class="card-header">
+              <h3>Tenant Details</h3>
+              <p>This will create a new Odoo database and register the workspace</p>
+            </div>
+            <div class="card-body">
+              <form id="create-ws-form" onsubmit="createWorkspace(event)">
+                <div class="form-group">
+                  <label>Company / Workspace Name</label>
+                  <input type="text" id="cw-name" placeholder="ACME Trading Pvt Ltd" required />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Admin Email</label>
+                    <input type="email" id="cw-email" placeholder="admin@acme.com" required />
+                  </div>
+                  <div class="form-group">
+                    <label>Admin Password</label>
+                    <input type="password" id="cw-password" placeholder="Min. 6 characters" required />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Plan</label>
+                    <select id="cw-plan">
+                      <option value="starter">Starter — Rs 1,000/month</option>
+                      <option value="pro">Pro — Rs 2,500/month</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Trial Days</label>
+                    <input type="number" id="cw-days" value="30" min="1" max="365" />
+                  </div>
+                </div>
+                <div id="cw-err" style="display:none;background:var(--red-dim);border:1px solid rgba(239,68,68,0.3);color:var(--red);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px;"></div>
+                <div id="cw-success" style="display:none;background:var(--green-dim);border:1px solid rgba(16,185,129,0.3);color:var(--green);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:16px;"></div>
+                <button type="submit" class="btn btn-primary" id="cw-btn">
+                  Provision Workspace
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px;">
+            <div class="card-header">
+              <h3>Provisioning Note</h3>
+            </div>
+            <div class="card-body" style="font-size:13px;color:var(--muted);line-height:1.7;">
+              <p>Creating a workspace will:</p>
+              <ol style="padding-left:18px;margin-top:8px;">
+                <li>Create a new PostgreSQL database named <code style="font-family:var(--mono);color:var(--accent)">ws_&lt;slug&gt;</code></li>
+                <li>Install custom Odoo addons (flipkart_os, b2b_os, robifel_hr)</li>
+                <li>Set the company name and admin user credentials</li>
+                <li>Register the workspace in the master registry</li>
+              </ol>
+              <p style="margin-top:10px;color:var(--yellow);">Requires ODOO_MASTER_PASSWORD to be set in Settings.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ EXPIRING SOON ══ -->
+      <div class="page" id="page-expiring">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>Expiring Soon</h1>
+            <p>Workspaces expiring within 7 days</p>
+          </div>
+          <div class="page-head-right">
+            <button class="btn btn-secondary btn-sm" onclick="loadExpiring()">⟳ Refresh</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>Workspace</th><th>Plan</th><th>Expires At</th><th>Days Left</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="expiring-list">
+              <tr class="empty-row"><td colspan="5">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ BACKUPS ══ -->
+      <div class="page" id="page-backups">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>Database Backups</h1>
+            <p>Daily pg_dump backups of all Odoo databases, 7-day retention</p>
+          </div>
+          <div class="page-head-right">
+            <button class="btn btn-secondary btn-sm" onclick="loadBackups()">⟳ Refresh List</button>
+            <button class="btn btn-primary btn-sm" onclick="triggerBackup()" id="backup-run-btn">▶ Run Backup Now</button>
           </div>
         </div>
 
-        <!-- page 2: configurations settings -->
-        <div id="page-config" class="page">
-          <div class="page-header">
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:20px;">
+          <div class="stat-card">
+            <div class="stat-val" id="backup-count">—</div>
+            <div class="stat-lbl">Backup Snapshots</div>
+          </div>
+          <div class="stat-card c-green">
+            <div class="stat-val" id="backup-latest">—</div>
+            <div class="stat-lbl">Latest Backup</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Restore Instructions</h3>
+          </div>
+          <div class="card-body" style="font-size:13px;line-height:1.8;">
+            <p style="color:var(--muted);">To restore a backup, SSH into the server and run:</p>
+            <pre style="font-family:var(--mono);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-size:12px;color:#a0c4d0;margin-top:10px;overflow-x:auto;">sudo -u postgres pg_restore -d &lt;dbname&gt; --clean --if-exists /var/backups/odoo/&lt;date&gt;/&lt;dbname&gt;.dump</pre>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;" id="backups-container">
+          <p style="color:var(--muted);font-size:13px;">Loading backup history...</p>
+        </div>
+      </div>
+
+      <!-- ══ LIVE LOGS ══ -->
+      <div class="page" id="page-logs">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>Live Logs</h1>
+            <p>Real-time PM2 process output from bizopease-saas</p>
+          </div>
+          <div class="page-head-right">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;">
+              <input type="checkbox" id="logs-autoscroll" checked /> Auto-scroll
+            </label>
+            <button class="btn btn-secondary btn-sm" onclick="loadLogs()">⟳ Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="restartServer()">⚡ Restart PM2</button>
+          </div>
+        </div>
+        <div class="terminal-wrap">
+          <div class="terminal-bar">
+            <div class="terminal-dots">
+              <span class="d1"></span><span class="d2"></span><span class="d3"></span>
+            </div>
+            <span style="font-size:12px;color:var(--muted);font-family:var(--mono);">bizopease-saas — stdout</span>
+            <span style="font-size:11px;color:var(--muted);" id="logs-timestamp"></span>
+          </div>
+          <pre id="logs-terminal">Waiting for log stream...</pre>
+        </div>
+        <div style="margin-top:14px;" id="stderr-wrap" style="display:none;">
+          <div class="terminal-wrap">
+            <div class="terminal-bar">
+              <div class="terminal-dots"><span class="d1"></span><span class="d2"></span><span class="d3"></span></div>
+              <span style="font-size:12px;color:var(--red);font-family:var(--mono);">stderr — errors</span>
+            </div>
+            <pre id="stderr-terminal" style="font-family:var(--mono);font-size:12px;color:#f87171;padding:16px;min-height:100px;max-height:200px;overflow-y:auto;background:#06060a;white-space:pre-wrap;"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SECURITY / 2FA ══ -->
+      <div class="page" id="page-security">
+        <div class="page-head">
+          <div class="page-head-left">
+            <h1>Security</h1>
+            <p>Two-factor authentication for the Super Admin account</p>
+          </div>
+        </div>
+
+        <div style="max-width:560px;">
+          <div class="card" id="twofa-status-card">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <h3>Two-Factor Authentication</h3>
+                <p id="sa-2fa-status-sub">Loading...</p>
+              </div>
+              <span class="badge" id="sa-2fa-status-badge">—</span>
+            </div>
+            <div class="card-body">
+              <p id="sa-2fa-status-text" style="font-size:13px;color:var(--muted);margin-bottom:16px;"></p>
+              <button class="btn btn-primary" id="sa-2fa-setup-btn" style="display:none;" onclick="setup2FA()">Set Up 2FA</button>
+              <button class="btn btn-danger" id="sa-2fa-show-disable-btn" style="display:none;" onclick="showDisable2FA()">Disable 2FA</button>
+              <button class="btn btn-secondary" id="sa-2fa-cancel-btn" style="display:none;margin-left:10px;" onclick="update2FAStatusUI()">Cancel</button>
+            </div>
+          </div>
+
+          <div class="card" id="sa-2fa-setup-box" style="display:none;margin-top:16px;">
+            <div class="card-header"><h3>Scan QR Code</h3></div>
+            <div class="card-body">
+              <div class="qr-box">
+                <img id="sa-2fa-qr" src="" alt="QR Code" width="180" height="180" />
+                <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Or enter this secret manually:</p>
+                <div class="secret-display" id="sa-2fa-secret"></div>
+              </div>
+              <div class="form-group" style="margin-top:16px;">
+                <label>Enter 6-digit verification code from your app</label>
+                <input type="text" id="sa-2fa-setup-code" maxlength="6" placeholder="000000"
+                  style="text-align:center;font-size:1.3rem;letter-spacing:0.2em;font-family:var(--mono);" />
+              </div>
+              <button class="btn btn-primary" onclick="confirmEnable2FA()">Confirm &amp; Enable 2FA</button>
+            </div>
+          </div>
+
+          <div class="card" id="sa-2fa-disable-box" style="display:none;margin-top:16px;">
+            <div class="card-header"><h3>Disable 2FA</h3></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Enter your current 6-digit code to confirm disabling 2FA.</p>
+              <div class="form-group">
+                <label>Current 2FA Code</label>
+                <input type="text" id="sa-2fa-disable-code" maxlength="6" placeholder="000000"
+                  style="text-align:center;font-size:1.3rem;letter-spacing:0.2em;font-family:var(--mono);" />
+              </div>
+              <button class="btn btn-danger" onclick="confirmDisable2FA()">Disable Two-Factor Auth</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SETTINGS ══ -->
+      <div class="page" id="page-settings">
+        <div class="page-head">
+          <div class="page-head-left">
             <h1>System Settings</h1>
-            <p>Manage Razorpay keys, Odoo master password, and Superadmin credentials</p>
-          </div>
-
-          <form class="settings-grid" id="config-form" onsubmit="saveConfig(event)">
-            <div class="form-group">
-              <label>Odoo Master Password</label>
-              <input type="password" id="cfg-odoo-master" placeholder="Enter Odoo master password" />
-            </div>
-            <div class="form-group">
-              <label>Odoo Host URL</label>
-              <input type="text" id="cfg-odoo-url" placeholder="http://127.0.0.1:8069" />
-            </div>
-            <div class="form-group">
-              <label>Razorpay Key ID</label>
-              <input type="text" id="cfg-rzp-key" placeholder="rzp_live_..." />
-            </div>
-            <div class="form-group">
-              <label>Razorpay Key Secret</label>
-              <input type="password" id="cfg-rzp-secret" placeholder="Enter Razorpay Secret" />
-            </div>
-            <div class="form-group">
-              <label>Razorpay Plan ID Starter</label>
-              <input type="text" id="cfg-rzp-starter" placeholder="plan_..." />
-            </div>
-            <div class="form-group">
-              <label>Razorpay Plan ID Pro</label>
-              <input type="text" id="cfg-rzp-pro" placeholder="plan_..." />
-            </div>
-            <button type="submit" class="btn-login" style="margin-top: 1rem;">Save API Credentials</button>
-          </form>
-        </div>
-
-        <!-- page 3: tail of PM2 logs -->
-        <div id="page-logs" class="page">
-          <div class="page-header">
-            <h1>Process System Logs</h1>
-            <p>Real-time stdout diagnostics logs for the SaaS server</p>
-          </div>
-          <div style="background:var(--surface); padding:1.5rem; border-radius:var(--radius); border:1px solid var(--border);">
-            <pre style="font-family:'JetBrains Mono', monospace; font-size:12px; line-height:1.5; color:#a0bcd0; max-height:500px; overflow-y:auto;" id="logs-view">Logs console initialized. Loading log streams...</pre>
-            <button class="btn-action" style="margin-top:1rem;" onclick="loadLogs()">🔄 Refresh Log Streams</button>
+            <p>API keys, credentials, and platform configuration</p>
           </div>
         </div>
+        <form id="settings-form" onsubmit="saveSettings(event)">
+          <div class="section-grid">
+            <div>
+              <div class="cfg-section">
+                <div class="cfg-section-title">Odoo Connection</div>
+                <div class="form-group">
+                  <label>Odoo Host URL</label>
+                  <input type="text" id="cfg-odoo-url" placeholder="http://127.0.0.1:8069" />
+                </div>
+                <div class="form-group">
+                  <label>Odoo Master Password</label>
+                  <input type="password" id="cfg-odoo-master" placeholder="Required for tenant provisioning" />
+                </div>
+              </div>
+
+              <div class="cfg-section">
+                <div class="cfg-section-title">Plan Pricing (Rs)</div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Starter Plan Price</label>
+                    <input type="number" id="cfg-price-starter" placeholder="1000" />
+                  </div>
+                  <div class="form-group">
+                    <label>Pro Plan Price</label>
+                    <input type="number" id="cfg-price-pro" placeholder="2500" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="cfg-section">
+                <div class="cfg-section-title">Razorpay</div>
+                <div class="form-group">
+                  <label>Key ID</label>
+                  <input type="text" id="cfg-rzp-key" placeholder="rzp_live_..." />
+                </div>
+                <div class="form-group">
+                  <label>Key Secret</label>
+                  <input type="password" id="cfg-rzp-secret" placeholder="••••••••" />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Plan ID — Starter</label>
+                    <input type="text" id="cfg-rzp-starter" placeholder="plan_..." />
+                  </div>
+                  <div class="form-group">
+                    <label>Plan ID — Pro</label>
+                    <input type="text" id="cfg-rzp-pro" placeholder="plan_..." />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Webhook Secret</label>
+                  <input type="password" id="cfg-rzp-webhook" placeholder="••••••••" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="cfg-section">
+                <div class="cfg-section-title">Cloudflare R2 (WAL-G Backups)</div>
+                <div class="form-group">
+                  <label>Account ID</label>
+                  <input type="text" id="cfg-r2-account" placeholder="your_cloudflare_account_id" />
+                </div>
+                <div class="form-group">
+                  <label>Bucket Name</label>
+                  <input type="text" id="cfg-r2-bucket" placeholder="bizopease-backups" />
+                </div>
+                <div class="form-group">
+                  <label>Access Key ID</label>
+                  <input type="text" id="cfg-r2-key" placeholder="R2 access key" />
+                </div>
+                <div class="form-group">
+                  <label>Secret Access Key</label>
+                  <input type="password" id="cfg-r2-secret" placeholder="••••••••" />
+                </div>
+                <div class="form-group">
+                  <label>Endpoint URL</label>
+                  <input type="text" id="cfg-r2-endpoint" placeholder="https://&lt;id&gt;.r2.cloudflarestorage.com" />
+                </div>
+              </div>
+
+              <div class="cfg-section">
+                <div class="cfg-section-title">Super Admin Account</div>
+                <div class="form-group">
+                  <label>Admin Username</label>
+                  <input type="text" id="cfg-sa-user" placeholder="bizopeaseadmin" />
+                </div>
+                <div class="form-group">
+                  <label>Admin Password</label>
+                  <input type="password" id="cfg-sa-pass" placeholder="New password (leave blank to keep current)" />
+                </div>
+                <div class="form-group">
+                  <label>JWT Secret</label>
+                  <input type="password" id="cfg-jwt" placeholder="••••••••" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+            <button type="submit" class="btn btn-primary" id="settings-save-btn">Save All Settings</button>
+            <span id="settings-status" style="font-size:13px;"></span>
+          </div>
+        </form>
       </div>
-    </div>
+
+    </main>
   </div>
+</div>
 
-  <script>
-    let authToken = localStorage.getItem('sa_token') || '';
+<!-- ═══════════════════════════════════════════════════
+     WORKSPACE ACTION MODAL
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="ws-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="ws-modal-title">Workspace Actions</h3>
+      <button class="modal-close" onclick="closeModal('ws-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="ws-modal-body"></div>
+    <div class="modal-footer" id="ws-modal-footer"></div>
+  </div>
+</div>
 
-    // Initialize display screen state
-    if (authToken) {
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('admin-screen').style.display = 'block';
-      loadDashboard();
+<!-- ═══════════════════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let authToken = localStorage.getItem('bizopease_sa_token') || '';
+let allWorkspaces = [];
+let logsInterval = null;
+let pendingLoginData = {};
+let currentWsId = '';
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+if (authToken) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-screen').style.display = 'block';
+  bootDashboard();
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Signing in...';
+
+  try {
+    const r = await fetch('/api/superadmin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('sa-user').value,
+        password: document.getElementById('sa-pass').value
+      })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Login failed');
+
+    if (data.twoFactorRequired) {
+      pendingLoginData = { username: document.getElementById('sa-user').value, password: document.getElementById('sa-pass').value };
+      document.getElementById('login-form-wrap').style.display = 'none';
+      document.getElementById('twofa-form-wrap').style.display = 'block';
+      return;
     }
+    doLogin(data.token);
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
 
-    async function handleLogin(e) {
-      e.preventDefault();
-      const err = document.getElementById('login-err-msg');
-      err.textContent = '';
-      
-      const username = document.getElementById('admin-user').value;
-      const password = document.getElementById('admin-pass').value;
+async function handleTwoFa(e) {
+  e.preventDefault();
+  const code = document.getElementById('sa-2fa-code').value.trim();
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
 
-      try {
-        const res = await fetch('/api/superadmin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Authentication failed');
+  try {
+    const r = await fetch('/api/superadmin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...pendingLoginData, twoFactorCode: code })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Invalid 2FA code');
+    doLogin(data.token);
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.style.display = 'block';
+  }
+}
 
-        authToken = data.token;
-        localStorage.setItem('sa_token', authToken);
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('admin-screen').style.display = 'block';
-        loadDashboard();
-      } catch (errMessage) {
-        err.textContent = errMessage.message;
-      }
-    }
+function backToLogin() {
+  document.getElementById('login-form-wrap').style.display = 'block';
+  document.getElementById('twofa-form-wrap').style.display = 'none';
+  document.getElementById('login-err').style.display = 'none';
+}
 
-    function handleSignOut() {
-      localStorage.removeItem('sa_token');
-      authToken = '';
-      document.getElementById('admin-screen').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'flex';
-    }
+function doLogin(token) {
+  authToken = token;
+  localStorage.setItem('bizopease_sa_token', token);
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-screen').style.display = 'block';
+  bootDashboard();
+}
 
-    function showPage(pageName) {
-      document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+function handleSignOut() {
+  authToken = '';
+  localStorage.removeItem('bizopease_sa_token');
+  document.getElementById('admin-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  stopLogsPolling();
+}
 
-      event.currentTarget.classList.add('active');
-      document.getElementById(`page-${pageName}`).classList.add('active');
+// ─── NAVIGATION ──────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const navEl = document.getElementById('nav-' + name);
+  if (navEl) navEl.classList.add('active');
 
-      if (pageName === 'config') loadConfig();
-      if (pageName === 'logs') loadLogs();
-    }
+  stopLogsPolling();
+  if (name === 'dashboard') loadDashboard();
+  else if (name === 'workspaces') loadWorkspaces();
+  else if (name === 'expiring') loadExpiring();
+  else if (name === 'backups') loadBackups();
+  else if (name === 'logs') { loadLogs(); startLogsPolling(); }
+  else if (name === 'security') update2FAStatusUI();
+  else if (name === 'settings') loadSettings();
+}
 
-    async function loadDashboard() {
-      await Promise.all([loadStats(), loadWorkspaces()]);
-    }
+// ─── API FETCH HELPER ─────────────────────────────────────────────────────────
+async function saFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+  const options = { headers, method: opts.method || 'GET' };
+  if (opts.body) options.body = JSON.stringify(opts.body);
+  const r = await fetch(path, options);
+  if (r.status === 401 || r.status === 403) { handleSignOut(); return null; }
+  return r;
+}
 
-    async function loadStats() {
-      const res = await fetch('/api/superadmin/stats', { headers: { 'Authorization': `Bearer ${authToken}` } });
-      const stats = await res.json();
-      
-      const statsContainer = document.getElementById('stats-container');
-      statsContainer.innerHTML = `
-        <div class="stat-card">
-          <div class="stat-val">${stats.total}</div>
-          <div class="stat-lbl">Total Workspaces</div>
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+async function bootDashboard() {
+  await loadDashboard();
+  const expStatsR = await saFetch('/api/superadmin/stats');
+  if (expStatsR && expStatsR.ok) {
+    const s = await expStatsR.json();
+    const badge = document.getElementById('expiring-badge');
+    if (s.expiringSoon > 0) { badge.textContent = s.expiringSoon; badge.style.display = 'inline-block'; }
+  }
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const r = await saFetch('/api/superadmin/stats');
+  if (!r || !r.ok) return;
+  const s = await r.json();
+
+  document.getElementById('mrr-val').textContent = 'Rs ' + (s.mrr || 0).toLocaleString('en-IN');
+  document.getElementById('potential-mrr-val').textContent = 'Rs ' + (s.potentialMrr || 0).toLocaleString('en-IN') + ' potential';
+
+  document.getElementById('stats-container').innerHTML = `
+    <div class="stat-card c-green">
+      <div class="stat-val">${s.active || 0}</div>
+      <div class="stat-lbl">Active Tenants</div>
+      <div class="stat-sub">${s.activeStarter || 0} Starter · ${s.activePro || 0} Pro</div>
+    </div>
+    <div class="stat-card c-yellow" style="cursor:pointer" onclick="showPage('expiring')">
+      <div class="stat-val">${s.expiringSoon || 0}</div>
+      <div class="stat-lbl">Expiring &lt;7 Days</div>
+    </div>
+    <div class="stat-card c-red">
+      <div class="stat-val">${s.unpaid || 0}</div>
+      <div class="stat-lbl">Unpaid</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${s.totalWorkspaces || 0}</div>
+      <div class="stat-lbl">Total Workspaces</div>
+    </div>
+  `;
+  loadRecentWorkspaces();
+}
+
+async function loadRecentWorkspaces() {
+  const r = await saFetch('/api/superadmin/workspaces');
+  if (!r || !r.ok) return;
+  const workspaces = await r.json();
+  const tbody = document.getElementById('recent-workspaces-list');
+  const top = workspaces.slice(0, 10);
+  if (!top.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No workspaces yet.</td></tr>'; return; }
+  tbody.innerHTML = top.map(w => workspaceRow(w, 'recent')).join('');
+}
+
+// ─── WORKSPACES ───────────────────────────────────────────────────────────────
+async function loadWorkspaces() {
+  const r = await saFetch('/api/superadmin/workspaces');
+  if (!r || !r.ok) return;
+  allWorkspaces = await r.json();
+  document.getElementById('ws-count-label').textContent = allWorkspaces.length + ' total workspaces';
+  filterWorkspaces();
+}
+
+function filterWorkspaces() {
+  const search = (document.getElementById('ws-search').value || '').toLowerCase();
+  const statusF = document.getElementById('ws-status-filter').value;
+  const planF = document.getElementById('ws-plan-filter').value;
+  const tbody = document.getElementById('workspaces-list');
+
+  const filtered = allWorkspaces.filter(w => {
+    const matchSearch = !search || (w.tenant_id + w.workspace_name + (w.admin_email || '')).toLowerCase().includes(search);
+    const matchStatus = !statusF || w.subscription_status === statusF;
+    const matchPlan = !planF || w.plan_type === planF;
+    return matchSearch && matchStatus && matchPlan;
+  });
+
+  if (!filtered.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No workspaces match filters.</td></tr>'; return; }
+  tbody.innerHTML = filtered.map(w => workspaceRow(w, 'full')).join('');
+}
+
+function workspaceRow(w, mode) {
+  const expires = w.subscription_expires_at ? new Date(w.subscription_expires_at) : null;
+  const daysLeft = expires ? Math.ceil((expires - Date.now()) / 86400000) : null;
+  const expiryStr = expires ? expires.toLocaleDateString('en-IN') : 'Never';
+  const statusBadge = `<span class="badge badge-${w.subscription_status}">${w.subscription_status}</span>`;
+  const planBadge = `<span class="badge badge-${w.plan_type || 'starter'}">${w.plan_type || 'starter'}</span>`;
+  const daysBadge = daysLeft !== null
+    ? `<span class="days-badge ${daysLeft <= 3 ? 'days-danger' : daysLeft <= 7 ? 'days-warn' : 'days-ok'}">${daysLeft}d</span>`
+    : '';
+
+  if (mode === 'recent') return `
+    <tr>
+      <td><strong>${w.tenant_id}</strong><br><small style="color:var(--muted)">${w.workspace_name || ''}</small></td>
+      <td>${planBadge}</td>
+      <td>${statusBadge}</td>
+      <td><code style="font-family:var(--mono);font-size:11px;color:var(--accent)">${w.odoo_db_name || 'ws_' + w.tenant_id}</code></td>
+      <td>${expiryStr} ${daysBadge}</td>
+      <td><div class="actions">
+        <button class="btn btn-success btn-xs" onclick="openWsModal('${w.tenant_id}','extend')">+30d</button>
+        <button class="btn btn-secondary btn-xs" onclick="openWsModal('${w.tenant_id}','details')">•••</button>
+      </div></td>
+    </tr>`;
+
+  return `
+    <tr>
+      <td>
+        <strong style="font-size:14px">${w.tenant_id}</strong><br>
+        <small style="color:var(--muted)">${w.workspace_name || ''}</small>
+      </td>
+      <td><code style="font-family:var(--mono);font-size:11px;color:var(--accent)">${w.odoo_db_name || 'ws_' + w.tenant_id}</code></td>
+      <td style="color:var(--muted);font-size:12px;">${w.admin_email || '—'}</td>
+      <td>${planBadge}</td>
+      <td>${statusBadge}</td>
+      <td>${expiryStr} ${daysBadge}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-success btn-xs" onclick="quickActivate('${w.tenant_id}')">Activate</button>
+          <button class="btn btn-secondary btn-xs" onclick="openWsModal('${w.tenant_id}','extend')">Extend</button>
+          <button class="btn btn-secondary btn-xs" onclick="openWsModal('${w.tenant_id}','plan')">Plan</button>
+          <button class="btn btn-danger btn-xs" onclick="openWsModal('${w.tenant_id}','delete')">Delete</button>
         </div>
-        <div class="stat-card" style="border-color:var(--green)">
-          <div class="stat-val" style="color:var(--green)">${stats.active}</div>
-          <div class="stat-lbl">Active Paid</div>
-        </div>
-        <div class="stat-card" style="border-color:var(--red)">
-          <div class="stat-val" style="color:var(--red)">${stats.unpaid}</div>
-          <div class="stat-lbl">Unpaid Status</div>
-        </div>
-      `;
-    }
+      </td>
+    </tr>`;
+}
 
-    async function loadWorkspaces() {
-      const res = await fetch('/api/superadmin/workspaces', { headers: { 'Authorization': `Bearer ${authToken}` } });
-      const workspaces = await res.json();
+// ─── WORKSPACE ACTIONS ────────────────────────────────────────────────────────
+async function quickActivate(id) {
+  const r = await saFetch('/api/superadmin/workspaces/' + id + '/activate', { method: 'POST', body: { days: 30 } });
+  if (r && r.ok) { showToast('Workspace activated for 30 days', 'success'); loadWorkspaces(); }
+  else showToast('Activation failed', 'error');
+}
 
-      const tbody = document.getElementById('workspaces-list');
-      tbody.innerHTML = workspaces.map(w => `
-        <tr>
-          <td style="font-weight:700;">${w.tenant_id}</td>
-          <td>${w.workspace_name}</td>
-          <td><span class="badge-status badge-${w.subscription_status}">${w.subscription_status}</span></td>
-          <td>${w.subscription_expires_at ? new Date(w.subscription_expires_at).toLocaleDateString() : 'Never'}</td>
-          <td><code style="font-family:'JetBrains Mono';">${w.odoo_db_name}</code></td>
-          <td>${w.plan_type}</td>
-          <td>
-            <button class="btn-action btn-accent" onclick="modifyWorkspace('${w.tenant_id}', 'activate')">Activate</button>
-            <button class="btn-action" onclick="modifyWorkspace('${w.tenant_id}', 'deactivate')">Deactivate</button>
-            <button class="btn-action" onclick="modifyWorkspace('${w.tenant_id}', 'extend')">Extend 30d</button>
-            <button class="btn-action" style="color:var(--red);" onclick="deleteWorkspace('${w.tenant_id}')">Delete</button>
-          </td>
-        </tr>
-      `).join('');
-    }
+function openWsModal(id, action) {
+  currentWsId = id;
+  const overlay = document.getElementById('ws-modal');
+  const title = document.getElementById('ws-modal-title');
+  const body = document.getElementById('ws-modal-body');
+  const footer = document.getElementById('ws-modal-footer');
 
-    async function modifyWorkspace(slug, action) {
-      if (action === 'extend' && !confirm('Extend subscription of this workspace by 30 days?')) return;
-      
-      const res = await fetch(`/api/superadmin/workspaces/${slug}/${action}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days: 30 })
-      });
-      if (res.ok) loadDashboard();
-      else alert('Action failed');
-    }
+  if (action === 'extend') {
+    title.textContent = 'Extend Subscription — ' + id;
+    body.innerHTML = `
+      <div class="form-group">
+        <label>Days to extend</label>
+        <input type="number" id="modal-days" value="30" min="1" max="365" />
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('ws-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="extendWorkspace()">Extend</button>`;
+  } else if (action === 'plan') {
+    title.textContent = 'Change Plan — ' + id;
+    body.innerHTML = `
+      <div class="form-group">
+        <label>Select Plan</label>
+        <select id="modal-plan">
+          <option value="starter">Starter — Rs 1,000/month</option>
+          <option value="pro">Pro — Rs 2,500/month</option>
+        </select>
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('ws-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="setPlan()">Update Plan</button>`;
+  } else if (action === 'delete') {
+    title.textContent = 'Delete Workspace — ' + id;
+    body.innerHTML = `
+      <p style="color:var(--red);font-size:14px;margin-bottom:12px;">⚠️ This deletes the registry record only. The Odoo database will remain on the server and must be dropped manually.</p>
+      <p style="color:var(--muted);font-size:13px;">Type <strong style="color:var(--text)">${id}</strong> to confirm:</p>
+      <div class="form-group" style="margin-top:10px;">
+        <input type="text" id="modal-confirm" placeholder="${id}" />
+      </div>`;
+    footer.innerHTML = `
+      <button class="btn btn-secondary" onclick="closeModal('ws-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteWorkspace()">Delete Registry Record</button>`;
+  } else if (action === 'details') {
+    title.textContent = 'Workspace — ' + id;
+    const ws = allWorkspaces.find(w => w.tenant_id === id) || {};
+    body.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Odoo Database</label>
+          <div style="font-family:var(--mono);font-size:13px;color:var(--accent);margin-top:4px">${ws.odoo_db_name || 'ws_' + id}</div></div>
+        <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Admin Email</label>
+          <div style="font-size:13px;margin-top:4px">${ws.admin_email || '—'}</div></div>
+        <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Razorpay Sub ID</label>
+          <div style="font-family:var(--mono);font-size:12px;margin-top:4px">${ws.razorpay_subscription_id || '—'}</div></div>
+        <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Last Payment ID</label>
+          <div style="font-family:var(--mono);font-size:12px;margin-top:4px">${ws.last_payment_id || '—'}</div></div>
+        <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Created At</label>
+          <div style="font-size:13px;margin-top:4px">${ws.created_at ? new Date(ws.created_at).toLocaleString('en-IN') : '—'}</div></div>
+      </div>`;
+    footer.innerHTML = `<button class="btn btn-secondary" onclick="closeModal('ws-modal')">Close</button>`;
+  }
 
-    async function deleteWorkspace(slug) {
-      if (!confirm(`Are you absolutely sure you want to delete workspace "${slug}"? This ONLY deletes the registry record.`)) return;
+  overlay.classList.add('open');
+}
 
-      const res = await fetch(`/api/superadmin/workspaces/${slug}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (res.ok) loadDashboard();
-      else alert('Delete failed');
-    }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-    async function loadConfig() {
-      const res = await fetch('/api/superadmin/config', { headers: { 'Authorization': `Bearer ${authToken}` } });
-      const cfg = await res.json();
-      
-      document.getElementById('cfg-odoo-master').value = cfg.ODOO_MASTER_PASSWORD;
-      document.getElementById('cfg-odoo-url').value = cfg.ODOO_URL;
-      document.getElementById('cfg-rzp-key').value = cfg.RAZORPAY_KEY_ID;
-      document.getElementById('cfg-rzp-secret').value = cfg.RAZORPAY_KEY_SECRET;
-      document.getElementById('cfg-rzp-starter').value = cfg.RAZORPAY_PLAN_ID_STARTER;
-      document.getElementById('cfg-rzp-pro').value = cfg.RAZORPAY_PLAN_ID_PRO;
-    }
+async function extendWorkspace() {
+  const days = parseInt(document.getElementById('modal-days').value) || 30;
+  const r = await saFetch('/api/superadmin/workspaces/' + currentWsId + '/extend', { method: 'POST', body: { days } });
+  if (r && r.ok) { showToast(`Extended ${currentWsId} by ${days} days`, 'success'); closeModal('ws-modal'); loadWorkspaces(); }
+  else showToast('Failed to extend', 'error');
+}
 
-    async function saveConfig(e) {
-      e.preventDefault();
-      const updates = {
-        ODOO_MASTER_PASSWORD: document.getElementById('cfg-odoo-master').value,
-        ODOO_URL: document.getElementById('cfg-odoo-url').value,
-        RAZORPAY_KEY_ID: document.getElementById('cfg-rzp-key').value,
-        RAZORPAY_KEY_SECRET: document.getElementById('cfg-rzp-secret').value,
-        RAZORPAY_PLAN_ID_STARTER: document.getElementById('cfg-rzp-starter').value,
-        RAZORPAY_PLAN_ID_PRO: document.getElementById('cfg-rzp-pro').value
-      };
+async function setPlan() {
+  const planType = document.getElementById('modal-plan').value;
+  const r = await saFetch('/api/superadmin/workspaces/' + currentWsId + '/set-plan', { method: 'POST', body: { planType } });
+  if (r && r.ok) { showToast('Plan updated to ' + planType, 'success'); closeModal('ws-modal'); loadWorkspaces(); }
+  else showToast('Failed to update plan', 'error');
+}
 
-      const res = await fetch('/api/superadmin/config', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      if (res.ok) alert('Settings updated successfully!');
-      else alert('Failed to save settings.');
-    }
+async function deleteWorkspace() {
+  const confirm = document.getElementById('modal-confirm').value.trim();
+  if (confirm !== currentWsId) { showToast('Confirmation text does not match', 'error'); return; }
+  const r = await saFetch('/api/superadmin/workspaces/' + currentWsId, { method: 'DELETE' });
+  if (r && r.ok) { showToast('Registry record deleted', 'success'); closeModal('ws-modal'); loadWorkspaces(); }
+  else showToast('Failed to delete', 'error');
+}
 
-    function loadLogs() {
-      const logsView = document.getElementById('logs-view');
-      logsView.textContent = 'Refreshing stdout log stream logs...';
-      setTimeout(() => {
-        logsView.textContent = 'Logs connection established. PM2 logs stream stubs ready.';
-      }, 500);
-    }
-  </script>
+// ─── CREATE WORKSPACE ─────────────────────────────────────────────────────────
+async function createWorkspace(e) {
+  e.preventDefault();
+  const btn = document.getElementById('cw-btn');
+  const errEl = document.getElementById('cw-err');
+  const successEl = document.getElementById('cw-success');
+  errEl.style.display = 'none'; successEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Provisioning Odoo database... (this may take 60-90 seconds)';
+
+  const body = {
+    workspaceName: document.getElementById('cw-name').value.trim(),
+    adminEmail: document.getElementById('cw-email').value.trim(),
+    adminPassword: document.getElementById('cw-password').value,
+    planType: document.getElementById('cw-plan').value,
+    days: document.getElementById('cw-days').value
+  };
+
+  try {
+    const r = await saFetch('/api/superadmin/workspaces', { method: 'POST', body });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Provisioning failed');
+    successEl.textContent = 'Workspace created! Odoo DB: ' + data.dbName + ' | Tenant ID: ' + data.tenantId;
+    successEl.style.display = 'block';
+    document.getElementById('create-ws-form').reset();
+    showToast('Workspace provisioned successfully!', 'success');
+  } catch (ex) {
+    errEl.textContent = ex.message;
+    errEl.style.display = 'block';
+    showToast('Provisioning failed: ' + ex.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Provision Workspace';
+  }
+}
+
+// ─── EXPIRING SOON ────────────────────────────────────────────────────────────
+async function loadExpiring() {
+  const r = await saFetch('/api/superadmin/workspaces');
+  if (!r || !r.ok) return;
+  const workspaces = await r.json();
+  const now = new Date();
+  const in7 = new Date(now.getTime() + 7 * 86400000);
+
+  const expiring = workspaces.filter(w => {
+    if (!w.subscription_expires_at) return false;
+    const exp = new Date(w.subscription_expires_at);
+    return exp <= in7 && exp > now && w.subscription_status === 'active';
+  }).sort((a, b) => new Date(a.subscription_expires_at) - new Date(b.subscription_expires_at));
+
+  const tbody = document.getElementById('expiring-list');
+  if (!expiring.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No workspaces expiring in the next 7 days.</td></tr>'; return; }
+
+  tbody.innerHTML = expiring.map(w => {
+    const exp = new Date(w.subscription_expires_at);
+    const days = Math.ceil((exp - now) / 86400000);
+    return `<tr>
+      <td><strong>${w.tenant_id}</strong><br><small style="color:var(--muted)">${w.workspace_name}</small></td>
+      <td><span class="badge badge-${w.plan_type}">${w.plan_type}</span></td>
+      <td>${exp.toLocaleString('en-IN')}</td>
+      <td><span class="days-badge ${days <= 2 ? 'days-danger' : days <= 4 ? 'days-warn' : 'days-ok'}">${days} day${days !== 1 ? 's' : ''}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-success btn-xs" onclick="quickActivate('${w.tenant_id}')">Extend 30d</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── BACKUPS ──────────────────────────────────────────────────────────────────
+async function loadBackups() {
+  const r = await saFetch('/api/superadmin/backups');
+  if (!r || !r.ok) return;
+  const data = await r.json();
+
+  document.getElementById('backup-count').textContent = data.length;
+  document.getElementById('backup-latest').textContent = data.length ? data[0].date : 'None';
+
+  const container = document.getElementById('backups-container');
+  if (!data.length) { container.innerHTML = '<p style="color:var(--muted);font-size:13px;">No backups found in /var/backups/odoo/. Check that the cron script is running.</p>'; return; }
+
+  container.innerHTML = data.map(group => `
+    <div class="backup-date-group">
+      <div class="backup-date-label">${group.date}</div>
+      <div class="backup-files">
+        ${group.files.map(f => `
+          <div class="backup-file-row">
+            <div>
+              <div class="backup-file-name">${f.name}</div>
+              <div class="backup-file-size">${formatBytes(f.size)}</div>
+            </div>
+            <a href="/api/superadmin/backups/download?date=${encodeURIComponent(group.date)}&file=${encodeURIComponent(f.name)}&token=${encodeURIComponent(authToken)}"
+               onclick="downloadBackup(event, '${group.date}', '${f.name}')"
+               class="btn btn-secondary btn-xs">⬇ Download</a>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function downloadBackup(e, date, file) {
+  e.preventDefault();
+  fetch('/api/superadmin/backups/download?date=' + encodeURIComponent(date) + '&file=' + encodeURIComponent(file),
+    { headers: { 'Authorization': 'Bearer ' + authToken } })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = date + '_' + file;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+}
+
+async function triggerBackup() {
+  const btn = document.getElementById('backup-run-btn');
+  btn.disabled = true; btn.textContent = 'Running...';
+  const r = await saFetch('/api/superadmin/backups/run', { method: 'POST' });
+  if (r && r.ok) showToast('Backup triggered. Results appear in /var/backups/odoo/ in ~30s.', 'success');
+  else showToast('Backup trigger failed', 'error');
+  setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Run Backup Now'; loadBackups(); }, 35000);
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+// ─── LIVE LOGS ────────────────────────────────────────────────────────────────
+function startLogsPolling() {
+  if (logsInterval) clearInterval(logsInterval);
+  logsInterval = setInterval(loadLogs, 4000);
+}
+function stopLogsPolling() {
+  if (logsInterval) { clearInterval(logsInterval); logsInterval = null; }
+}
+
+function esc(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadLogs() {
+  const terminal = document.getElementById('logs-terminal');
+  const stderrTerminal = document.getElementById('stderr-terminal');
+  const stderrWrap = document.getElementById('stderr-wrap');
+
+  const r = await saFetch('/api/superadmin/logs');
+  if (!r || !r.ok) { terminal.textContent = 'Failed to fetch logs.'; return; }
+  const d = await r.json();
+
+  if (d.stdout) {
+    const lines = d.stdout.split('\n');
+    const formatted = lines.map(line => {
+      let l = esc(line);
+      l = l.replace(/(GET|POST|PUT|DELETE|PATCH)/g, '<span style="color:#ff6b35;font-weight:700">$1</span>');
+      l = l.replace(/( 200 | 201 )/g, ' <span style="color:#10b981;font-weight:700">$1</span> ');
+      l = l.replace(/( 4\d\d | 5\d\d )/g, ' <span style="color:#ef4444;font-weight:700">$1</span> ');
+      l = l.replace(/\[Provisioner\]/g, '<span style="color:#7367f0;font-weight:700">[Provisioner]</span>');
+      l = l.replace(/\[Webhook\]/g, '<span style="color:#f59e0b;font-weight:700">[Webhook]</span>');
+      l = l.replace(/\[Backup\]/g, '<span style="color:#3b82f6;font-weight:700">[Backup]</span>');
+      return l;
+    }).join('\n');
+    terminal.innerHTML = formatted || 'No output yet.';
+  }
+
+  if (d.stderr && d.stderr.trim()) {
+    stderrWrap.style.display = 'block';
+    stderrTerminal.textContent = d.stderr;
+  } else {
+    stderrWrap.style.display = 'none';
+  }
+
+  const now = new Date();
+  document.getElementById('logs-timestamp').textContent = 'Updated ' + now.toLocaleTimeString('en-IN');
+
+  if (document.getElementById('logs-autoscroll').checked) {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+}
+
+async function restartServer() {
+  if (!confirm('Restart the bizopease-saas PM2 process? There will be ~2 seconds of downtime.')) return;
+  const r = await saFetch('/api/superadmin/restart', { method: 'POST' });
+  if (r && r.ok) { showToast('Restart command sent. Reconnecting...', 'info'); setTimeout(loadLogs, 4000); }
+  else showToast('Restart failed', 'error');
+}
+
+// ─── 2FA ──────────────────────────────────────────────────────────────────────
+let currentSetupSecret = '';
+
+async function update2FAStatusUI() {
+  const statusText = document.getElementById('sa-2fa-status-text');
+  const statusSub = document.getElementById('sa-2fa-status-sub');
+  const badge = document.getElementById('sa-2fa-status-badge');
+  const setupBtn = document.getElementById('sa-2fa-setup-btn');
+  const disableBtn = document.getElementById('sa-2fa-show-disable-btn');
+  const cancelBtn = document.getElementById('sa-2fa-cancel-btn');
+
+  document.getElementById('sa-2fa-setup-box').style.display = 'none';
+  document.getElementById('sa-2fa-disable-box').style.display = 'none';
+  cancelBtn.style.display = 'none';
+
+  const r = await saFetch('/api/superadmin/2fa/status');
+  const enabled = r && r.ok ? (await r.json()).enabled : false;
+
+  if (enabled) {
+    statusText.textContent = 'Two-factor authentication is active. Your account requires a 6-digit code on login.';
+    statusSub.textContent = 'Status: Active';
+    badge.textContent = 'Enabled'; badge.className = 'badge badge-active';
+    setupBtn.style.display = 'none'; disableBtn.style.display = 'block';
+  } else {
+    statusText.textContent = 'Two-factor authentication is not active. Enable it to secure your superadmin account.';
+    statusSub.textContent = 'Status: Inactive';
+    badge.textContent = 'Disabled'; badge.className = 'badge badge-unpaid';
+    setupBtn.style.display = 'block'; disableBtn.style.display = 'none';
+  }
+}
+
+async function setup2FA() {
+  const r = await saFetch('/api/superadmin/2fa/setup');
+  if (!r || !r.ok) { showToast('Failed to get 2FA setup data', 'error'); return; }
+  const data = await r.json();
+  document.getElementById('sa-2fa-qr').src = data.qrUrl;
+  document.getElementById('sa-2fa-secret').textContent = data.secret;
+  document.getElementById('sa-2fa-setup-code').value = '';
+  currentSetupSecret = data.secret;
+  document.getElementById('sa-2fa-setup-box').style.display = 'block';
+  document.getElementById('sa-2fa-cancel-btn').style.display = 'inline-flex';
+  document.getElementById('sa-2fa-setup-btn').style.display = 'none';
+}
+
+async function confirmEnable2FA() {
+  const code = document.getElementById('sa-2fa-setup-code').value.trim();
+  if (!code || code.length !== 6) { showToast('Enter a valid 6-digit code', 'error'); return; }
+  const r = await saFetch('/api/superadmin/2fa/verify', { method: 'POST', body: { code, secret: currentSetupSecret } });
+  if (r && r.ok) { showToast('2FA enabled successfully!', 'success'); update2FAStatusUI(); }
+  else {
+    const d = await r.json();
+    showToast(d.error || 'Invalid code — check your authenticator app', 'error');
+  }
+}
+
+function showDisable2FA() {
+  document.getElementById('sa-2fa-disable-box').style.display = 'block';
+  document.getElementById('sa-2fa-cancel-btn').style.display = 'inline-flex';
+  document.getElementById('sa-2fa-show-disable-btn').style.display = 'none';
+  document.getElementById('sa-2fa-disable-code').value = '';
+}
+
+async function confirmDisable2FA() {
+  const code = document.getElementById('sa-2fa-disable-code').value.trim();
+  if (!code || code.length !== 6) { showToast('Enter a valid 6-digit code', 'error'); return; }
+  const r = await saFetch('/api/superadmin/2fa/disable', { method: 'POST', body: { code } });
+  if (r && r.ok) { showToast('2FA disabled', 'success'); update2FAStatusUI(); }
+  else {
+    const d = r ? await r.json() : {};
+    showToast(d.error || 'Invalid code', 'error');
+  }
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const r = await saFetch('/api/superadmin/config');
+  if (!r || !r.ok) return;
+  const cfg = await r.json();
+  const map = {
+    'cfg-odoo-url': 'ODOO_URL',
+    'cfg-odoo-master': 'ODOO_MASTER_PASSWORD',
+    'cfg-price-starter': 'PLAN_PRICE_STARTER',
+    'cfg-price-pro': 'PLAN_PRICE_PRO',
+    'cfg-rzp-key': 'RAZORPAY_KEY_ID',
+    'cfg-rzp-secret': 'RAZORPAY_KEY_SECRET',
+    'cfg-rzp-starter': 'RAZORPAY_PLAN_ID_STARTER',
+    'cfg-rzp-pro': 'RAZORPAY_PLAN_ID_PRO',
+    'cfg-rzp-webhook': 'RAZORPAY_WEBHOOK_SECRET',
+    'cfg-r2-account': 'R2_ACCOUNT_ID',
+    'cfg-r2-bucket': 'R2_BUCKET_NAME',
+    'cfg-r2-key': 'R2_ACCESS_KEY_ID',
+    'cfg-r2-secret': 'R2_SECRET_ACCESS_KEY',
+    'cfg-r2-endpoint': 'R2_ENDPOINT',
+    'cfg-sa-user': 'SUPERADMIN_USERNAME',
+    'cfg-sa-pass': 'SUPERADMIN_PASSWORD',
+    'cfg-jwt': 'JWT_SECRET'
+  };
+  Object.entries(map).forEach(([elId, key]) => {
+    const el = document.getElementById(elId);
+    if (el) el.value = cfg[key] || '';
+  });
+}
+
+async function saveSettings(e) {
+  e.preventDefault();
+  const btn = document.getElementById('settings-save-btn');
+  const status = document.getElementById('settings-status');
+  btn.disabled = true; btn.textContent = 'Saving...'; status.textContent = '';
+
+  const updates = {
+    ODOO_URL: document.getElementById('cfg-odoo-url').value,
+    ODOO_MASTER_PASSWORD: document.getElementById('cfg-odoo-master').value,
+    PLAN_PRICE_STARTER: document.getElementById('cfg-price-starter').value,
+    PLAN_PRICE_PRO: document.getElementById('cfg-price-pro').value,
+    RAZORPAY_KEY_ID: document.getElementById('cfg-rzp-key').value,
+    RAZORPAY_KEY_SECRET: document.getElementById('cfg-rzp-secret').value,
+    RAZORPAY_PLAN_ID_STARTER: document.getElementById('cfg-rzp-starter').value,
+    RAZORPAY_PLAN_ID_PRO: document.getElementById('cfg-rzp-pro').value,
+    RAZORPAY_WEBHOOK_SECRET: document.getElementById('cfg-rzp-webhook').value,
+    R2_ACCOUNT_ID: document.getElementById('cfg-r2-account').value,
+    R2_BUCKET_NAME: document.getElementById('cfg-r2-bucket').value,
+    R2_ACCESS_KEY_ID: document.getElementById('cfg-r2-key').value,
+    R2_SECRET_ACCESS_KEY: document.getElementById('cfg-r2-secret').value,
+    R2_ENDPOINT: document.getElementById('cfg-r2-endpoint').value,
+    SUPERADMIN_USERNAME: document.getElementById('cfg-sa-user').value,
+    SUPERADMIN_PASSWORD: document.getElementById('cfg-sa-pass').value,
+    JWT_SECRET: document.getElementById('cfg-jwt').value
+  };
+
+  try {
+    const r = await saFetch('/api/superadmin/config', { method: 'POST', body: updates });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Save failed');
+    showToast('Settings saved and reloaded!', 'success');
+    status.textContent = '✓ Saved'; status.style.color = 'var(--green)';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  } catch (ex) {
+    showToast(ex.message, 'error');
+    status.textContent = '✗ ' + ex.message; status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save All Settings';
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + type;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, 3500);
+}
+
+// ─── CLOSE MODAL ON BACKDROP ──────────────────────────────────────────────────
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+</script>
 </body>
 </html>

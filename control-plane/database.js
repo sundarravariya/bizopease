@@ -1,15 +1,21 @@
+/**
+ * BizOpease — Master SQLite Registry
+ * =====================================
+ * Tracks all tenant workspaces and system-level configuration.
+ * The Odoo databases themselves are PostgreSQL — this SQLite DB
+ * only holds the metadata registry.
+ */
+
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const fs = require('fs');
 
-// Helper to apply SQLite performance PRAGMAs
 function applyPragmas(db) {
   db.serialize(() => {
-    db.run("PRAGMA journal_mode = WAL;");
-    db.run("PRAGMA synchronous = NORMAL;");
-    db.run("PRAGMA temp_store = MEMORY;");
-    db.run("PRAGMA cache_size = -2000;");
-    db.run("PRAGMA busy_timeout = 5000;");
+    db.run('PRAGMA journal_mode = WAL;');
+    db.run('PRAGMA synchronous = NORMAL;');
+    db.run('PRAGMA temp_store = MEMORY;');
+    db.run('PRAGMA cache_size = -4000;');
+    db.run('PRAGMA busy_timeout = 10000;');
   });
 }
 
@@ -18,51 +24,94 @@ const masterDb = new sqlite3.Database(masterDbPath);
 applyPragmas(masterDb);
 
 masterDb.serialize(() => {
-  // Create workspaces table to manage subscriptions and provisioned databases
+  // Main workspace/tenant registry
   masterDb.run(`CREATE TABLE IF NOT EXISTS workspaces (
-    tenant_id TEXT PRIMARY KEY,
-    workspace_name TEXT NOT NULL,
-    subscription_status TEXT CHECK(subscription_status IN ('active', 'unpaid', 'expired')) NOT NULL DEFAULT 'unpaid',
-    subscription_expires_at TEXT,
-    plan_type TEXT NOT NULL DEFAULT 'starter',
-    razorpay_subscription_id TEXT,
-    last_payment_id TEXT,
-    odoo_db_name TEXT NOT NULL,
-    admin_email TEXT NOT NULL,
-    admin_password TEXT NOT NULL,
-    cancel_at_period_end INTEGER DEFAULT 0,
+    tenant_id                TEXT PRIMARY KEY,          -- subdomain slug, e.g. "acme"
+    workspace_name           TEXT NOT NULL,              -- display name, e.g. "ACME Trading"
+    odoo_db_name             TEXT NOT NULL DEFAULT '',   -- Odoo PG database, e.g. "ws_acme"
+    admin_email              TEXT NOT NULL DEFAULT '',   -- Odoo admin login email
+    plan_type                TEXT NOT NULL DEFAULT 'starter', -- 'starter' | 'pro'
+    subscription_status      TEXT NOT NULL DEFAULT 'unpaid'
+                             CHECK(subscription_status IN ('active','unpaid','expired')),
+    subscription_expires_at  TEXT,                       -- ISO datetime or NULL (never expires)
+    razorpay_subscription_id TEXT DEFAULT '',
+    last_payment_id          TEXT DEFAULT '',
+    cancel_at_period_end     INTEGER DEFAULT 0,
+    provision_status         TEXT NOT NULL DEFAULT 'pending'
+                             CHECK(provision_status IN ('pending','provisioning','ready','failed')),
+    provision_error          TEXT DEFAULT '',            -- last error from provisioner
+    nginx_configured         INTEGER DEFAULT 0,          -- 1 if Nginx block written
+    created_at               TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // System-wide settings: API keys, credentials, config values
+  masterDb.run(`CREATE TABLE IF NOT EXISTS system_settings (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL DEFAULT ''
+  )`);
+
+  // Audit log: every superadmin action
+  masterDb.run(`CREATE TABLE IF NOT EXISTS audit_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    action     TEXT NOT NULL,
+    tenant_id  TEXT,
+    details    TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  // Create system settings table for API keys and configurations
-  masterDb.run(`CREATE TABLE IF NOT EXISTS system_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`);
+  // Indexes
+  masterDb.run(`CREATE INDEX IF NOT EXISTS idx_ws_status ON workspaces(subscription_status)`);
+  masterDb.run(`CREATE INDEX IF NOT EXISTS idx_ws_expires ON workspaces(subscription_expires_at)`);
+  masterDb.run(`CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_log(tenant_id)`);
+
+  // Seed default system settings if they don't exist yet
+  const defaults = [
+    ['ODOO_URL', 'http://127.0.0.1:8069'],
+    ['ODOO_MASTER_PASSWORD', ''],
+    ['PLAN_PRICE_STARTER', '1000'],
+    ['PLAN_PRICE_PRO', '2500'],
+    ['RAZORPAY_KEY_ID', ''],
+    ['RAZORPAY_KEY_SECRET', ''],
+    ['RAZORPAY_PLAN_ID_STARTER', ''],
+    ['RAZORPAY_PLAN_ID_PRO', ''],
+    ['RAZORPAY_WEBHOOK_SECRET', ''],
+    ['SUPERADMIN_USERNAME', 'bizopeaseadmin'],
+    ['SUPERADMIN_PASSWORD', 'BizOpeaseAdminPass123!'],
+    ['JWT_SECRET', require('crypto').randomBytes(32).toString('hex')]
+  ];
+
+  defaults.forEach(([key, val]) => {
+    masterDb.run(`INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)`, [key, val]);
+  });
 });
 
-// Load configuration variables from settings database
+// ─── SYNCHRONOUS HELPER (for use inside sync callback chains) ─────────────────
 function getSetting(key, defaultVal = '') {
   return new Promise((resolve) => {
-    masterDb.get("SELECT value FROM system_settings WHERE key = ?", [key], (err, row) => {
+    masterDb.get('SELECT value FROM system_settings WHERE key = ?', [key], (err, row) => {
       if (err || !row) resolve(defaultVal);
-      else resolve(row.value);
+      else resolve(row.value || defaultVal);
     });
   });
 }
 
-// Save configuration variables
 function saveSetting(key, val) {
   return new Promise((resolve, reject) => {
-    masterDb.run("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)", [key, val], (err) => {
-      if (err) reject(err);
-      else resolve(true);
-    });
+    masterDb.run(
+      'INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)',
+      [key, String(val)],
+      err => { if (err) reject(err); else resolve(true); }
+    );
   });
 }
 
-module.exports = {
-  masterDb,
-  getSetting,
-  saveSetting
-};
+function addAuditLog(action, tenantId = null, details = '') {
+  masterDb.run(
+    'INSERT INTO audit_log (action, tenant_id, details) VALUES (?, ?, ?)',
+    [action, tenantId, details],
+    err => { if (err) console.error('[AuditLog] Write failed:', err.message); }
+  );
+}
+
+module.exports = { masterDb, getSetting, saveSetting, addAuditLog };

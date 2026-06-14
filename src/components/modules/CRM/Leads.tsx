@@ -386,7 +386,7 @@ export default function Leads() {
               <p className={`text-xs font-bold ${th}`}>Activity Log</p>
               {[`Lead created from ${drawerLead.source}`, 'Initial contact attempted via email', 'Follow-up scheduled for next week'].map((act, i) => (
                 <div key={i} className={`text-xs ${ts} flex gap-2`}>
-                  <span className='text-[#7367f0]'>â€¢</span>{act}
+                  <span className='text-[#7367f0]'>-</span>{act}
                 </div>
               ))}
             </div>

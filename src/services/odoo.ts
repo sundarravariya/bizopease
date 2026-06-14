@@ -55,7 +55,7 @@ export async function searchRead<T = any>(
   model: string,
   opts: SearchReadOptions = {}
 ): Promise<T[]> {
-  const { domain = [], fields = [], limit = 80, offset = 0, order } = opts;
+  const { domain = [], fields = [], limit = 0, offset = 0, order } = opts;
   return jsonRpc<T[]>('/web/dataset/call_kw', {
     model,
     method: 'search_read',

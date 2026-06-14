@@ -304,7 +304,7 @@ export default function SettlementStudio() {
               <Plus size={15} className="flex-shrink-0" />
               <span className="truncate">Add {TABS.find(t => t.key === tab)?.label.replace(/s$/, '')}</span>
             </button>
-            <button onClick={() => navigate('/settlements/expenses')}
+            <button onClick={() => navigate('../expenses')}
               className={`flex-1 min-w-0 h-12 lg:h-14 rounded-2xl shadow-xl flex items-center justify-center gap-2 font-bold text-[11px] lg:text-sm border border-amber-500/30 ${bgSoft} text-amber-400`}>
               <Receipt size={15} className="flex-shrink-0" />
               <span className="truncate">Expenses</span>

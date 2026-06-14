@@ -13,7 +13,8 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isDark } = useTheme();
   const { pathname } = useLocation();
-  const bare = BARE_ROUTES.some(r => pathname.startsWith(r));
+  // Routes are workspace-prefixed (/:workspace/settlements/studio), so match by suffix.
+  const bare = BARE_ROUTES.some(r => pathname.endsWith(r) || pathname.includes(r + '/'));
 
   return (
     <WorkHoursGate>
