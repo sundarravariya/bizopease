@@ -91,6 +91,7 @@ const Kiosk             = lazy(() => import('./components/modules/HR/Kiosk'));
 const GeneralSettings   = lazy(() => import('./components/modules/Settings/GeneralSettings'));
 const Profile           = lazy(() => import('./components/modules/Settings/Profile'));
 const ComingSoon        = lazy(() => import('./components/ui/ComingSoon'));
+const SuperAdminApp     = lazy(() => import('./superadmin/SuperAdminApp'));
 
 // ─── Loading fallback ───────────────────────────────────────────────────────
 function PageLoader() {
@@ -143,6 +144,9 @@ function InnerApp() {
         {/* Login + public signup */}
         <Route path="/login" element={isAuthenticated ? <RoleLanding /> : <Login />} />
         <Route path="/signup" element={isAuthenticated ? <RoleLanding /> : <Signup />} />
+
+        {/* Superadmin platform console (own JWT auth, before the /:workspace shell) */}
+        <Route path="/superadmin/*" element={<Suspense fallback={<PageLoader />}><SuperAdminApp /></Suspense>} />
 
         {/* Root — redirect to workspace dashboard or login */}
         <Route path="/" element={<RoleLanding />} />
