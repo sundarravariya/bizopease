@@ -462,10 +462,33 @@ app.post('/api/superadmin/login', loginLimiter, (req, res) => {
     });
 });
 
+// RFC 4648 base32 (Node Buffer has NO 'base32' encoding -- must implement it).
+const B32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function base32Encode(buf) {
+  let bits = 0, value = 0, out = '';
+  for (let i = 0; i < buf.length; i++) {
+    value = (value << 8) | buf[i]; bits += 8;
+    while (bits >= 5) { out += B32_ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  if (bits > 0) out += B32_ALPHABET[(value << (5 - bits)) & 31];
+  return out;
+}
+function base32Decode(str) {
+  const clean = String(str).toUpperCase().replace(/=+$/, '').replace(/\s/g, '');
+  let bits = 0, value = 0; const out = [];
+  for (const c of clean) {
+    const idx = B32_ALPHABET.indexOf(c);
+    if (idx === -1) continue;
+    value = (value << 5) | idx; bits += 5;
+    if (bits >= 8) { out.push((value >>> (bits - 8)) & 0xff); bits -= 8; }
+  }
+  return Buffer.from(out);
+}
+
 function verifyTOTP(code, secret) {
-  // RFC 6238 TOTP — 30s window
+  // RFC 6238 TOTP -- 30s window, +/-1 step tolerance.
   try {
-    const key = Buffer.from(secret.replace(/ /g, ''), 'base32');
+    const key = base32Decode(secret);
     const time = Math.floor(Date.now() / 30000);
     for (let i = -1; i <= 1; i++) {
       const t = time + i;
@@ -487,7 +510,7 @@ app.get('/api/superadmin/2fa/status', requireSuperAdmin, (req, res) => {
 });
 
 app.get('/api/superadmin/2fa/setup', requireSuperAdmin, (req, res) => {
-  const secret = crypto.randomBytes(20).toString('base32').slice(0, 16).toUpperCase();
+  const secret = base32Encode(crypto.randomBytes(20));
   const otpauth = `otpauth://totp/BizOpease%20Admin?secret=${secret}&issuer=BizOpease`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauth)}`;
   res.json({ secret, qrUrl });
