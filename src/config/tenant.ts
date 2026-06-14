@@ -17,5 +17,19 @@ export function getOdooDb(): string {
   if (typeof window !== 'undefined' && window.__ODOO_DB__) return window.__ODOO_DB__;
   const envDb = import.meta.env.VITE_ODOO_DB as string | undefined;
   if (envDb) return envDb;
+
+  // Resolve dynamically from the hostname subdomain
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname; // e.g. "acme.bizopease.robifel.in" or "acme.bizopease.com"
+    const parts = hostname.split('.');
+    if (parts.length >= 3) {
+      const sub = parts[0].toLowerCase();
+      // Ignore common infrastructure subdomains
+      if (sub !== 'www' && sub !== 'dashboard' && sub !== 'bizopease' && sub !== 'odoo' && sub !== 'superadmin') {
+        return `ws_${sub}`;
+      }
+    }
+  }
+
   return 'robifel';
 }
