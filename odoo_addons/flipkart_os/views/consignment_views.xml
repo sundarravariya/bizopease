@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Consignment — List -->
+    <record id="view_flipkart_consignment_list" model="ir.ui.view">
+        <field name="name">flipkart.consignment.list</field>
+        <field name="model">flipkart.consignment</field>
+        <field name="arch" type="xml">
+            <list string="Flipkart Consignments" default_order="pickup_date asc" decoration-muted="state in ('inwarded', 'rejected')"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'rtd'"
+                  decoration-success="state == 'picked_up'">
+                <field name="name"/>
+                <field name="account"/>
+                <field name="warehouse_id"/>
+                <field name="pickup_date"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'rtd'"
+                       decoration-success="state == 'picked_up'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Consignment — Form -->
+    <record id="view_flipkart_consignment_form" model="ir.ui.view">
+        <field name="name">flipkart.consignment.form</field>
+        <field name="model">flipkart.consignment</field>
+        <field name="arch" type="xml">
+            <form string="Flipkart Consignment">
+                <header>
+                    <button name="action_parse_csv" string="Parse CSV" type="object"
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_generate_barcodes" string="Generate &amp; Download Barcodes"
+                            type="object" class="btn-secondary"/>
+                    <button name="action_print_qz" string="🖨 Print Direct (QZ)"
+                            type="object" class="btn-secondary"/>
+                    <button name="action_print_all_box_packing_slips_qz" string="Print All Box Slips (QZ)"
+                            type="object" class="btn-secondary"/>
+                    <button name="action_mark_rtd" string="✓ Mark as RTD" type="object"
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_mark_picked_up" string="Mark as Picked Up" type="object"
+                            class="oe_highlight" invisible="state != 'rtd'"/>
+                    <button name="action_mark_inwarded" string="✓ Mark as Inwarded" type="object"
+                            class="oe_highlight" invisible="state != 'picked_up'"/>
+                    <button name="action_mark_rejected" string="Reject Consignment" type="object"
+                            class="btn-secondary" invisible="state != 'picked_up'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,rtd,picked_up,inwarded"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="E.g. FBF-12345"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="account"/>
+                            <field name="warehouse_id"/>
+                        </group>
+                        <group>
+                            <field name="pickup_date"/>
+                            <field name="csv_file" filename="csv_file_name" invisible="state != 'draft'"/>
+                            <field name="csv_file_name" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Consignment Lines" name="lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sku_id"/>
+                                    <field name="fsn"/>
+                                    <field name="quantity_sent"/>
+                                    <field name="product_name"/>
+                                    <field name="cost_price"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Boxes" name="boxes">
+                            <field name="box_ids" context="{'default_consignment_id': id}">
+                                <list>
+                                    <field name="name"/>
+                                    <button name="action_print_packing_slip" string="Download" type="object" icon="fa-download"/>
+                                    <button name="action_print_packing_slip_qz" string="Print Direct" type="object" icon="fa-print"/>
+                                </list>
+                                <form>
+                                    <header>
+                                        <button name="action_add_all_pending" string="+ Add All Pending" type="object" class="btn-secondary"/>
+                                        <button name="action_print_packing_slip" string="Download Packing Slip" type="object" class="btn-secondary"/>
+                                        <button name="action_print_packing_slip_qz" string="🖨 Print Direct (QZ)" type="object" class="oe_highlight"/>
+                                    </header>
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="name"/>
+                                                <field name="consignment_id" invisible="1"/>
+                                            </group>
+                                            <group string="Dimensions &amp; Weight">
+                                                <div class="o_row">
+                                                    <field name="length" placeholder="L"/>
+                                                    <span>x</span>
+                                                    <field name="breadth" placeholder="B"/>
+                                                    <span>x</span>
+                                                    <field name="height" placeholder="H"/>
+                                                    <span>cm</span>
+                                                </div>
+                                                <field name="weight"/>
+                                            </group>
+                                        </group>
+                                        <notebook>
+                                            <page string="Items in Box">
+                                                <field name="line_ids">
+                                                    <list editable="bottom">
+                                                        <field name="consignment_line_id" domain="[('consignment_id', '=', parent.consignment_id), ('qty_remaining', '>', 0), ('id', 'not in', used_ids)]"/>
+                                                        <field name="fsn"/>
+                                                        <field name="qty_remaining" string="Rem. Qty" optional="show"/>
+                                                        <field name="quantity"/>
+                                                    </list>
+                                                </field>
+                                            </page>
+                                        </notebook>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Consignment — Search -->
+    <record id="view_flipkart_consignment_search" model="ir.ui.view">
+        <field name="name">flipkart.consignment.search</field>
+        <field name="model">flipkart.consignment</field>
+        <field name="arch" type="xml">
+            <search string="Search Consignments">
+                <field name="name"/>
+                <field name="account"/>
+                <field name="warehouse_id"/>
+
+                <!-- Status Filters -->
+                <filter string="Created"    name="filter_created"    domain="[('state', '=', 'draft')]"/>
+                <filter string="RTD"        name="filter_rtd"        domain="[('state', '=', 'rtd')]"/>
+                <filter string="Picked Up"  name="filter_picked_up"  domain="[('state', '=', 'picked_up')]"/>
+                <filter string="Inwarded"   name="filter_inwarded"   domain="[('state', '=', 'inwarded')]"/>
+                <filter string="Rejected"   name="filter_rejected"   domain="[('state', '=', 'rejected')]"/>
+
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Account"   name="group_account"   context="{'group_by':'account'}"/>
+                    <filter string="Warehouse" name="group_warehouse" context="{'group_by':'warehouse_id'}"/>
+                    <filter string="Status"    name="group_state"     context="{'group_by':'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Consignment — Action -->
+    <record id="action_flipkart_consignment" model="ir.actions.act_window">
+        <field name="name">Consignments</field>
+        <field name="res_model">flipkart.consignment</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{"search_default_filter_created": 1, "search_default_group_account": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a new Flipkart Consignment</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,1035 @@
+// =============================================================
+// Material Theme — Component Styles
+// Registered under: web.assets_backend
+//
+// Design: Black & White, pill buttons, white navbar.
+// =============================================================
+
+
+// =============================================================
+// 1. SHELL
+// =============================================================
+
+.o_web_client {
+    background: $mt-surface-muted;
+    color: $mt-text;
+}
+
+.o_action_manager,
+.o_content {
+    background: transparent;
+}
+
+
+// =============================================================
+// 2. NAVBAR — white bar, dark text
+// $o-navbar-background, $o-navbar-entry-color etc. are set in
+// variables.scss.  We only add shadow and fix CSS custom props.
+// =============================================================
+
+.o_main_navbar {
+    box-shadow: $mt-shadow-sm;
+
+    // Active entry CSS custom props (read by navbar.scss)
+    --NavBar-entry-backgroundColor--active: #{$mt-surface-strong};
+    --NavBar-entry-color--active: #{$mt-text};
+    --NavBar-entry-borderColor-active: transparent;
+
+    // Brand / logo text
+    .o_menu_brand {
+        color: $mt-text !important;
+        font-weight: 700;
+    }
+
+    // Hamburger toggle
+    .o_menu_toggle {
+        color: $mt-text !important;
+        border-radius: $mt-radius-xs;
+        transition: background $mt-ease-fast;
+
+        &:hover {
+            background: $mt-surface-muted !important;
+        }
+
+        // Icons inside toggle must be dark
+        *, svg, path, rect, g {
+            color: $mt-text !important;
+            fill: currentColor;
+        }
+    }
+
+    // Nav section links
+    .o_nav_entry,
+    .o_menu_sections .nav-link,
+    .o_menu_sections .dropdown-toggle {
+        color: $mt-text-muted !important;
+        font-weight: 700;
+        transition: color $mt-ease-fast, background $mt-ease-fast;
+        border-radius: $mt-radius-xs;
+
+        &:hover {
+            color: $mt-text !important;
+            background: $mt-surface-muted !important;
+        }
+
+        &.active,
+        &.show {
+            color: $mt-text !important;
+            background: $mt-surface-strong !important;
+            font-weight: 600;
+        }
+
+        * { color: inherit !important; }
+    }
+
+    // Systray items
+    .o_menu_systray .o_nav_entry,
+    .o_menu_systray .dropdown-toggle,
+    .o_menu_systray > .o-dropdown > button {
+        color: $mt-text-muted !important;
+        border-radius: $mt-radius-xs;
+        transition: background $mt-ease-fast, color $mt-ease-fast;
+
+        &:hover {
+            color: $mt-text !important;
+            background: $mt-surface-muted !important;
+        }
+
+        * { color: inherit !important; }
+    }
+}
+
+// Navbar dropdowns
+.o_main_navbar .dropdown-menu,
+.o_menu_systray .dropdown-menu {
+    .dropdown-item,
+    .dropdown-item span,
+    .dropdown-item a {
+        color: $mt-text !important;
+    }
+
+    .dropdown-item:hover,
+    .dropdown-item:focus {
+        background: $mt-surface-muted !important;
+        color: $mt-text !important;
+    }
+
+    .dropdown-item.active,
+    .dropdown-item:active {
+        background: $mt-primary !important;
+        color: #FFFFFF !important;
+
+        * { color: #FFFFFF !important; }
+    }
+}
+
+// Apps menu dropdown (text list of apps, desktop)
+.o_navbar_apps_menu .dropdown-menu .o_app {
+    color: $mt-text !important;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: $mt-radius-xs;
+    transition: background $mt-ease-fast;
+
+    &:hover { background: $mt-surface-muted !important; }
+    &.focus { background: $mt-surface-strong !important; font-weight: 700; }
+}
+
+
+// =============================================================
+// 3. CONTROL PANEL
+// =============================================================
+
+.o_control_panel {
+    position: relative;
+    background: transparent;
+    border-bottom: none;
+    padding: 12px 20px 8px;
+    z-index: 10;
+}
+
+.o_control_panel .o_control_panel_main {
+    position: relative;
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+    padding: 8px 14px;
+}
+
+.o_control_panel .o_cp_bottom {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-top: none;
+    border-radius: 0 0 $mt-radius-sm $mt-radius-sm;
+    padding: 6px 14px;
+}
+
+// Breadcrumb
+.o_control_panel .breadcrumb-item,
+.o_control_panel .breadcrumb-item a {
+    color: $mt-text;
+    font-weight: 500;
+    text-decoration: none;
+
+    &:hover { color: $mt-primary; }
+}
+
+.o_control_panel .breadcrumb-item.active { color: $mt-text-muted; }
+
+.o_control_panel .breadcrumb-item + .breadcrumb-item::before { color: $mt-text-soft; }
+
+// View switcher
+.o_cp_switch_buttons .btn,
+.o_control_panel .btn-group > .btn {
+    background: $mt-surface !important;
+    border-color: $mt-border !important;
+    color: $mt-text-muted !important;
+    border-radius: $mt-radius-xs !important;
+    font-weight: 500;
+    transition: background $mt-ease-fast, color $mt-ease-fast;
+
+    * { color: inherit !important; }
+
+    &:hover {
+        background: $mt-surface-muted !important;
+        border-color: $mt-border-strong !important;
+        color: $mt-text !important;
+    }
+
+    &.active,
+    &.btn-primary {
+        background: $mt-primary !important;
+        border-color: $mt-primary !important;
+        color: #FFFFFF !important;
+
+        * { color: #FFFFFF !important; fill: currentColor !important; }
+    }
+}
+
+
+// =============================================================
+// 4. BUTTONS — pill shape, full contrast on children
+//
+// RULE: Every button's children (icons, spans, svg) must always
+// be in contrast with the button background.
+// Primary  → black bg  → white children
+// Secondary → white bg → black children
+// =============================================================
+
+.btn {
+    border-radius: $mt-radius-btn !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding-left: 1.25em;
+    padding-right: 1.25em;
+    transition: background $mt-ease-fast, border-color $mt-ease-fast,
+                color $mt-ease-fast, box-shadow $mt-ease-fast;
+
+    // All children inherit the button's text color
+    *, i, span, svg {
+        color: inherit !important;
+        fill: currentColor !important;
+    }
+
+    &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.22) !important;
+    }
+
+    &:disabled,
+    &.disabled {
+        opacity: 0.40;
+        cursor: not-allowed;
+        pointer-events: auto;
+    }
+}
+
+// PRIMARY — black fill, white text + children
+.btn-primary,
+.btn-dark,
+.o_btn_highlight,
+.o_form_button_create,
+.o_list_button_add,
+.o-kanban-button-new,
+.o_form_button_edit,
+.o_form_statusbar .btn-primary,
+.o_statusbar_buttons .btn-primary,
+.o_cp_buttons .btn-primary,
+.o_arrow_button.btn-primary {
+    background: $mt-primary !important;
+    border-color: $mt-primary !important;
+    color: #FFFFFF !important;
+
+    *, i, span, svg, .fa, .oi {
+        color: #FFFFFF !important;
+        fill: currentColor !important;
+    }
+
+    &:hover {
+        background: $mt-primary-hover !important;
+        border-color: $mt-primary-hover !important;
+        color: #FFFFFF !important;
+
+        * { color: #FFFFFF !important; }
+    }
+
+    &:active {
+        background: $mt-primary-dark !important;
+        border-color: $mt-primary-dark !important;
+    }
+}
+
+// SECONDARY / LIGHT — white fill, black border, dark text + children
+.btn-secondary,
+.btn-light,
+.btn-outline-secondary,
+.btn-outline-primary,
+.btn-outline-light {
+    background: $mt-surface !important;
+    border: 1.5px solid $mt-border-strong !important;
+    color: $mt-text !important;
+
+    *, i, span, svg, .fa, .oi {
+        color: $mt-text !important;
+        fill: currentColor !important;
+    }
+
+    &:hover {
+        background: $mt-surface-muted !important;
+        border-color: $mt-primary !important;
+        color: $mt-primary !important;
+
+        * { color: $mt-primary !important; }
+    }
+
+    &:active,
+    &.active {
+        background: $mt-primary !important;
+        border-color: $mt-primary !important;
+        color: #FFFFFF !important;
+
+        * { color: #FFFFFF !important; }
+    }
+}
+
+// Stat / smart buttons above form
+.o_stat_buttons .btn,
+.o_stat_buttons button {
+    background: $mt-surface !important;
+    border: 1.5px solid $mt-border !important;
+    color: $mt-text !important;
+    border-radius: $mt-radius-sm !important;
+    box-shadow: $mt-shadow-sm;
+    padding-left: 1em;
+    padding-right: 1em;
+    transition: box-shadow $mt-ease-fast, border-color $mt-ease-fast;
+
+    *, i, span, svg { color: $mt-text !important; }
+
+    .o_stat_value { color: $mt-primary; font-weight: 700; }
+    .o_stat_text  { color: $mt-text-muted; font-size: $o-font-size-base-small; }
+
+    &:hover {
+        box-shadow: $mt-shadow-md;
+        border-color: $mt-border-strong !important;
+    }
+}
+
+// Link-style buttons — dark underline
+.btn-link {
+    color: $mt-text !important;
+    text-decoration: underline;
+    text-decoration-color: $mt-border-strong;
+    background: transparent !important;
+    border-color: transparent !important;
+    border-radius: $mt-radius-btn !important;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+
+    &:hover {
+        color: $mt-primary !important;
+        text-decoration-color: $mt-primary;
+    }
+}
+
+
+// =============================================================
+// 5. FORM VIEW
+// =============================================================
+
+.o_form_view .o_form_sheet_bg {
+    background: transparent;
+    padding: 12px 20px 32px;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin-right: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+.o_form_view .o_form_sheet {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+    padding: 28px 32px;
+}
+
+.o_form_view .o_form_label,
+.o_form_view .o_td_label label {
+    color: $mt-text-muted;
+    font-size: $o-font-size-base-smaller;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.o_form_view .text-muted,
+.o_form_view .text-600 { color: $mt-text-muted !important; }
+
+.o_form_view .o_horizontal_separator {
+    color: $mt-text-muted;
+    font-size: $o-font-size-base-smaller;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    border-bottom: 1px solid $mt-border;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+
+// Record title
+.o_form_view .oe_title .o_field_widget input {
+    font-weight: 700;
+    color: $mt-text;
+    border: none !important;
+    border-bottom: 2px solid $mt-border !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding-left: 0;
+    background: transparent !important;
+
+    &:focus {
+        border-bottom-color: $mt-primary !important;
+        box-shadow: none !important;
+    }
+}
+
+// Status bar
+.o_form_statusbar {
+    background: $mt-surface;
+    border-bottom: 1px solid $mt-border;
+    padding: 8px 32px;
+}
+
+.o_statusbar_status .o_arrow_button {
+    background: $mt-surface !important;
+    border-color: $mt-border !important;
+    color: $mt-text-muted !important;
+    font-weight: 500;
+    font-size: $o-font-size-base-small;
+    transition: background $mt-ease-fast, color $mt-ease-fast;
+
+    * { color: inherit !important; }
+
+    &:hover {
+        background: $mt-surface-muted !important;
+        border-color: $mt-border-strong !important;
+        color: $mt-text !important;
+    }
+
+    &.o_arrow_button_current {
+        background: $mt-primary !important;
+        border-color: $mt-primary !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+
+        * { color: #FFFFFF !important; }
+    }
+}
+
+
+// =============================================================
+// 6. INPUTS
+// =============================================================
+
+.form-control,
+.form-select,
+.o_input,
+.o_field_widget input:not([type="checkbox"]):not([type="radio"]),
+.o_field_widget textarea,
+.o_field_widget select {
+    border-color: $mt-border !important;
+    border-radius: $mt-radius-xs !important;
+    background: $mt-surface !important;
+    color: $mt-text !important;
+    -webkit-text-fill-color: $mt-text !important;
+    caret-color: $mt-text;
+    box-shadow: none !important;
+    transition: border-color $mt-ease-fast, box-shadow $mt-ease-fast;
+
+    &::placeholder { color: $mt-text-soft !important; -webkit-text-fill-color: $mt-text-soft !important; }
+    &:focus {
+        border-color: $mt-primary !important;
+        box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12) !important;
+        outline: none;
+    }
+}
+
+// Monetary field overlay span is position-absolute and used only to anchor the currency symbol.
+// Applying our surface background to it covers the real <input> behind it, hiding the value.
+.o_field_monetary span.o_input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+}
+
+.o_cp_searchview, .o_searchview {
+    position: relative;
+}
+
+.o_control_panel_search {
+    display: flex;
+    justify-content: center;
+    flex: 1 1 auto;
+
+    .o_searchview {
+        width: 100%;
+        max-width: 800px;
+    }
+}
+
+.form-control:focus, .o_input:focus, .o_searchview:focus-within {
+    border-color: $mt-primary !important;
+    box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12) !important;
+}
+
+.o_searchview {
+    border-color: $mt-border !important;
+    border-radius: $mt-radius-xs !important;
+    background: $mt-surface !important;
+    transition: border-color $mt-ease-fast, box-shadow $mt-ease-fast;
+}
+
+.o_searchview .o_searchview_facet {
+    background: #FFFFFF !important;
+    border: 1px solid #000000 !important;
+    border-radius: $mt-radius-xs !important;
+    color: $mt-text !important;
+    font-weight: 500;
+    padding: 0;
+
+    // Facet label (the colored type-indicator on the left).
+    // Has btn + btn-primary classes — our global .btn pill radius breaks it.
+    // Restore left-only rounding and compact padding.
+    .o_searchview_facet_label {
+        background: #FFFFFF !important;
+        border-right: 1px solid #000000 !important;
+        color: #000000 !important;
+        border-radius: $mt-radius-xs 0 0 $mt-radius-xs !important;
+        padding: 0 8px !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        min-height: 0;
+        letter-spacing: normal;
+
+        i, .fa, .oi, small { color: #000000 !important; }
+    }
+
+    .o_facet_values { color: $mt-text !important; }
+
+    // Remove (×) button
+    .o_facet_remove {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        color: #000000 !important;
+        opacity: 0.8 !important;
+        padding: 0 10px !important;
+        border-left: 1px solid #E5E5E5 !important;
+        border-radius: 0 $mt-radius-xs $mt-radius-xs 0 !important;
+        font-size: 12px;
+        background: transparent !important;
+
+        &:hover {
+            background: #F5F5F5 !important;
+            opacity: 1 !important;
+            color: #ff0000 !important;
+        }
+    }
+
+    &:hover { background: $mt-surface-muted !important; }
+}
+
+
+// =============================================================
+// 7. CHECKBOXES & RADIOS
+// Single rule per state, no conflicts.
+// =============================================================
+
+.o_field_widget input[type="checkbox"],
+.form-check-input[type="checkbox"],
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 4px !important;
+    border: 2px solid $mt-border-strong !important;
+    background-color: $mt-surface !important;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background-color $mt-ease-fast, border-color $mt-ease-fast;
+
+    &:checked {
+        background-color: $mt-primary !important;
+        border-color: $mt-primary !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23FFFFFF' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M3 8l3.5 3.5L13 4'/%3E%3C/svg%3E") !important;
+        background-size: 80% 80% !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+
+    &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.18) !important; }
+    &:disabled { opacity: 0.40; cursor: not-allowed; }
+}
+
+.o_field_widget input[type="radio"],
+.form-check-input[type="radio"],
+input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border-radius: $mt-radius-full !important;
+    border: 2px solid $mt-border-strong !important;
+    background-color: $mt-surface !important;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background-color $mt-ease-fast, border-color $mt-ease-fast;
+
+    &:checked {
+        border-color: $mt-primary !important;
+        background-color: $mt-surface !important;
+        background-image: radial-gradient(circle, #{$mt-primary} 35%, transparent 38%) !important;
+        background-size: 100% !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+    }
+
+    &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.18) !important; }
+}
+
+.o_boolean_toggle .form-check-input,
+.o_field_boolean_toggle .form-check-input,
+.form-switch .form-check-input {
+    width: 2.25rem;
+    height: 1.25rem;
+    border-radius: $mt-radius-full !important;
+    border: none !important;
+    background-color: $mt-border-strong !important;
+    background-image: var(--bs-form-switch-bg) !important;
+    background-position: left center !important;
+    background-size: contain !important;
+    cursor: pointer;
+    transition: background-color $mt-ease-base;
+
+    &:checked {
+        background-color: $mt-primary !important;
+        background-position: right center !important;
+    }
+
+    &:focus-visible { box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.18) !important; }
+}
+
+.o_field_radio .form-check-label,
+.o_field_widget .form-check-label {
+    color: $mt-text;
+    cursor: pointer;
+}
+
+
+// =============================================================
+// 8. NOTEBOOK TABS — bottom underline
+// =============================================================
+
+.o_notebook .nav-tabs {
+    border-bottom: 2px solid $mt-border;
+}
+
+.o_notebook .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent !important;
+    color: $mt-text-muted !important;
+    font-weight: 500;
+    padding: 10px 18px;
+    margin-bottom: -2px;
+    transition: color $mt-ease-fast, border-color $mt-ease-fast;
+
+    &:hover { color: $mt-text !important; border-bottom-color: $mt-border-strong; }
+    &.active { color: $mt-primary !important; border-bottom-color: $mt-primary; font-weight: 700; }
+}
+
+
+// =============================================================
+// 9. LIST VIEW
+// =============================================================
+
+.o_list_renderer .o_list_table {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+    overflow: hidden;
+}
+
+.o_list_renderer .o_list_table thead {
+    background: $mt-surface-muted;
+
+    th, th a {
+        border-bottom: 1px solid $mt-border;
+        color: $mt-text-muted !important;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 10px 14px;
+        white-space: nowrap;
+    }
+}
+
+.o_list_renderer .o_list_table tbody {
+    td { color: $mt-text; border-color: $mt-border; padding: 10px 14px; vertical-align: middle; }
+    tr:hover > td { background: $mt-surface-soft; }
+    tr.o_data_row_selected > td { background: $mt-surface-strong; }
+}
+
+.o_list_renderer .o_list_table tfoot {
+    td { background: $mt-surface-muted; border-top: 2px solid $mt-border; color: $mt-text; font-weight: 600; padding: 10px 14px; }
+}
+
+
+// =============================================================
+// 10. KANBAN VIEW
+// =============================================================
+
+.o_kanban_view { padding: 12px 16px; }
+
+.o_kanban_view .o_kanban_group {
+    background: $mt-surface-muted;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+
+    .o_kanban_header {
+        background: transparent;
+        border-bottom: 1px solid $mt-border;
+        padding: 10px 14px;
+
+        .o_kanban_header_title { color: $mt-text; font-weight: 700; }
+    }
+}
+
+.o_kanban_renderer .o_kanban_record {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+    color: $mt-text;
+    padding: 12px 14px;
+    transition: box-shadow $mt-ease-base, border-color $mt-ease-base, transform $mt-ease-base;
+
+    &:hover { box-shadow: $mt-shadow-md; border-color: $mt-border-strong; transform: translateY(-1px); }
+
+    .o_kanban_record_title { color: $mt-text; font-weight: 600; }
+    .o_kanban_record_subtitle { color: $mt-text-muted; font-size: $o-font-size-base-small; }
+}
+
+// Ghost records are empty row-filler elements — must be invisible
+.o_kanban_renderer .o_kanban_record.o_kanban_ghost,
+.o_field_x2many_kanban .o_kanban_record.o_kanban_ghost {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+}
+
+
+// =============================================================
+// 11. MODALS — black header
+// =============================================================
+
+.o_dialog .modal-content {
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-md;
+    box-shadow: $mt-shadow-xl;
+    overflow: hidden;
+}
+
+.o_dialog .modal-header {
+    background: $mt-primary;
+    border-bottom: none;
+    padding: 16px 24px;
+
+    .modal-title {
+        color: #FFFFFF;
+        font-weight: 700;
+    }
+
+    .btn-close { filter: invert(1); opacity: 0.75; &:hover { opacity: 1; } }
+}
+
+.o_dialog .modal-body { background: $mt-surface; padding: 24px; color: $mt-text; }
+
+.o_dialog .modal-footer {
+    background: $mt-surface;
+    border-top: 1px solid $mt-border;
+    padding: 12px 24px;
+}
+
+
+// =============================================================
+// 12. DROPDOWNS
+// =============================================================
+
+.dropdown-menu,
+.o-dropdown--menu,
+.o_popover {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-lg;
+    padding: 6px;
+
+    .dropdown-item {
+        border-radius: $mt-radius-xs;
+        color: $mt-text;
+        padding: 8px 12px;
+        font-weight: 500;
+        transition: background $mt-ease-fast;
+
+        *, i, span { color: inherit !important; }
+
+        &:hover, &:focus { background: $mt-surface-muted; color: $mt-text; }
+        &.active, &:active { background: $mt-primary; color: #FFFFFF; * { color: #FFFFFF !important; } }
+    }
+
+    .dropdown-divider { border-color: $mt-border; margin: 4px 0; }
+
+    .dropdown-header {
+        color: $mt-text-muted;
+        font-size: $o-font-size-base-smaller;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        padding: 8px 12px 4px;
+    }
+}
+
+
+// =============================================================
+// 13. SEARCH PANEL
+// =============================================================
+
+.o_search_panel {
+    background: $mt-surface;
+    border-right: 1px solid $mt-border;
+}
+
+.o_search_panel_section > .o_search_panel_section_header {
+    color: $mt-text-muted;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 16px 16px 6px;
+}
+
+.o_search_panel .o_search_panel_category_value header,
+.o_search_panel .o_search_panel_filter_value .form-check {
+    border-radius: $mt-radius-xs;
+    color: $mt-text;
+    padding: 6px 14px;
+    transition: background $mt-ease-fast;
+    cursor: pointer;
+
+    &:hover { background: $mt-surface-muted; }
+
+    &.active {
+        background: $mt-surface-strong;
+        color: $mt-text;
+        font-weight: 600;
+        border-left: 3px solid $mt-primary;
+        padding-left: 11px;
+    }
+}
+
+
+// =============================================================
+// 14. SETTINGS
+// =============================================================
+
+.o_settings_container .app_settings_block {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.o_settings_container .settings_tab {
+    background: $mt-surface;
+    border-right: 1px solid $mt-border;
+
+    .nav-link {
+        color: $mt-text;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        padding: 10px 16px;
+        font-weight: 500;
+        transition: background $mt-ease-fast;
+
+        &:hover { background: $mt-surface-muted; }
+
+        &.active, &.selected, &[aria-selected="true"] {
+            background: $mt-surface-strong;
+            color: $mt-text;
+            border-left-color: $mt-primary;
+            font-weight: 700;
+        }
+    }
+}
+
+.o_setting_box {
+    color: $mt-text;
+    label { color: $mt-text; font-weight: 500; }
+    .text-muted, small, .text-600 { color: $mt-text-muted !important; }
+}
+
+
+// =============================================================
+// 15. BADGES / TAGS
+// =============================================================
+
+.badge { border-radius: $mt-radius-full; font-weight: 700; padding: 3px 9px; }
+.o_tag  { border-radius: $mt-radius-full; font-weight: 600; padding: 2px 10px; }
+
+.text-danger  { color: $mt-danger  !important; }
+.text-success { color: $mt-success !important; }
+.text-warning { color: $mt-warning !important; }
+.text-info    { color: $mt-info    !important; }
+.text-muted   { color: $mt-text-muted !important; }
+
+
+// =============================================================
+// 16. LINKS
+// =============================================================
+
+.o_web_client a:not(.btn):not(.nav-link):not(.dropdown-item):not(.o_tag),
+.o_field_widget a {
+    color: $mt-primary;
+    text-decoration: underline;
+    text-decoration-color: $mt-border-strong;
+    text-underline-offset: 2px;
+    transition: text-decoration-color $mt-ease-fast;
+
+    &:hover { text-decoration-color: $mt-primary; }
+}
+
+
+// =============================================================
+// 17. CALENDAR / PIVOT / GRAPH
+// =============================================================
+
+.o_calendar_renderer,
+.o_pivot,
+.o_graph_renderer {
+    background: $mt-surface;
+    border: 1px solid $mt-border;
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-sm;
+}
+
+
+// =============================================================
+// 18. NOTIFICATIONS
+// =============================================================
+
+.o_notification_manager .o_notification {
+    border-radius: $mt-radius-sm;
+    box-shadow: $mt-shadow-lg;
+    border: 1px solid $mt-border;
+    background: $mt-surface;
+    color: $mt-text;
+
+    &.o_notification_success { border-left: 4px solid $mt-success; }
+    &.o_notification_danger  { border-left: 4px solid $mt-danger; }
+    &.o_notification_warning { border-left: 4px solid $mt-warning; }
+    &.o_notification_info    { border-left: 4px solid $mt-info; }
+}
+
+
+// =============================================================
+// 19. RESPONSIVE
+// =============================================================
+
+@media (max-width: 991.98px) {
+    .o_control_panel { padding: 8px 12px 6px; }
+    .o_form_view .o_form_sheet_bg { padding: 8px 8px 24px; }
+    .o_form_view .o_form_sheet { padding: 18px 16px; border-radius: $mt-radius-xs; }
+    .o_dialog .modal-content { border-radius: $mt-radius-sm; }
+    .btn { padding-left: 1em; padding-right: 1em; }
+}
+
+// =============================================================
+// 20. UI FIXES
+// =============================================================
+
+// Hide genuinely empty display-artifact elements (NOT .btn — empty buttons use ::after for visual content)
+.badge:empty,
+.o_tag:empty,
+.o_searchview_facet:empty {
+    display: none !important;
+}
+
+// Search bar dropdown toggler — remove pill shape, connect flush to the search input
+.o_searchview_dropdown_toggler.btn {
+    border-radius: 0 $mt-radius-xs $mt-radius-xs 0 !important;
+    border-left: 1px solid $mt-border !important;
+    border-top: 1px solid $mt-border-strong !important;
+    border-right: 1px solid $mt-border-strong !important;
+    border-bottom: 1px solid $mt-border-strong !important;
+    padding: 0 10px !important;
+    color: $mt-text-muted !important;
+    background: $mt-surface !important;
+    min-width: 36px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+        background: $mt-surface-muted !important;
+        color: $mt-text !important;
+    }
+
+    &.show {
+        background: $mt-primary !important;
+        color: #FFFFFF !important;
+        border-color: $mt-primary !important;
+    }
+}
+
+// Ensure skeleton loading states don't inherit our strong borders/backgrounds
+.o_skeleton {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+// Specific fix for empty media/attachment boxes in form views
+.o_field_many2many_binary .o_attach_link:empty,
+.o_field_image .o_form_image_controls:empty {
+    display: none !important;
+}

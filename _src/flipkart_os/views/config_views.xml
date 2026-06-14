@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_flipkart_settings_form" model="ir.ui.view">
+        <field name="name">flipkart.settings.form</field>
+        <field name="model">res.config.settings</field>
+        <!-- High priority number = lowest precedence, so the standard Odoo
+             General Settings form (base, priority 16) stays the default and is
+             never overridden by this standalone Business OS settings page.
+             This page is still opened explicitly via action_flipkart_settings. -->
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <form string="Business OS Settings">
+                <header>
+                    <button string="Save" type="object" name="execute" class="oe_highlight"/>
+                    <button string="Discard" special="cancel"/>
+                </header>
+                <sheet>
+                    <group string="Inventory Testing">
+                        <field name="flipkart_stock_deduction_enabled"/>
+                        <field name="flipkart_returns_stock_move_enabled"/>
+                    </group>
+                    <group string="Consignments">
+                        <field name="flipkart_consignment_stock_move_enabled"/>
+                    </group>
+                    <group string="Calculation Days">
+                        <group string="Dead Stock Analysis">
+                            <field name="flipkart_dead_stock_sales_days"/>
+                        </group>
+                        <group string="FBF Recommendations">
+                            <field name="flipkart_fbf_target_cover_days"/>
+                            <field name="flipkart_fbf_critical_days"/>
+                            <field name="flipkart_fbf_moderate_days"/>
+                        </group>
+                        <group string="Supplier Recommendations">
+                            <field name="flipkart_supplier_sales_days"/>
+                            <field name="flipkart_supplier_lead_time_days"/>
+                            <field name="flipkart_supplier_target_cover_days"/>
+                            <field name="flipkart_supplier_order_cycle_days"/>
+                        </group>
+                    </group>
+                    <group string="AI Assistant">
+                        <field name="flipkart_ai_enabled"/>
+                        <field name="flipkart_ai_provider_name"/>
+                        <field name="flipkart_ai_api_format"/>
+                        <field name="flipkart_ai_api_url"/>
+                        <field name="flipkart_ai_model"/>
+                        <field name="flipkart_ai_api_key" password="True"/>
+                        <field name="flipkart_ai_timeout"/>
+                        <field name="flipkart_ai_temperature"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_settings" model="ir.actions.act_window">
+        <field name="name">Settings</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_flipkart_settings_form"/>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'flipkart_os'}</field>
+    </record>
+
+    <!-- ═══ Accounts — Editable List ═══ -->
+    <record id="view_flipkart_account_list" model="ir.ui.view">
+        <field name="name">flipkart.account.list</field>
+        <field name="model">flipkart.account</field>
+        <field name="arch" type="xml">
+            <list string="Flipkart Accounts" editable="bottom">
+                <field name="name"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_flipkart_account" model="ir.actions.act_window">
+        <field name="name">Accounts</field>
+        <field name="res_model">flipkart.account</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ═══ Warehouse Config — Editable List ═══ -->
+    <record id="view_flipkart_warehouse_config_list" model="ir.ui.view">
+        <field name="name">flipkart.warehouse.config.list</field>
+        <field name="model">flipkart.warehouse.config</field>
+        <field name="arch" type="xml">
+            <list string="FBF Warehouse Mapping" editable="bottom">
+                <field name="name"/>
+                <field name="account_id"/>
+                <field name="backend_warehouse_id"/>
+                <field name="flipkart_warehouse_code"/>
+                <field name="transit_days"/>
+                <field name="is_active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_flipkart_warehouse_config" model="ir.actions.act_window">
+        <field name="name">FBF Warehouse Mapping</field>
+        <field name="res_model">flipkart.warehouse.config</field>
+        <field name="view_mode">list</field>
+    </record>
+
+</odoo>

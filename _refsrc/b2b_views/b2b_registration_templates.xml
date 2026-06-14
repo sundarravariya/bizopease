@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Success Page after Registration (Awaiting Approval) -->
+    <template id="b2b_registration_pending" name="B2B Registration Pending">
+        <t t-call="website.layout">
+            <div id="wrap" class="oe_structure oe_empty">
+                <section class="s_text_block pt40 pb40" data-snippet="s_text_block">
+                    <div class="container text-center">
+                        <div class="row">
+                            <div class="col-lg-8 offset-lg-2 bg-white shadow-sm rounded p-5">
+                                <i class="fa fa-clock-o fa-5x text-warning mb-4"/>
+                                <h1 class="display-4 fw-bold text-dark mb-3">Account Under Review</h1>
+                                <p class="lead text-muted mb-4">
+                                    Thank you for registering with <strong>Queenfinger</strong>. 
+                                    Our team is currently verifying your business credentials and business photo.
+                                </p>
+                                <div class="alert alert-info d-inline-block text-start mb-4">
+                                    <ul class="mb-0">
+                                        <li>We will review your application within 24-48 business hours.</li>
+                                        <li>You will receive a confirmation email once your account is activated.</li>
+                                        <li>Until then, website access and ordering will be restricted.</li>
+                                    </ul>
+                                </div>
+                                <div class="mt-4">
+                                    <a href="/web/login" class="btn btn-outline-primary btn-lg px-5">Back to Login</a>
+                                </div>
+                                <p class="mt-5 text-muted small">
+                                    Need assistance? Contact our support team at <a href="mailto:support@queenfinger.store">support@queenfinger.store</a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <!-- Inherit the Signup Form to allow file uploads -->
+    <template id="b2b_signup_form_enctype" inherit_id="auth_signup.signup" name="B2B Signup Form Enctype">
+        <xpath expr="//form" position="attributes">
+            <attribute name="enctype">multipart/form-data</attribute>
+        </xpath>
+    </template>
+
+    <!-- Inherit the Fields template to add custom B2B fields -->
+    <template id="b2b_signup_fields" inherit_id="auth_signup.fields" name="B2B Signup Fields">
+        <xpath expr="//div[hasclass('field-confirm_password')]" position="after">
+            <div class="mb-3 field-phone">
+                <label for="phone">Phone Number</label>
+                <input type="tel" name="phone" id="phone" class="form-control" required="required" placeholder="+91 ..."/>
+            </div>
+            <div class="mb-3 field-business_name">
+                <label for="business_name">Business / Shop Name</label>
+                <input type="text" name="business_name" id="business_name" class="form-control" required="required" placeholder="Your Business Ltd."/>
+            </div>
+            <div class="mb-3 field-business_photo">
+                <label for="business_photo">Business Card or Shop Photo</label>
+                <input type="file" name="business_photo" id="business_photo" class="form-control" required="required" accept="image/*"/>
+                <small class="text-muted">High-quality photo required for faster approval.</small>
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_flipkart_unified_ledger_line_list" model="ir.ui.view">
+        <field name="name">flipkart.unified.ledger.line.list</field>
+        <field name="model">flipkart.unified.ledger.line</field>
+        <field name="arch" type="xml">
+            <list string="Unified Ledger Lines" create="0" edit="0" delete="0"
+                  decoration-success="balance &gt; 0"
+                  decoration-danger="balance &lt; 0">
+                <field name="date"/>
+                <field name="party_id" column_invisible="1"/>
+                <field name="party_type" widget="badge"/>
+                <field name="party_name"/>
+                <field name="entry_type"/>
+                <field name="reference"/>
+                <field name="details"/>
+                <field name="debit" sum="Total Debit" decoration-success="debit &gt; 0" decoration-bf="debit &gt; 0"/>
+                <field name="credit" sum="Total Credit" decoration-danger="credit &gt; 0" decoration-bf="credit &gt; 0"/>
+                <field name="balance" sum="Net Balance" decoration-success="balance &gt; 0" decoration-danger="balance &lt; 0" decoration-bf="balance != 0"/>
+                <field name="source_model" column_invisible="1"/>
+                <field name="source_record_id" column_invisible="1"/>
+                <button name="action_open_source"
+                        type="object"
+                        string="Open Source"
+                        icon="fa-external-link"
+                        invisible="not source_model or not source_record_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_unified_ledger_line_search" model="ir.ui.view">
+        <field name="name">flipkart.unified.ledger.line.search</field>
+        <field name="model">flipkart.unified.ledger.line</field>
+        <field name="arch" type="xml">
+            <search string="Search Unified Ledger">
+                <field name="party_name"/>
+                <field name="reference"/>
+                <field name="details"/>
+                <field name="filter_date_from" string="From" filter_domain="[('date', '&gt;=', self)]"/>
+                <field name="filter_date_to" string="To" filter_domain="[('date', '&lt;=', self)]"/>
+                <filter string="Partners" name="party_partner" domain="[('party_type', '=', 'partner')]"/>
+                <filter string="Vendors" name="party_vendor" domain="[('party_type', '=', 'vendor')]"/>
+                <filter string="Associates" name="party_associate" domain="[('party_type', '=', 'associate')]"/>
+                <filter string="Agents" name="party_agent" domain="[('party_type', '=', 'agent')]"/>
+                <separator/>
+                <filter string="Last 30 Days" name="last_30_days" domain="[('date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last Year" name="last_year" domain="[('date', '&gt;=', (context_today() - relativedelta(years=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Party Type" name="group_party_type" context="{'group_by': 'party_type'}"/>
+                    <filter string="Party" name="group_party_name" context="{'group_by': 'party_name'}"/>
+                    <filter string="Month" name="group_month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_flipkart_unified_ledger_summary_list" model="ir.ui.view">
+        <field name="name">flipkart.unified.ledger.summary.list</field>
+        <field name="model">flipkart.unified.ledger.summary</field>
+        <field name="arch" type="xml">
+            <list string="Unified Ledger" create="0" edit="0" delete="0"
+                  decoration-success="balance &gt; 0"
+                  decoration-danger="balance &lt; 0">
+                <field name="party_id" column_invisible="1"/>
+                <field name="party_type" widget="badge"/>
+                <field name="party_name"/>
+                <field name="balance" sum="Net Balance" decoration-success="balance &gt; 0" decoration-danger="balance &lt; 0" decoration-bf="balance != 0"/>
+                <button name="action_view_ledger"
+                        type="object"
+                        string="View Ledger"
+                        icon="fa-list"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_unified_ledger_summary_search" model="ir.ui.view">
+        <field name="name">flipkart.unified.ledger.summary.search</field>
+        <field name="model">flipkart.unified.ledger.summary</field>
+        <field name="arch" type="xml">
+            <search string="Search Unified Ledger">
+                <field name="party_name"/>
+                <filter string="Partners" name="party_partner" domain="[('party_type', '=', 'partner')]"/>
+                <filter string="Vendors" name="party_vendor" domain="[('party_type', '=', 'vendor')]"/>
+                <filter string="Associates" name="party_associate" domain="[('party_type', '=', 'associate')]"/>
+                <filter string="Agents" name="party_agent" domain="[('party_type', '=', 'agent')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Party Type" name="group_party_type" context="{'group_by': 'party_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_flipkart_unified_ledger_entry_wizard_form" model="ir.ui.view">
+        <field name="name">flipkart.unified.ledger.entry.wizard.form</field>
+        <field name="model">flipkart.unified.ledger.entry.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create Ledger Entry">
+                <group>
+                    <field name="entry_type" widget="radio"/>
+                </group>
+                <footer>
+                    <button name="action_continue" string="Continue" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_unified_ledger_summary" model="ir.actions.act_window">
+        <field name="name">Unified Ledger</field>
+        <field name="res_model">flipkart.unified.ledger.summary</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Unified Ledger will show partners, vendors, associates, and agents in one place.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_flipkart_unified_ledger_lines" model="ir.actions.act_window">
+        <field name="name">Unified Ledger Lines</field>
+        <field name="res_model">flipkart.unified.ledger.line</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'search_default_group_party_type': 1}</field>
+    </record>
+
+    <record id="action_flipkart_unified_ledger_entry_wizard" model="ir.actions.act_window">
+        <field name="name">Create Ledger Entry</field>
+        <field name="res_model">flipkart.unified.ledger.entry.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

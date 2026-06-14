@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_flipkart_ai_assistant" model="ir.actions.client">
+        <field name="name">AI Assistant</field>
+        <field name="tag">flipkart_ai_assistant</field>
+    </record>
+
+    <record id="view_flipkart_ai_chat_session_list" model="ir.ui.view">
+        <field name="name">flipkart.ai.chat.session.list</field>
+        <field name="model">flipkart.ai.chat.session</field>
+        <field name="arch" type="xml">
+            <list string="AI Chat Sessions">
+                <field name="name"/>
+                <field name="user_id"/>
+                <field name="write_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_ai_chat_session_form" model="ir.ui.view">
+        <field name="name">flipkart.ai.chat.session.form</field>
+        <field name="model">flipkart.ai.chat.session</field>
+        <field name="arch" type="xml">
+            <form string="AI Chat Session">
+                <header>
+                    <button name="action_open" string="Open Chat" type="object" class="oe_highlight"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="user_id"/>
+                    </group>
+                    <notebook>
+                        <page string="Messages">
+                            <field name="message_ids" readonly="1">
+                                <list>
+                                    <field name="role"/>
+                                    <field name="content"/>
+                                    <field name="create_date"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Proposed Actions">
+                            <field name="proposed_action_ids" readonly="1">
+                                <list>
+                                    <field name="title"/>
+                                    <field name="action_type"/>
+                                    <field name="state"/>
+                                    <field name="result_model"/>
+                                    <field name="result_res_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_ai_chat_sessions" model="ir.actions.act_window">
+        <field name="name">AI Chat History</field>
+        <field name="res_model">flipkart.ai.chat.session</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

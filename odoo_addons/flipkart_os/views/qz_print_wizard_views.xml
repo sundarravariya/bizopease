@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_flipkart_qz_print_wizard_form" model="ir.ui.view">
+        <field name="name">flipkart.qz.print.wizard.form</field>
+        <field name="model">flipkart.qz.print.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Print Direct (QZ)">
+                <group>
+                    <field name="consignment_id"/>
+                    <field name="select_all"/>
+                </group>
+                <field name="line_ids" nolabel="1">
+                    <list editable="bottom" create="0" delete="0">
+                        <field name="consignment_line_id" column_invisible="1" force_save="1"/>
+                        <field name="selected" string="Print"/>
+                        <field name="sku_id" string="SKU"/>
+                        <field name="fsn" string="FSN"/>
+                        <field name="quantity" string="Qty"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_print_qz" string="Print Direct (QZ)" type="object" class="oe_highlight"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

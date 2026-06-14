@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>R-Admin — Download App</title>
+  <meta name="description" content="Download the Robifel Admin mobile app for Android" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1422;
+      --card: #161b2e;
+      --border: #2a3250;
+      --accent: #7367f0;
+      --accent2: #3d5af1;
+      --text: #ffffff;
+      --muted: #6a7a9a;
+      --green: #22c55e;
+      --amber: #f59e0b;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .glow {
+      position: fixed;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(115,103,240,0.15) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    /* Brand */
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; font-weight: 900;
+      box-shadow: 0 0 40px rgba(115,103,240,0.4);
+    }
+    .brand-name {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .brand-name span { color: var(--accent); }
+    .brand-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* Card */
+    .card {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    /* App info row */
+    .app-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-icon {
+      width: 60px; height: 60px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #1e2440, #2a3250);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; color: var(--accent);
+      flex-shrink: 0;
+    }
+    .app-meta { flex: 1; }
+    .app-name { font-size: 1.05rem; font-weight: 700; }
+    .app-package { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      padding: 1rem;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-val { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+    .stat-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Download button */
+    .download-wrap { padding: 1.5rem; }
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 8px 32px rgba(115,103,240,0.35);
+    }
+    .btn-download:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-download:active { transform: translateY(0); }
+    .btn-download svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Install steps */
+    .steps {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.875rem;
+    }
+    .steps-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.25rem;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .step-num {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      background: rgba(115,103,240,0.15);
+      border: 1px solid rgba(115,103,240,0.3);
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-text { font-size: 0.82rem; color: #b0bcd0; line-height: 1.5; }
+    .step-text strong { color: var(--text); }
+
+    /* Warning note */
+    .note {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.25);
+      border-radius: 12px;
+      padding: 0.875rem 1rem;
+      font-size: 0.78rem;
+      color: #d4a845;
+      line-height: 1.5;
+    }
+    .note-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* Footer */
+    .footer {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.8;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* Download animation */
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 8px 32px rgba(115,103,240,0.35); }
+      50% { box-shadow: 0 8px 48px rgba(115,103,240,0.6); }
+    }
+    .btn-download { animation: pulse-glow 2.5s ease-in-out infinite; }
+    .btn-download:hover { animation: none; }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+
+  <div class="container">
+    <!-- Brand -->
+    <div class="brand">
+      <div class="logo">R</div>
+      <div class="brand-name">Robi<span>fel</span> Admin</div>
+      <div class="brand-sub">Official Android App</div>
+    </div>
+
+    <!-- App card -->
+    <div class="card">
+      <div class="app-info">
+        <div class="app-icon">R</div>
+        <div class="app-meta">
+          <div class="app-name">R-Admin</div>
+          <div class="app-package">in.robifel.portal</div>
+          <div class="badge badge-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="20 6 9 17 4 12"/></svg>
+            Latest Release
+          </div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-val">v1.0</div>
+          <div class="stat-lbl">Version</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">3.5 MB</div>
+          <div class="stat-lbl">Size</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">API 24+</div>
+          <div class="stat-lbl">Android</div>
+        </div>
+      </div>
+
+      <div class="download-wrap">
+        <a class="btn-download" href="/download/R-Admin.apk" download="R-Admin.apk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download APK
+        </a>
+      </div>
+    </div>
+
+    <!-- Install steps -->
+    <div class="steps">
+      <div class="steps-title">How to Install</div>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Tap <strong>Download APK</strong> above and wait for the file to download.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Open your notification shade and tap the downloaded <strong>R-Admin.apk</strong> file.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">If prompted, allow <strong>Install from unknown sources</strong> for your browser in Settings.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">Tap <strong>Install</strong> and open the app. Sign in with your Odoo credentials.</div>
+      </div>
+    </div>
+
+    <!-- Warning -->
+    <div class="note">
+      <div class="note-icon">⚠️</div>
+      <div>This is an internal app for Robifel staff only. Requires an active Robifel Odoo account to use.</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      &copy; 2025 Robifel &nbsp;·&nbsp; <a href="https://odoo.robifel.in/portal/">Open Web Portal</a><br/>
+      Built with Capacitor &amp; Odoo 18
+    </div>
+  </div>
+</body>
+</html>

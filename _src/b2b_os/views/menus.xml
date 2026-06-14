@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- business.ledger views -->
+    <record id="view_b2b_ledger_list" model="ir.ui.view">
+        <field name="name">b2b.ledger.list</field>
+        <field name="model">b2b.ledger</field>
+        <field name="arch" type="xml">
+            <list string="Partner Ledger" create="0" edit="0" delete="1">
+                <header>
+                    <button name="%(action_b2b_manual_entry)d" type="action" string="New Manual Entry" class="btn-primary" context="{'default_partner_id': context.get('default_partner_id')}"/>
+                </header>
+                <field name="date"/>
+                <field name="move_id"/>
+                <field name="ref"/>
+                <field name="name"/>
+                <field name="partner_id" optional="show"/>
+                <field name="debit" sum="Total Debit"/>
+                <field name="credit" sum="Total Credit"/>
+                <field name="balance" sum="Total Net Balance" decoration-danger="balance &lt; 0" decoration-success="balance &gt; 0"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_b2b_ledger_search" model="ir.ui.view">
+        <field name="name">b2b.ledger.search</field>
+        <field name="model">b2b.ledger</field>
+        <field name="arch" type="xml">
+            <search string="Search Ledger">
+                <field name="partner_id"/>
+                <field name="name"/>
+                <field name="ref"/>
+                <field name="move_id"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_partner" string="Partner" context="{'group_by':'partner_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by':'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_b2b_partner_ledger" model="ir.actions.act_window">
+        <field name="name">Partner Ledger</field>
+        <field name="res_model">b2b.ledger</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'search_default_group_partner': 1}</field>
+    </record>
+
+    <!-- manual entry wizard views -->
+    <record id="view_b2b_manual_entry_form" model="ir.ui.view">
+        <field name="name">b2b.manual.entry.form</field>
+        <field name="model">b2b.manual.entry.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Manual Ledger Entry">
+                <group>
+                    <group>
+                        <field name="partner_id"/>
+                        <field name="date"/>
+                    </group>
+                    <group>
+                        <field name="entry_type"/>
+                        <field name="amount"/>
+                    </group>
+                    <group colspan="2">
+                        <field name="payment_details" placeholder="Payment Details"/>
+                    </group>
+                    <group colspan="2">
+                        <field name="line_ids" widget="many2many" nolabel="1" colspan="2" placeholder="Select unpaid invoices or bills to settle...">
+                            <list>
+                                <field name="date"/>
+                                <field name="move_id"/>
+                                <field name="ref"/>
+                                <field name="account_id"/>
+                                <field name="amount_residual"/>
+                            </list>
+                        </field>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_post_entry" type="object" string="Post Entry" class="btn-primary"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_b2b_manual_entry" model="ir.actions.act_window">
+        <field name="name">New Manual Entry</field>
+        <field name="res_model">b2b.manual.entry.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_b2b_manual_entry_form"/>
+        <field name="target">new</field>
+    </record>
+    
+
+    <!-- business.ledger.summary views (Tally Group Summary) -->
+    <record id="view_b2b_ledger_summary_list" model="ir.ui.view">
+        <field name="name">b2b.ledger.summary.list</field>
+        <field name="model">b2b.ledger.summary</field>
+        <field name="arch" type="xml">
+            <list string="Partner Ledger Summary" create="0" edit="0" delete="0">
+                <field name="partner_id"/>
+                <field name="debit" sum="Total Debit"/>
+                <field name="credit" sum="Total Credit"/>
+                <field name="balance" sum="Total Net Balance" decoration-danger="balance &lt; 0" decoration-success="balance &gt; 0"/>
+                <button name="action_open_ledger_details" type="object" string="View Ledger" icon="fa-list"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_b2b_ledger_summary" model="ir.actions.act_window">
+        <field name="name">Partner Ledger Summary</field>
+        <field name="res_model">b2b.ledger.summary</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No ledger activity yet!
+            </p>
+        </field>
+    </record>
+
+    <!-- ===== Original B2B OS Menus Restored ===== -->
+
+    <record id="view_b2b_pending_customers_list" model="ir.ui.view">
+        <field name="name">b2b.pending.customers.list</field>
+        <field name="model" >res.partner</field>
+        <field name="arch" type="xml">
+            <list string="Pending B2B Customers" decoration-warning="b2b_pending and not b2b_approved">
+                <field name="name"/>
+                <field name="b2b_business_name" optional="show"/>
+                <field name="email" optional="show"/>
+                <field name="phone" optional="show"/>
+                <field name="b2b_pending" string="Pending"/>
+                <field name="b2b_approved" string="Approved" widget="boolean_toggle"/>
+                <button name="action_view_business_photo" string="View Photo" type="object" icon="fa-image" invisible="not b2b_business_photo"/>
+                <field name="create_date" string="Registered"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_b2b_all_customers_list" model="ir.ui.view">
+        <field name="name">b2b.all.customers.list</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <list string="B2B Customers" create="0">
+                <field name="name"/>
+                <field name="b2b_business_name" optional="show"/>
+                <field name="email" optional="show"/>
+                <field name="phone" optional="show"/>
+                <field name="b2b_approved" string="Approved" widget="boolean_toggle"/>
+                <field name="b2b_website_price_mode" string="Website Pricing"/>
+                <field name="b2b_website_discount_percent" string="Discount %" optional="show"/>
+                <field name="create_date" string="Registered" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_b2b_customer_form" model="ir.ui.view">
+        <field name="name">b2b.customer.form</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="action" 
+                        class="oe_stat_button"
+                        icon="fa-list-ol"
+                        name="%(action_b2b_partner_ledger)d"
+                        context="{'search_default_partner_id': id, 'default_partner_id': id, 'search_default_group_partner': 0}">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Ledger</span>
+                    </div>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="before">
+                <group invisible="not b2b_pending and not b2b_approved" col="12">
+                    <group colspan="8" string="B2B Access &amp; Business Info">
+                        <field name="b2b_pending" widget="boolean_toggle"/>
+                        <field name="b2b_approved" widget="boolean_toggle"/>
+                        <field name="b2b_business_name" readonly="b2b_approved"/>
+                        <field name="b2b_website_price_mode"/>
+                        <field name="b2b_website_discount_percent"
+                               invisible="b2b_website_price_mode != 'show'"/>
+                    </group>
+                    <group colspan="4" string="Business Photo">
+                        <field name="b2b_business_photo" widget="image" nolabel="1" options="{'size': [250, 250]}" readonly="b2b_approved"/>
+                        <button name="action_view_business_photo" string="View Full Photo" type="object" class="btn-link" icon="fa-expand" invisible="not b2b_business_photo"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_b2b_pending_customers" model="ir.actions.act_window">
+        <field name="name">Pending Approvals</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('b2b_pending', '=', True), ('b2b_approved', '=', False)]</field>
+        <field name="context">{'default_b2b_pending': True}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_b2b_pending_customers_list')})]"/>
+    </record>
+
+    <record id="action_b2b_all_customers" model="ir.actions.act_window">
+        <field name="name">B2B Customers</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('b2b_approved', '=', True)]</field>
+        <field name="context">{'default_b2b_approved': True}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_b2b_all_customers_list')})]"/>
+    </record>
+
+    <record id="action_b2b_order_requests" model="ir.actions.act_window">
+        <field name="name">Order Requests</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', 'in', ['draft', 'sent']), ('tag_ids.name', 'in', ['B2B Request'])]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <record id="action_b2b_sent_quotations" model="ir.actions.act_window">
+        <field name="name">Quotations</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', 'in', ['draft', 'sent'])]</field>
+    </record>
+
+    <record id="action_b2b_confirmed_orders" model="ir.actions.act_window">
+        <field name="name">Confirmed Orders</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', 'in', ['sale', 'done'])]</field>
+    </record>
+
+    <record id="action_b2b_invoices" model="ir.actions.act_window">
+        <field name="name">Invoices</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('move_type', 'in', ['out_invoice', 'out_refund']), ('partner_id.customer_rank', '>', 0)]</field>
+        <field name="context">{'default_move_type': 'out_invoice'}</field>
+    </record>
+
+    <!-- Menus -->
+    <menuitem id="menu_b2b_os_root" name="B2B OS" sequence="1" web_icon="sale,static/description/icon.png"/>
+    
+    <menuitem id="menu_b2b_os_orders" name="Orders" parent="menu_b2b_os_root" sequence="10"/>
+    <menuitem id="menu_b2b_os_requests" name="Order Requests" parent="menu_b2b_os_orders" action="action_b2b_order_requests" sequence="11"/>
+    <menuitem id="menu_b2b_os_sent" name="Quotations" parent="menu_b2b_os_orders" action="action_b2b_sent_quotations" sequence="12"/>
+    <menuitem id="menu_b2b_os_confirmed" name="Confirmed Orders" parent="menu_b2b_os_orders" action="action_b2b_confirmed_orders" sequence="13"/>
+
+    <menuitem id="menu_b2b_os_products"
+              name="Products"
+              parent="menu_b2b_os_root"
+              action="sale.product_template_action"
+              sequence="15"/>
+
+    <menuitem id="menu_b2b_os_accounting" name="Accounting" parent="menu_b2b_os_root" sequence="20"/>
+    <menuitem id="menu_b2b_os_invoices" name="Invoices" parent="menu_b2b_os_accounting" action="action_b2b_invoices" sequence="21"/>
+    
+    <!-- Ledger and Manual Entry exactly like Flipkart -->
+    <menuitem id="menu_b2b_os_ledger" name="Partner Ledger" parent="menu_b2b_os_accounting" action="action_b2b_ledger_summary" sequence="22"/>
+    <menuitem id="menu_b2b_os_manual_entry" name="New Manual Entry" parent="menu_b2b_os_accounting" action="action_b2b_manual_entry" sequence="24"/>
+
+    <menuitem id="menu_b2b_os_customers" name="Customers" parent="menu_b2b_os_root" sequence="30"/>
+    <menuitem id="menu_b2b_os_pending" name="Pending Approvals" parent="menu_b2b_os_customers" action="action_b2b_pending_customers" sequence="31"/>
+    <menuitem id="menu_b2b_os_all_customers" name="All B2B Customers" parent="menu_b2b_os_customers" action="action_b2b_all_customers" sequence="32"/>
+
+</odoo>

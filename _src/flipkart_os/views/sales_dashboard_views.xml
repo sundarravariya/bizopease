@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ Sales — Graph ═══ -->
+    <record id="view_flipkart_sales_graph" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.graph</field>
+        <field name="model">flipkart.sales.dashboard</field>
+        <field name="arch" type="xml">
+            <graph string="Sales Trends" type="line">
+                <field name="order_date" type="row" interval="day"/>
+                <field name="final_sale_units" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ═══ Sales — List ═══ -->
+    <record id="view_flipkart_sales_list" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.list</field>
+        <field name="model">flipkart.sales.dashboard</field>
+        <field name="arch" type="xml">
+            <list string="Sales Data" create="0" decoration-muted="final_sale_units == 0">
+                <field name="order_date"/>
+                <field name="partner_id" optional="show"/>
+                <field name="order_number" optional="show"/>
+                <field name="product_id"/>
+                <field name="sku_id"/>
+                <field name="fulfillment_type"/>
+                <field name="gross_units" sum="Total"/>
+                <field name="final_sale_units" sum="Total Units"/>
+                <field name="final_sale_amount" sum="Total Amount"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Sales — Search ═══ -->
+    <record id="view_flipkart_sales_search" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.search</field>
+        <field name="model">flipkart.sales.dashboard</field>
+        <field name="arch" type="xml">
+            <search string="Search Sales">
+                    <field name="account_id"/>
+                <field name="product_id"/>
+                <field name="sku_id"/>
+                <field name="brand"/>
+                <field name="category"/>
+                <filter string="Last 7 Days" name="last_7_days"
+                        domain="[('order_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last 30 Days" name="last_30_days"
+                        domain="[('order_date', '&gt;=', (context_today() - datetime.timedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Current Month" name="current_month"
+                        domain="[('order_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Account" context="{'group_by':'account_id'}"/>
+                    <filter name="group_customer" string="Customer" context="{'group_by':'partner_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by':'product_id'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by':'order_date:day'}"/>
+                    <filter name="group_fulfillment" string="Fulfillment" context="{'group_by':'fulfillment_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ Sales Performance — Action ═══ -->
+    <record id="action_flipkart_sales_dashboard" model="ir.actions.act_window">
+        <field name="name">Sales Performance</field>
+        <field name="res_model">flipkart.sales.dashboard</field>
+        <field name="view_mode">list,graph</field>
+        <field name="search_view_id" ref="view_flipkart_sales_search"/>
+        <field name="context">{'search_default_last_30_days': 1, 'search_default_group_product': 1}</field>
+    </record>
+
+</odoo>

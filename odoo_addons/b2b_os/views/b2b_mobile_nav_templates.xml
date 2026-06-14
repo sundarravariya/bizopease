@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="b2b_website_shell" inherit_id="website.layout" name="B2B Website Shell">
+        <xpath expr="//div[@id='wrapwrap']" position="before">
+            <t t-set="b2b_current_order"
+               t-value="request.website.sale_get_order() if request and request.website else False"/>
+            <t t-set="b2b_current_partner"
+               t-value="(b2b_current_order.partner_id.commercial_partner_id if b2b_current_order and b2b_current_order.partner_id else (request.env.user.partner_id.commercial_partner_id if request and request.env.user and not request.env.user._is_public() else False))"/>
+        </xpath>
+        <xpath expr="//div[@id='wrapwrap']" position="attributes">
+            <attribute name="t-att-data-b2b-price-mode">b2b_current_partner.b2b_website_price_mode if b2b_current_partner else 'hide'</attribute>
+        </xpath>
+    </template>
+
+    <template id="b2b_mobile_bottom_nav" inherit_id="website.layout" name="B2B Mobile Bottom Navigation">
+        <xpath expr="//div[@id='wrapwrap']" position="inside">
+            <t t-set="b2b_current_website" t-value="request.env['website'].get_current_website() if request else False"/>
+            <t t-set="b2b_sale_order" t-value="b2b_current_website.sale_get_order() if b2b_current_website else False"/>
+            <t t-set="b2b_cart_qty" t-value="int(sum(b2b_sale_order.website_order_line.mapped('product_uom_qty'))) if b2b_sale_order else 0"/>
+            <nav class="b2b-mobile-nav d-md-none" aria-label="Mobile shop navigation">
+                <a href="/shop/categories" class="b2b-mobile-nav__item" aria-label="Categories">
+                    <i class="fa fa-th-large"/>
+                </a>
+                <a href="/shop/cart" class="b2b-mobile-nav__item b2b-mobile-nav__cart" aria-label="Cart">
+                    <i class="fa fa-shopping-bag"/>
+                    <span t-if="b2b_cart_qty" class="b2b-mobile-nav__badge" t-out="b2b_cart_qty"/>
+                </a>
+                <a href="/shop" class="b2b-mobile-nav__shop">Shop Now</a>
+                <a href="/shop" class="b2b-mobile-nav__item" aria-label="Search">
+                    <i class="fa fa-search"/>
+                </a>
+                <a href="/my" class="b2b-mobile-nav__item" aria-label="Account">
+                    <i class="fa fa-user-o"/>
+                </a>
+            </nav>
+        </xpath>
+    </template>
+
+</odoo>

@@ -1,0 +1,106 @@
+// =============================================================
+// Material Theme — Black & White, White Navbar Edition
+// Registered under: web._assets_primary_variables (prepend)
+// =============================================================
+
+// ----- Brand --------------------------------------------------
+$o-brand-odoo:    #111111 !default;
+$o-brand-primary: #111111 !default;
+
+// ----- Component active states --------------------------------
+$o-component-active-color:  #FFFFFF !default;
+$o-component-active-bg:     #111111 !default;
+$o-component-active-border: #111111 !default;
+
+// ----- Semantic colors ----------------------------------------
+$o-success: #16A34A !default;
+$o-warning: #CA8A04 !default;
+$o-danger:  #DC2626 !default;
+$o-info:    #0284C7 !default;
+
+// ----- Backgrounds --------------------------------------------
+$o-view-background-color:      #FFFFFF !default;
+$o-webclient-background-color: #F5F5F5 !default;
+
+// ----- Typography (DO NOT override font-family — keep Odoo default) ---
+$o-main-text-color:     #111111 !default;
+$o-main-headings-color: #111111 !default;
+$o-main-link-color:     #111111 !default;
+
+// ----- Navbar — WHITE bar, black text -------------------------
+$o-navbar-background:          #FFFFFF !default;
+$o-navbar-border-bottom:       1px solid #E5E5E5 !default;
+$o-navbar-entry-color:         rgba(17, 17, 17, 0.70) !default;
+$o-navbar-entry-color--hover:  #111111 !default;
+$o-navbar-entry-bg--hover:     #F5F5F5 !default;
+$o-navbar-entry-color--active: #111111 !default;
+$o-navbar-entry-bg--active:    #EEEEEE !default;
+$o-navbar-brand-color:         #111111 !default;
+
+// ----- Border radius ------------------------------------------
+$o-border-radius:    0.375rem !default;  // 6px
+$o-border-radius-sm: 0.25rem !default;   // 4px
+$o-border-radius-lg: 0.75rem !default;   // 12px
+
+// ----- Inputs -------------------------------------------------
+$o-input-border-required: #111111 !default;
+
+// ----- Primary button explicit hover states -------------------
+// darken(#111111, 10%) is indistinguishable from black → set manually
+$o-btns-bs-override: (
+    "primary": (
+        background:        #111111,
+        border:            #111111,
+        color:             #FFFFFF,
+        hover-background:  #333333,
+        hover-border:      #333333,
+        hover-color:       #FFFFFF,
+        active-background: #000000,
+        active-border:     #000000,
+        active-color:      #FFFFFF,
+    ),
+) !default;
+
+// =============================================================
+// $mt-* Design Tokens
+// =============================================================
+
+$mt-primary:       #111111;
+$mt-primary-dark:  #000000;
+$mt-primary-hover: #333333;
+$mt-primary-soft:  #F5F5F5;
+
+$mt-surface:       #FFFFFF;
+$mt-surface-soft:  #FAFAFA;
+$mt-surface-muted: #F5F5F5;
+$mt-surface-strong:#EEEEEE;
+
+$mt-border:        #E5E5E5;
+$mt-border-strong: #C4C4C4;
+
+$mt-text:          #111111;
+$mt-text-muted:    #6B6B6B;
+$mt-text-soft:     #9B9B9B;
+
+$mt-success:       #16A34A;
+$mt-warning:       #CA8A04;
+$mt-danger:        #DC2626;
+$mt-info:          #0284C7;
+
+// Shadows
+$mt-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05);
+$mt-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.05);
+$mt-shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.06);
+$mt-shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.14), 0 6px 12px rgba(0, 0, 0, 0.08);
+
+// Radius
+$mt-radius-xs:   0.375rem;  // 6px
+$mt-radius-sm:   0.75rem;   // 12px
+$mt-radius-md:   1rem;      // 16px
+$mt-radius-lg:   1.25rem;   // 20px
+$mt-radius-btn:  9999px;    // pill buttons
+$mt-radius-full: 9999px;
+
+// Transitions
+$mt-ease-fast: 0.12s ease;
+$mt-ease-base: 0.20s ease;

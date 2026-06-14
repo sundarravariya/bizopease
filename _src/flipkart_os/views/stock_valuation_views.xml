@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ Search View ═══ -->
+    <record id="view_flipkart_stock_valuation_search" model="ir.ui.view">
+        <field name="name">flipkart.stock.valuation.search</field>
+        <field name="model">flipkart.stock.valuation</field>
+        <field name="arch" type="xml">
+            <search string="Stock Valuation">
+                <field name="product_id"/>
+                <field name="category_id"/>
+                <filter name="in_stock" string="In Stock Only" domain="[('total_qty', '&gt;', 0)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_category" string="Category"
+                            context="{'group_by': 'category_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ List View ═══ -->
+    <record id="view_flipkart_stock_valuation_list" model="ir.ui.view">
+        <field name="name">flipkart.stock.valuation.list</field>
+        <field name="model">flipkart.stock.valuation</field>
+        <field name="arch" type="xml">
+            <list string="Stock Valuation" create="false" edit="false"
+                  default_order="total_valuation desc">
+                <header>
+                    <button name="action_recalculate"
+                            string="Recalculate Valuation"
+                            type="object"
+                            class="btn-primary"/>
+                </header>
+                <field name="product_id" string="Product"/>
+                <field name="category_id" string="Category" optional="show"/>
+                <field name="main_qty"        string="Main WH Qty"  sum="Total"/>
+                <field name="main_valuation"  string="Main WH Value" widget="monetary" sum="Total"/>
+                <field name="fbf_qty"         string="FBF Qty"      sum="Total"/>
+                <field name="fbf_valuation"   string="FBF Value"    widget="monetary" sum="Total"/>
+                <field name="total_qty"       string="Total Qty"    sum="Grand Total" decoration-bf="1"/>
+                <field name="cost_price"      string="Unit Cost"    widget="monetary"/>
+                <field name="total_valuation" string="Total Value"  widget="monetary"
+                       sum="Grand Total Value" decoration-bf="1"/>
+                <field name="last_updated" optional="hide"/>
+                <!-- hidden currency for monetary widget -->
+                <field name="id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Pivot View (Grand-total command centre) ═══ -->
+    <record id="view_flipkart_stock_valuation_pivot" model="ir.ui.view">
+        <field name="name">flipkart.stock.valuation.pivot</field>
+        <field name="model">flipkart.stock.valuation</field>
+        <field name="arch" type="xml">
+            <pivot string="Valuation Analysis" sample="1">
+                <field name="category_id" type="row"/>
+                <field name="main_valuation"  type="measure" string="Main WH Value"/>
+                <field name="fbf_valuation"   type="measure" string="FBF Value"/>
+                <field name="total_valuation" type="measure" string="Total Value"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ═══ Graph View ═══ -->
+    <record id="view_flipkart_stock_valuation_graph" model="ir.ui.view">
+        <field name="name">flipkart.stock.valuation.graph</field>
+        <field name="model">flipkart.stock.valuation</field>
+        <field name="arch" type="xml">
+            <graph string="Valuation by Category" type="bar" sample="1">
+                <field name="category_id"/>
+                <field name="total_valuation" type="measure" string="Total Value"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ═══ Window Action ═══ -->
+    <record id="action_flipkart_stock_valuation" model="ir.actions.act_window">
+        <field name="name">Stock Valuation Dashboard</field>
+        <field name="res_model">flipkart.stock.valuation</field>
+        <field name="view_mode">pivot,list,graph</field>
+        <field name="search_view_id" ref="view_flipkart_stock_valuation_search"/>
+        <field name="context">{'search_default_in_stock': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No valuation data yet.
+            </p>
+            <p>
+                Click <b>Recalculate Valuation</b> (switch to List view first)
+                to compute stock values across Main Warehouse and FBF.
+            </p>
+        </field>
+    </record>
+
+</odoo>

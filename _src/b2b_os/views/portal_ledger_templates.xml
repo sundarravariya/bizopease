@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Add 'My Ledger' to the portal dashboard -->
+    <template id="portal_my_home_menu_ledger" name="Portal layout : ledger menu entries" inherit_id="portal.portal_breadcrumbs" priority="30">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'ledger'" class="breadcrumb-item active">
+                <span>My Ledger</span>
+            </li>
+        </xpath>
+    </template>
+
+    <template id="portal_my_home_ledger" name="Show Ledger in Portal" inherit_id="portal.portal_my_home" priority="30">
+        <xpath expr="//div[@id='portal_client_category']" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/account/static/src/img/Bill.svg'"/>
+                <t t-set="title">My Ledger</t>
+                <t t-set="url" t-value="'/my/ledger'"/>
+                <t t-set="text">View your account statement and running balance</t>
+                <t t-set="placeholder_count" t-value="'ledger_count'"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- The Actual Ledger Statement Template -->
+    <template id="portal_my_ledger" name="My Ledger">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <!-- Simple Title without the Hamburger Collapse -->
+            <div class="row align-items-center bg-white border-bottom pb-2 pt-3 mb-3">
+                <div class="col-12">
+                    <h3 class="mb-0">Ledger Statement</h3>
+                </div>
+            </div>
+
+            <!-- Custom Date Range Form -->
+            <div class="row mt-3 mb-4">
+                <div class="col-12">
+                    <form action="/my/ledger" method="get" class="d-flex align-items-center flex-wrap gap-2">
+                        <input t-if="sortby" type="hidden" name="sortby" t-att-value="sortby"/>
+                        <!-- Dropdown Filter -->
+                        <label for="filterby" class="fw-bold">Filter By:</label>
+                        <select name="filterby" class="form-select w-auto" onchange="this.form.submit()">
+                            <t t-foreach="searchbar_filters" t-as="option">
+                                <!-- Odoo sets t-att-selected as boolean -->
+                                <option t-att-value="option" t-att-selected="option == filterby">
+                                    <t t-out="searchbar_filters[option]['label']"/>
+                                </option>
+                            </t>
+                        </select>
+                        
+                        <span class="mx-2 text-muted d-none d-md-inline">|</span>
+                        <label for="date_begin" class="fw-bold">From:</label>
+                        <input type="date" name="date_begin" class="form-control w-auto" t-att-value="date_begin"/>
+                        <label for="date_end" class="fw-bold">To:</label>
+                        <input type="date" name="date_end" class="form-control w-auto" t-att-value="date_end"/>
+                        
+                        <button type="submit" class="btn btn-primary d-flex align-items-center gap-1">
+                            <i class="fa fa-filter"/> Apply Range
+                        </button>
+                        <t t-if="date_begin or date_end">
+                            <a href="/my/ledger" class="btn btn-secondary d-flex align-items-center gap-1">
+                                <i class="fa fa-times"/> Clear
+                            </a>
+                        </t>
+                    </form>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <div class="border rounded p-3 bg-white h-100">
+                        <div class="text-muted small">Credit Utilised</div>
+                        <div class="fw-bold fs-4">
+                            <span t-out="credit_utilised" t-options='{"widget": "monetary", "display_currency": company_currency}'/>
+                        </div>
+                        <div class="text-muted small">Amount pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <div t-if="not ledger_lines" class="alert alert-info mt-4">
+                No transactions found in the selected date range.
+            </div>
+
+            <t t-if="ledger_lines" t-call="portal.portal_table">
+                <thead>
+                    <tr class="active">
+                        <th>Date</th>
+                        <th>Details</th>
+                        <th class="text-end">Debit</th>
+                        <th class="text-end">Credit</th>
+                        <th class="text-end fw-bold">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="ledger_lines" t-as="line">
+                        <tr>
+                            <td><span t-out="line['date_display']"/></td>
+                            <td>
+                                <t t-if="line['sale_order_url']">
+                                    <a t-att-href="line['sale_order_url']"><span t-out="line['display_ref']"/></a>
+                                </t>
+                                <t t-else="">
+                                    <span t-out="line['display_ref']"/>
+                                </t>
+                            </td>
+                            <td class="text-end">
+                                <t t-if="line['debit'] > 0">
+                                    <span class="fw-bold text-danger" t-out="line['debit']" t-options='{"widget": "monetary", "display_currency": line["currency_id"]}'/>
+                                </t>
+                            </td>
+                            <td class="text-end">
+                                <t t-if="line['credit'] > 0">
+                                    <span class="fw-bold text-success" t-out="line['credit']" t-options='{"widget": "monetary", "display_currency": line["currency_id"]}'/>
+                                </t>
+                            </td>
+                            <td class="text-end fw-bold">
+                                <span t-out="line['running_balance']" t-options='{"widget": "monetary", "display_currency": line["currency_id"]}'/>
+                            </td>
+                        </tr>
+                    </t>
+                    <tr class="table-light border-top">
+                        <td>
+                            <t t-if="date_begin">
+                                <span t-out="date_begin[8:10] + '/' + date_begin[5:7] + '/' + date_begin[0:4]"/>
+                            </t>
+                        </td>
+                        <td class="fw-bold">Opening Balance</td>
+                        <td class="text-end"></td>
+                        <td class="text-end"></td>
+                        <td class="text-end fw-bold">
+                            <span t-out="opening_balance" t-options='{"widget": "monetary", "display_currency": company_currency}'/>
+                        </td>
+                    </tr>
+                    <tr class="table-secondary border-top border-dark">
+                        <td colspan="2" class="text-end fw-bold">Closing Balance:</td>
+                        <td class="text-end fw-bold"><span t-out="total_debit" t-options='{"widget": "monetary", "display_currency": company_currency}'/></td>
+                        <td class="text-end fw-bold"><span t-out="total_credit" t-options='{"widget": "monetary", "display_currency": company_currency}'/></td>
+                        <td class="text-end fw-bold text-primary"><span t-out="closing_balance" t-options='{"widget": "monetary", "display_currency": company_currency}'/></td>
+                    </tr>
+                </tbody>
+            </t>
+        </t>
+    </template>
+</odoo>

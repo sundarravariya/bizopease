@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_b2b_ledger,b2b.ledger,model_b2b_ledger,base.group_user,1,1,1,1
+access_b2b_ledger_portal,b2b.ledger,model_b2b_ledger,base.group_portal,1,0,0,0
+access_b2b_ledger_summary,b2b.ledger.summary,model_b2b_ledger_summary,base.group_user,1,0,0,0
+access_b2b_manual_entry_wizard,b2b.manual.entry.wizard,model_b2b_manual_entry_wizard,base.group_user,1,1,1,1

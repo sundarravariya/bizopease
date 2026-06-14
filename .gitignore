@@ -1,0 +1,33 @@
+# Dependencies & build output
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Capacitor / Android build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/app/src/main/assets/public/
+android/local.properties
+*.apk
+!releases/*.apk
+
+# Odoo addon build artifacts / caches
+**/__pycache__/
+*.pyc
+**/static/dist_source/
+*.txt
+!**/requirements.txt
+
+# ── SECRETS — never commit these ────────────────────────────
+# APK signing keystore + its password file (keep a secure offline copy)
+android/app/*.keystore
+android/app/*.jks
+android/keystore.properties
+# QZ Tray signing private key
+qz-cert/
+# Local env / deploy secrets
+.env
+.env.*
+!.env.example

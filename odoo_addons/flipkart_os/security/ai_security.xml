@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_flipkart_ai_assistant_user" model="res.groups">
+        <field name="name">Business OS AI Assistant User</field>
+        <field name="category_id" ref="base.module_category_hidden"/>
+    </record>
+
+    <record id="rule_flipkart_ai_chat_session_own" model="ir.rule">
+        <field name="name">AI chat sessions: own sessions</field>
+        <field name="model_id" ref="model_flipkart_ai_chat_session"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_flipkart_ai_chat_message_own" model="ir.rule">
+        <field name="name">AI chat messages: own session messages</field>
+        <field name="model_id" ref="model_flipkart_ai_chat_message"/>
+        <field name="domain_force">[('session_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_flipkart_ai_proposed_action_own" model="ir.rule">
+        <field name="name">AI proposed actions: own session actions</field>
+        <field name="model_id" ref="model_flipkart_ai_proposed_action"/>
+        <field name="domain_force">[('session_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+</odoo>

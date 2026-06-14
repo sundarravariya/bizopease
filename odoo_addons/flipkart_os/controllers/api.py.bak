@@ -1,0 +1,56 @@
+# -*- coding: utf-8 -*-
+from odoo import http
+from odoo.http import request
+import logging
+import os
+
+_logger = logging.getLogger(__name__)
+
+class HeadlessApiController(http.Controller):
+
+    @http.route('/dashboard', type='http', auth='user', website=True)
+    def render_dashboard(self, **kwargs):
+        """
+        Serves the React Vite application built static index.html.
+        Requires Odoo user authentication to match auth rules.
+        """
+        path = '/opt/odoo/custom_addons/flipkart_os/static/dist/index.html'
+        if not os.path.exists(path):
+            return "Dashboard build missing. Please run npm run build on the server."
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return request.make_response(content, headers=[('Content-Type', 'text/html')])
+
+    @http.route('/api/headless/execute', type='json', auth='user', methods=['POST'], csrf=False)
+    def execute(self, model, method, args=None, kwargs=None):
+        """
+        Dynamic Headless Odoo Proxy Controller for Flipkart OS dashboard.
+        """
+        allowed_models = [
+            'flipkart.daily.order',
+            'flipkart.return.management',
+            'flipkart.fbf.replenishment',
+            'flipkart.supplier.reorder',
+            'flipkart.dead.stock',
+            'flipkart.ai.chat.session',
+            'flipkart.bill.payment.vendor',
+            'flipkart.carrying.agent',
+            'business.ledger',
+            'product.product',
+            'product.template'
+        ]
+        
+        if model not in allowed_models:
+            return {'error': f'Unauthorized access to model: {model}'}
+            
+        args = args or []
+        kwargs = kwargs or {}
+        
+        try:
+            records = request.env[model]
+            # Execute the method dynamically in Odoo
+            res = getattr(records, method)(*args, **kwargs)
+            return {'result': res}
+        except Exception as e:
+            _logger.exception("Headless execution failed: model=%s, method=%s", model, method)
+            return {'error': str(e)}

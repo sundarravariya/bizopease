@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="snippets_b2b_categories" inherit_id="website_sale.snippets" name="B2B Category Snippet">
+        <xpath expr="//t[@t-snippet='website_sale.s_dynamic_snippet_products']" position="after">
+            <t t-snippet="b2b_os.s_b2b_home_categories"
+               string="B2B Categories"
+               group="products"
+               t-thumbnail="/website_sale/static/src/img/snippets_thumbs/s_dynamic_products.svg"/>
+            <t t-snippet="b2b_os.s_b2b_stock_clearance"
+               string="Stock Clearance"
+               group="products"
+               t-thumbnail="/website_sale/static/src/img/snippets_thumbs/s_dynamic_products.svg"/>
+        </xpath>
+    </template>
+
+    <template id="s_b2b_home_categories" name="B2B Home Categories">
+        <section class="s_b2b_home_categories pt48 pb48" data-snippet="s_b2b_home_categories" data-name="B2B Categories">
+            <div class="container">
+                <t t-set="b2b_current_website" t-value="request.env['website'].get_current_website() if request else False"/>
+                <t t-set="categories" t-value="request.env['product.public.category'].sudo().search([
+                    ('parent_id', '=', False),
+                    '|', ('website_id', '=', False), ('website_id', '=', b2b_current_website.id if b2b_current_website else False)
+                ], limit=4, order='create_date desc, id desc')"/>
+                <div class="d-flex align-items-end justify-content-between gap-3 mb-4">
+                    <div>
+                        <h2 class="h3 mb-1">Shop by Category</h2>
+                        <p class="text-muted mb-0">Explore Queenfinger product groups.</p>
+                    </div>
+                    <a href="/shop/categories" class="btn btn-outline-primary d-none d-sm-inline-flex">See All</a>
+                </div>
+                <div class="row g-3">
+                    <t t-foreach="categories" t-as="category">
+                        <div class="col-6 col-lg-3">
+                            <t t-set="category_image_url" t-value="category.b2b_display_image_url()"/>
+                            <a t-att-href="'/shop/category/%s' % slug(category)"
+                               class="b2b-category-card d-block text-decoration-none h-100">
+                                <span class="b2b-category-card__media">
+                                    <img t-if="category_image_url"
+                                         t-att-src="category_image_url"
+                                         t-att-alt="category.name"
+                                         loading="lazy"/>
+                                    <span t-else="" class="b2b-category-card__placeholder">
+                                        <i class="fa fa-th-large"/>
+                                    </span>
+                                </span>
+                                <span class="b2b-category-card__title" t-out="category.name"/>
+                            </a>
+                        </div>
+                    </t>
+                </div>
+                <div class="text-center mt-4 d-sm-none">
+                    <a href="/shop/categories" class="btn btn-outline-primary">See All</a>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <template id="s_b2b_stock_clearance" name="B2B Stock Clearance">
+        <section class="s_b2b_stock_clearance pt48 pb48" data-snippet="s_b2b_stock_clearance" data-name="Stock Clearance">
+            <div class="container">
+                <t t-set="b2b_current_website" t-value="request.env['website'].get_current_website() if request else False"/>
+                <t t-set="clearance_products" t-value="request.env['product.template'].sudo().b2b_get_stock_clearance_products(website=b2b_current_website, limit=4) if request else request.env['product.template']"/>
+                <div class="d-flex align-items-end justify-content-between gap-3 mb-4">
+                    <div>
+                        <h2 class="h3 mb-1">Stock Clearance</h2>
+                        <p class="text-muted mb-0">Grab clearance products while stock lasts.</p>
+                    </div>
+                    <a href="/shop/stock-clearance" class="btn btn-outline-primary d-none d-sm-inline-flex">See All</a>
+                </div>
+                <div id="b2b_stock_clearance_carousel" class="carousel slide b2b-stock-carousel" data-bs-interval="false">
+                    <div class="carousel-inner">
+                        <t t-foreach="clearance_products" t-as="product">
+                            <t t-set="combination_info" t-value="product._get_combination_info(only_template=True)"/>
+                            <t t-set="product_variant_id" t-value="product._get_first_possible_variant_id()"/>
+                            <div t-attf-class="carousel-item #{'active' if product_first else ''}">
+                                <form action="/shop/cart/update" method="post" class="b2b-stock-card mx-auto">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="product_id" t-att-value="product_variant_id"/>
+                                    <input type="hidden" name="product_template_id" t-att-value="product.id"/>
+                                    <a t-att-href="product.website_url" class="text-decoration-none">
+                                        <div class="b2b-category-card__media rounded overflow-hidden mb-3">
+                                            <img t-if="product.image_512"
+                                                 t-att-src="'/web/image/product.template/%s/image_1024' % product.id"
+                                                 t-att-alt="product.name"
+                                                 loading="lazy"/>
+                                            <span t-else="" class="b2b-category-card__placeholder">
+                                                <i class="fa fa-picture-o"/>
+                                            </span>
+                                        </div>
+                                    </a>
+                                    <a t-att-href="product.website_url" class="text-decoration-none text-dark fw-semibold mb-2">
+                                        <span class="b2b-category-card__title p-0" t-out="product.name"/>
+                                    </a>
+                                    <div class="product_price mt-1 mb-3" itemprop="offers" itemscope="itemscope" itemtype="http://schema.org/Offer">
+                                        <span class="h6 mb-0"
+                                              t-if="not combination_info.get('b2b_hide_price')"
+                                              t-out="combination_info['price']"
+                                              t-options="{'widget': 'monetary', 'display_currency': b2b_current_website.currency_id if b2b_current_website else request.website.currency_id}"/>
+                                        <del t-if="not combination_info.get('b2b_hide_price') and combination_info.get('has_discounted_price') and combination_info.get('list_price') and combination_info.get('list_price') &gt; combination_info.get('price')"
+                                             class="text-muted ms-1 h6"
+                                             t-esc="combination_info['list_price']"
+                                             t-options="{'widget': 'monetary', 'display_currency': b2b_current_website.currency_id if b2b_current_website else request.website.currency_id}"/>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                                            <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus" aria-label="Decrease quantity">
+                                                <span class="fa fa-minus"/>
+                                            </a>
+                                            <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                                            <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus" aria-label="Increase quantity">
+                                                <span class="fa fa-plus"/>
+                                            </a>
+                                        </div>
+                                        <button t-if="product_variant_id"
+                                                type="submit"
+                                                class="btn btn-dark b2b-icon-cart-btn"
+                                                aria-label="Add to cart">
+                                            <span class="fa fa-shopping-cart"/>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </t>
+                    </div>
+                    <t t-if="len(clearance_products) &gt; 1">
+                        <button class="carousel-control-prev b2b-stock-carousel__control" type="button" data-bs-target="#b2b_stock_clearance_carousel" data-bs-slide="prev" aria-label="Previous product">
+                            <span class="fa fa-angle-left"/>
+                        </button>
+                        <button class="carousel-control-next b2b-stock-carousel__control" type="button" data-bs-target="#b2b_stock_clearance_carousel" data-bs-slide="next" aria-label="Next product">
+                            <span class="fa fa-angle-right"/>
+                        </button>
+                    </t>
+                </div>
+                <div class="text-center mt-4 d-sm-none">
+                    <a href="/shop/stock-clearance" class="btn btn-outline-primary">See All</a>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <template id="b2b_all_categories_page" name="All Product Categories">
+        <t t-call="website.layout">
+            <div id="wrap" class="oe_structure">
+                <section class="s_b2b_all_categories pt48 pb64">
+                    <div class="container">
+                        <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-4">
+                            <div>
+                                <h1 class="h2 mb-1">All Categories</h1>
+                                <p class="text-muted mb-0">Browse every Queenfinger product category and search products from the same page.</p>
+                            </div>
+                            <form action="/shop/categories" method="get" class="b2b-category-search d-flex w-100 w-lg-auto">
+                                <div class="input-group">
+                                    <input type="search"
+                                           name="search"
+                                           class="form-control"
+                                           t-att-value="search_term or ''"
+                                           placeholder="Search categories and products"/>
+                                    <button type="submit" class="btn btn-dark">
+                                        <i class="fa fa-search me-1"/>
+                                        Search
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <t t-if="search_term">
+                            <div class="b2b-category-search-results mb-5">
+                                <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                                    <h2 class="h4 mb-0">Matching Categories</h2>
+                                    <small class="text-muted">Top category result stays first.</small>
+                                </div>
+                                <div class="row g-3 mb-4">
+                                    <t t-foreach="matching_categories[:4]" t-as="category">
+                                        <div class="col-6 col-md-4 col-lg-3">
+                                            <t t-set="category_image_url" t-value="category.b2b_display_image_url()"/>
+                                            <a t-att-href="'/shop/category/%s' % slug(category)"
+                                               class="b2b-category-card d-block text-decoration-none h-100">
+                                                <span class="b2b-category-card__media">
+                                                    <img t-if="category_image_url"
+                                                         t-att-src="category_image_url"
+                                                         t-att-alt="category.name"
+                                                         loading="lazy"/>
+                                                    <span t-else="" class="b2b-category-card__placeholder">
+                                                        <i class="fa fa-th-large"/>
+                                                    </span>
+                                                </span>
+                                                <span class="b2b-category-card__title" t-out="category.name"/>
+                                            </a>
+                                        </div>
+                                    </t>
+                                </div>
+
+                                <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                                    <h2 class="h4 mb-0">Matching Products</h2>
+                                    <a href="/shop" class="btn btn-outline-dark btn-sm">Shop All</a>
+                                </div>
+                                <div class="row g-3">
+                                    <t t-foreach="matching_products" t-as="product">
+                                        <div class="col-6 col-md-4 col-lg-3">
+                                            <a t-att-href="product.website_url" class="b2b-category-card d-block text-decoration-none h-100">
+                                                <span class="b2b-category-card__media">
+                                                    <img t-if="product.image_512"
+                                                         t-att-src="'/web/image/product.template/%s/image_1024' % product.id"
+                                                         t-att-alt="product.name"
+                                                         loading="lazy"/>
+                                                    <span t-else="" class="b2b-category-card__placeholder">
+                                                        <i class="fa fa-picture-o"/>
+                                                    </span>
+                                                </span>
+                                                <span class="b2b-category-card__title" t-out="product.name"/>
+                                            </a>
+                                        </div>
+                                    </t>
+                                </div>
+                                <p t-if="not matching_products and not matching_categories" class="text-muted mt-4 mb-0">
+                                    No matching categories or products found.
+                                </p>
+                            </div>
+                        </t>
+
+                        <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+                            <div>
+                                <h2 class="h4 mb-0">Browse Categories</h2>
+                            </div>
+                            <a href="/shop" class="btn btn-outline-dark">Shop Now</a>
+                        </div>
+                        <div class="row g-3">
+                            <t t-foreach="categories" t-as="category">
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <t t-set="category_image_url" t-value="category.b2b_display_image_url()"/>
+                                    <a t-att-href="'/shop/category/%s' % slug(category)"
+                                       class="b2b-category-card d-block text-decoration-none h-100">
+                                        <span class="b2b-category-card__media">
+                                            <img t-if="category_image_url"
+                                                 t-att-src="category_image_url"
+                                                 t-att-alt="category.name"
+                                                 loading="lazy"/>
+                                            <span t-else="" class="b2b-category-card__placeholder">
+                                                <i class="fa fa-th-large"/>
+                                            </span>
+                                        </span>
+                                        <span class="b2b-category-card__title" t-out="category.name"/>
+                                    </a>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+    <template id="b2b_stock_clearance_page" name="Stock Clearance Products">
+        <t t-call="website.layout">
+            <div id="wrap" class="oe_structure">
+                <section class="s_b2b_all_categories pt48 pb64">
+                    <div class="container">
+                        <div class="d-flex align-items-end justify-content-between gap-3 mb-4">
+                            <div>
+                                <h1 class="h2 mb-1">Stock Clearance</h1>
+                                <p class="text-muted mb-0">Clearance products with direct pricing and no extra customer discount.</p>
+                            </div>
+                            <a href="/shop" class="btn btn-outline-dark">Shop All</a>
+                        </div>
+                        <div class="row g-4">
+                            <t t-foreach="products" t-as="product">
+                                <t t-set="combination_info" t-value="product._get_combination_info(only_template=True)"/>
+                                <t t-set="product_variant_id" t-value="product._get_first_possible_variant_id()"/>
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <form action="/shop/cart/update" method="post" class="b2b-category-card d-flex flex-column h-100 p-0 overflow-hidden">
+                                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                        <input type="hidden" name="product_id" t-att-value="product_variant_id"/>
+                                        <input type="hidden" name="product_template_id" t-att-value="product.id"/>
+                                        <a t-att-href="product.website_url" class="text-decoration-none">
+                                            <span class="b2b-category-card__media">
+                                                <img t-if="product.image_512"
+                                                     t-att-src="'/web/image/product.template/%s/image_1024' % product.id"
+                                                     t-att-alt="product.name"
+                                                     loading="lazy"/>
+                                                <span t-else="" class="b2b-category-card__placeholder">
+                                                    <i class="fa fa-picture-o"/>
+                                                </span>
+                                            </span>
+                                        </a>
+                                        <a t-att-href="product.website_url" class="text-decoration-none">
+                                            <span class="b2b-category-card__title" t-out="product.name"/>
+                                        </a>
+                                        <div class="px-3 pb-3 mt-auto">
+                                            <div class="fw-bold text-dark mb-2"
+                                                 t-if="not combination_info.get('b2b_hide_price')"
+                                                 t-out="combination_info['price']"
+                                                 t-options="{'widget': 'monetary', 'display_currency': request.website.currency_id}"/>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                                                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus" aria-label="Decrease quantity">
+                                                        <span class="fa fa-minus"/>
+                                                    </a>
+                                                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                                                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus" aria-label="Increase quantity">
+                                                        <span class="fa fa-plus"/>
+                                                    </a>
+                                                </div>
+                                                <button t-if="product_variant_id"
+                                                        type="submit"
+                                                        class="btn btn-dark b2b-icon-cart-btn ms-auto"
+                                                        aria-label="Add to cart">
+                                                    <span class="fa fa-shopping-cart"/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </t>
+    </template>
+
+</odoo>

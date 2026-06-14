@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+<div t-name="website.s_searchbar.autocomplete.products"
+    class="o_dropdown_menu show position-absolute w-100">
+    <t t-if="fuzzySearch && results.length">
+        <span class="dropdown-item-text">
+            <span class="text-muted">No results found for '<t t-esc="search"/>'. Showing results for '<a href="#" class="s_searchbar_fuzzy_submit" t-esc="fuzzySearch"/>'.</span>
+        </span>
+    </t>
+    <t t-elif="!results.length">
+        <span class="dropdown-item-text">
+            <span class="text-muted">No results found. Please try another search.</span>
+        </span>
+    </t>
+    <div t-foreach="results" t-as="result" t-key="result_index" class="dropdown-item p-2 text-wrap b2b-search-result-card">
+        <div class="d-flex align-items-start gap-2">
+            <a t-att-href="result['website_url']" class="d-flex align-items-start gap-2 text-decoration-none text-reset flex-grow-1 min-w-0">
+                <t t-if="widget.displayImage">
+                    <img t-if="result['image_url']" t-att-src="result['image_url']" class="flex-shrink-0 o_image_64_contain"/>
+                    <i t-else="" t-attf-class="o_image_64_contain text-center pt16 fa #{result['_fa']}" style="font-size: 34px;"/>
+                </t>
+                <div class="o_search_result_item_detail px-1 flex-grow-1 min-w-0">
+                    <t t-set="description" t-value="parts['description'] and widget.displayDescription and result['description']"/>
+                    <div t-attf-class="h6 fw-bold #{description ? '' : 'mb-0'}" t-out="result['name']"/>
+                    <p t-if="description" class="mb-0" t-out="description"/>
+                </div>
+            </a>
+            <div t-if="result['product_id']"
+                 class="d-flex align-items-center gap-1 ms-auto b2b-search-result-cart-form"
+                 t-att-data-product-id="result['product_id']"
+                 t-att-data-product-template-id="result['product_template_id']">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:106px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus" aria-label="Decrease quantity">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus" aria-label="Increase quantity">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button type="button" class="btn btn-primary b2b-icon-cart-btn b2b_search_result_add_to_cart" aria-label="Add to cart" title="Add to cart">
+                    <span class="fa fa-shopping-cart"/>
+                </button>
+            </div>
+        </div>
+    </div>
+    <t t-if="hasMoreResults">
+        <button type="submit" class="dropdown-item text-center text-primary text-primary-emphasis">All results</button>
+    </t>
+</div>
+
+</templates>

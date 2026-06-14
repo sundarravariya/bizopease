@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- VENDOR PRICELIST EXTENSION -->
+    <record id="product_supplierinfo_tree_view_inherit_flipkart" model="ir.ui.view">
+        <field name="name">product.supplierinfo.tree.inherit.flipkart</field>
+        <field name="model">product.supplierinfo</field>
+        <field name="inherit_id" ref="product.product_supplierinfo_tree_view"/>
+        <field name="arch" type="xml">
+            <!-- Add our custom columns next to the native price -->
+            <xpath expr="//field[@name='price']" position="after">
+                <field name="exchange_rate_used" string="Ex. Rate (PO)"/>
+                <field name="price_inr" string="Price (INR)"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- PO Line Comparison Tree -->
+    <record id="view_purchase_order_line_compare_tree" model="ir.ui.view">
+        <field name="name">purchase.order.line.compare.tree</field>
+        <field name="model">purchase.order.line</field>
+        <field name="arch" type="xml">
+            <list string="Historical Price Comparison" create="false" edit="false" delete="false">
+                <field name="product_id"/>
+                <field name="partner_id" string="Vendor"/>
+                <field name="price_unit" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="date_order" string="Confirmation Date" widget="date"/>
+                <field name="product_qty" string="Qty Ordered"/>
+                <field name="state" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- PO Form Extension -->
+    <record id="view_purchase_order_form_inherit_flipkart" model="ir.ui.view">
+        <field name="name">purchase.order.form.inherit.flipkart</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            
+            <xpath expr="//header" position="inside">
+                <button name="action_compare_prices" string="Compare Prices" type="object" icon="fa-balance-scale" class="oe_highlight"/>
+            </xpath>
+
+            <xpath expr="//field[@name='partner_ref']" position="after">
+                <field name="carrying_agent_id" options="{'no_create': True}"/>
+            </xpath>
+
+            <xpath expr="//field[@name='date_order']" position="after">
+                <field name="exchange_rate" invisible="not carrying_agent_id"/>
+                <field name="deposit_paid" invisible="not carrying_agent_id"/>
+                <field name="shipping_cost" invisible="not carrying_agent_id"/>
+                <field name="deposit_deducted" invisible="1"/>
+            </xpath>
+
+            <xpath expr="//field[@name='tax_totals']" position="after">
+                <div class="oe_subtotal_footer_separator oe_inline mt-3 mb-1" invisible="not carrying_agent_id">
+                    <strong>Agent Financials (INR)</strong>
+                </div>
+                <field name="total_inr" invisible="not carrying_agent_id" readonly="1" string="Total PO (INR)"/>
+                <field name="deposit_inr" invisible="not carrying_agent_id" readonly="1" string="Less Deposit (INR)"/>
+                <field name="net_agent_liability_inr" invisible="not carrying_agent_id" readonly="1" string="Net Due to Agent (INR)" class="oe_subtotal_footer_separator"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

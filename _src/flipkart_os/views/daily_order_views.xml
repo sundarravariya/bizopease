@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Daily Order List View -->
+    <record id="view_flipkart_daily_order_tree" model="ir.ui.view">
+        <field name="name">flipkart.daily.order.tree</field>
+        <field name="model">flipkart.daily.order</field>
+        <field name="arch" type="xml">
+            <list string="Daily Orders" decoration-info="state == 'draft'" decoration-success="state == 'processed'" decoration-muted="state == 'cancelled'">
+                <field name="order_date"/>
+                <field name="account_id" optional="show"/>
+                <field name="order_id"/>
+                <field name="shipment_id"/>
+                <field name="fsn"/>
+                <field name="sku"/>
+                <field name="product_id"/>
+                <field name="quantity"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'processed'" decoration-muted="state == 'cancelled'"/>
+                <button name="action_process" string="Process" type="object" icon="fa-check-circle" invisible="state != 'draft'" class="btn-primary"/>
+                <button name="action_reverse" string="Reverse" type="object" icon="fa-undo" invisible="state != 'processed'" class="btn-secondary"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Daily Order Form View -->
+    <record id="view_flipkart_daily_order_form" model="ir.ui.view">
+        <field name="name">flipkart.daily.order.form</field>
+        <field name="model">flipkart.daily.order</field>
+        <field name="arch" type="xml">
+            <form string="Daily Order">
+                <header>
+                    <button name="action_process" string="Process Order" type="object" invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_reverse" string="Reverse Move" type="object" invisible="state != 'processed'" class="btn-secondary"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="order_date"/>
+                            <field name="account_id"/>
+                            <field name="order_id"/>
+                            <field name="shipment_id"/>
+                        </group>
+                        <group>
+                            <field name="fsn"/>
+                            <field name="sku"/>
+                            <field name="product_id"/>
+                            <field name="quantity"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Stock Movements">
+                            <field name="stock_move_ids" readonly="1">
+                                <list>
+                                    <field name="product_id"/>
+                                    <field name="product_uom_qty"/>
+                                    <field name="location_id"/>
+                                    <field name="location_dest_id"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Daily Order Search View -->
+    <record id="view_flipkart_daily_order_search" model="ir.ui.view">
+        <field name="name">flipkart.daily.order.search</field>
+        <field name="model">flipkart.daily.order</field>
+        <field name="arch" type="xml">
+            <search string="Search Daily Orders">
+                <field name="fsn"/>
+                <field name="account_id"/>
+                <field name="order_id"/>
+                <field name="shipment_id"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Processed" name="processed" domain="[('state', '=', 'processed')]"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Server Actions for Bulk Operations -->
+    <record id="action_server_process_daily_order" model="ir.actions.server">
+        <field name="name">Stock Deduct / Process</field>
+        <field name="model_id" ref="model_flipkart_daily_order"/>
+        <field name="binding_model_id" ref="model_flipkart_daily_order"/>
+        <field name="state">code</field>
+        <field name="code">
+            records.action_process()
+        </field>
+    </record>
+
+    <record id="action_server_reverse_daily_order" model="ir.actions.server">
+        <field name="name">Bulk Reverse Moves</field>
+        <field name="model_id" ref="model_flipkart_daily_order"/>
+        <field name="binding_model_id" ref="model_flipkart_daily_order"/>
+        <field name="state">code</field>
+        <field name="code">
+            records.action_reverse()
+        </field>
+    </record>
+
+    <!-- Daily Order Action -->
+    <record id="action_flipkart_daily_order" model="ir.actions.act_window">
+        <field name="name">Daily Orders</field>
+        <field name="res_model">flipkart.daily.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_draft': 1}</field>
+    </record>
+
+    <!-- Upload Daily Order Wizard -->
+    <record id="view_flipkart_daily_order_upload_form" model="ir.ui.view">
+        <field name="name">flipkart.daily.order.upload.form</field>
+        <field name="model">flipkart.daily.order.upload</field>
+        <field name="arch" type="xml">
+            <form string="Upload Daily Orders">
+                <group>
+                    <field name="account_id"/>
+                    <field name="file" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_import" string="Upload" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_daily_order_upload" model="ir.actions.act_window">
+        <field name="name">Upload Daily Orders</field>
+        <field name="res_model">flipkart.daily.order.upload</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

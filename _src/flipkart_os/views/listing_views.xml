@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- View for flipkart.listing -->
+    <record id="view_flipkart_listing_tree" model="ir.ui.view">
+        <field name="name">flipkart.listing.list</field>
+        <field name="model">flipkart.listing</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="fsn"/>
+                <field name="sku"/>
+                <field name="name"/>
+                <field name="mrp"/>
+                <field name="selling_price"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_listing_form" model="ir.ui.view">
+        <field name="name">flipkart.listing.form</field>
+        <field name="model">flipkart.listing</field>
+        <field name="arch" type="xml">
+            <form string="Flipkart Listing">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="fsn"/>
+                            <field name="sku"/>
+                            <field name="name"/>
+                            <field name="category"/>
+                        </group>
+                        <group>
+                            <field name="mrp"/>
+                            <field name="selling_price"/>
+                            <field name="length_cm"/>
+                            <field name="breadth_cm"/>
+                            <field name="height_cm"/>
+                            <field name="weight_kg"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="manufacturer"/>
+                        <field name="packer"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_listing" model="ir.actions.act_window">
+        <field name="name">Master Listings</field>
+        <field name="res_model">flipkart.listing</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Wizard for Uploading XLS -->
+    <record id="view_flipkart_listing_upload_form" model="ir.ui.view">
+        <field name="name">flipkart.listing.upload.form</field>
+        <field name="model">flipkart.listing.upload</field>
+        <field name="arch" type="xml">
+            <form string="Upload Listing XLS">
+                <group>
+                    <field name="xls_file" filename="xls_file_name"/>
+                    <field name="xls_file_name" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_upload" string="Upload &amp; Process" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_listing_upload" model="ir.actions.act_window">
+        <field name="name">Upload Listing XLS</field>
+        <field name="res_model">flipkart.listing.upload</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

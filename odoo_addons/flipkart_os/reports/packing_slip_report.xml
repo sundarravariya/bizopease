@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_flipkart_packing_slip" model="ir.actions.report">
+        <field name="name">Packing Slip</field>
+        <field name="model">flipkart.box</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">flipkart_os.report_flipkart_packing_slip</field>
+        <field name="report_file">flipkart_os.report_flipkart_packing_slip</field>
+        <field name="binding_model_id" ref="model_flipkart_box"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_flipkart_packing_slip">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Packing Slip - <span t-esc="doc.name"/></h2>
+                        <h4 class="mt-4">Consignment: <span t-esc="doc.consignment_id.name"/></h4>
+                        <br/>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>FSN</th>
+                                    <th>Qty in Box</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="doc.line_ids" t-as="line">
+                                    <tr>
+                                        <td><span t-esc="line.sku_id"/></td>
+                                        <td><span t-esc="line.fsn"/></td>
+                                        <td><span t-esc="line.quantity"/></td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

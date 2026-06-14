@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ FBF Replenishment — Editable List ═══ -->
+    <record id="view_flipkart_fbf_replenishment_list" model="ir.ui.view">
+        <field name="name">flipkart.fbf.replenishment.list</field>
+        <field name="model">flipkart.fbf.replenishment</field>
+        <field name="arch" type="xml">
+            <list string="FBF Replenishment Recommendations"
+                  decoration-danger="urgency == 'critical'"
+                  decoration-warning="urgency == 'moderate'"
+                  decoration-success="urgency == 'healthy'"
+                  editable="bottom">
+                <header>
+                    <button name="%(flipkart_os.action_flipkart_fbf_replenishment_generate)d" string="Generate FBF Recommendations" type="action" class="btn-primary"/>
+                </header>
+                <field name="selected" widget="boolean_toggle"/>
+                <field name="warehouse_name"/>
+                <field name="sku"/>
+                <field name="product_id"/>
+                <field name="fbf_stock" string="FBF Stock"/>
+                <field name="sales_7d"/>
+                <field name="sales_14d"/>
+                <field name="daily_sales"/>
+                <field name="transit_days"/>
+                <field name="in_transit" optional="show"/>
+                <field name="qty_to_send" decoration-bf="1" sum="Total to Send"/>
+                <field name="days_cover_after" optional="show"/>
+                <field name="urgency" widget="badge"
+                       decoration-danger="urgency == 'critical'"
+                       decoration-warning="urgency == 'moderate'"
+                       decoration-success="urgency == 'healthy'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ FBF Replenishment — Search ═══ -->
+    <record id="view_flipkart_fbf_replenishment_search" model="ir.ui.view">
+        <field name="name">flipkart.fbf.replenishment.search</field>
+        <field name="model">flipkart.fbf.replenishment</field>
+        <field name="arch" type="xml">
+            <search string="FBF Replenishment">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="warehouse_name"/>
+                <filter name="filter_needs_action" string="Needs Action" domain="[('qty_to_send', '&gt;', 0)]"/>
+                <filter name="filter_critical" string="Critical" domain="[('urgency', '=', 'critical')]"/>
+                <filter name="filter_selected" string="Selected" domain="[('selected', '=', True)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_warehouse" string="Warehouse" context="{'group_by': 'warehouse_config_id'}"/>
+                    <filter name="group_urgency" string="Urgency" context="{'group_by': 'urgency'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ Generate Wizard ═══ -->
+    <record id="view_flipkart_fbf_replenishment_wizard" model="ir.ui.view">
+        <field name="name">flipkart.fbf.replenishment.generate.form</field>
+        <field name="model">flipkart.fbf.replenishment.generate</field>
+        <field name="arch" type="xml">
+            <form string="Generate FBF Replenishment">
+                <p>Recalculates recommendations using current FBF stock and 14-day sales velocity factoring in transit days per warehouse.</p>
+                <group>
+                    <field name="account_id"/>
+                </group>
+                <footer>
+                    <button name="action_generate" string="Generate Recommendations" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ═══ Actions ═══ -->
+    <record id="action_flipkart_fbf_replenishment" model="ir.actions.act_window">
+        <field name="name">FBF Replenishment</field>
+        <field name="res_model">flipkart.fbf.replenishment</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_flipkart_fbf_replenishment_search"/>
+        <field name="context">{'search_default_filter_needs_action': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No recommendations. Click "Generate FBF Recs" to calculate.</p>
+        </field>
+    </record>
+
+    <record id="action_flipkart_fbf_replenishment_generate" model="ir.actions.act_window">
+        <field name="name">Generate FBF Recommendations</field>
+        <field name="res_model">flipkart.fbf.replenishment.generate</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ FBF Stock — List ═══ -->
+    <record id="view_flipkart_fbf_stock_list" model="ir.ui.view">
+        <field name="name">flipkart.fbf.stock.list</field>
+        <field name="model">flipkart.fbf.stock</field>
+        <field name="arch" type="xml">
+            <list string="FBF Inventory"
+                  decoration-danger="status == 'critical'"
+                  decoration-warning="status == 'moderate'"
+                  decoration-success="status == 'healthy'">
+                <field name="account_id"/>
+                <field name="warehouse_name"/>
+                <field name="brand" optional="hide"/>
+                <field name="sku"/>
+                <field name="fsn"/>
+                <field name="product_id"/>
+                <field name="qty_live" string="FBF Stock"/>
+                <field name="sales_7d"/>
+                <field name="sales_14d" optional="show"/>
+                <field name="daily_velocity" string="Daily Vel."/>
+                <field name="days_remaining"/>
+                <field name="status" widget="badge"
+                       decoration-danger="status == 'critical'"
+                       decoration-warning="status == 'moderate'"
+                       decoration-success="status == 'healthy'"/>
+                <field name="last_upload_date" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ FBF Stock — Search ═══ -->
+    <record id="view_flipkart_fbf_stock_search" model="ir.ui.view">
+        <field name="name">flipkart.fbf.stock.search</field>
+        <field name="model">flipkart.fbf.stock</field>
+        <field name="arch" type="xml">
+            <search string="FBF Inventory">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="fsn"/>
+                <field name="brand"/>
+                <field name="account_id"/>
+                <field name="warehouse_config_id"/>
+                <filter name="filter_critical" string="Critical" domain="[('status','=','critical')]"/>
+                <filter name="filter_moderate" string="Moderate" domain="[('status','=','moderate')]"/>
+                <filter name="filter_healthy" string="Healthy" domain="[('status','=','healthy')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Account" context="{'group_by':'account_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by':'product_id'}"/>
+                    <filter name="group_warehouse" string="Warehouse" context="{'group_by':'warehouse_config_id'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by':'status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ FBF Stock — Action ═══ -->
+    <record id="action_flipkart_fbf_stock" model="ir.actions.act_window">
+        <field name="name">FBF Inventory Analytics</field>
+        <field name="res_model">flipkart.fbf.stock</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_flipkart_fbf_stock_search"/>
+        <field name="context">{'search_default_group_account': 1, 'search_default_group_product': 1}</field>
+    </record>
+
+</odoo>

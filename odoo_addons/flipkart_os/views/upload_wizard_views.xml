@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ Upload Wizard — Form ═══ -->
+    <record id="view_flipkart_upload_wizard_form" model="ir.ui.view">
+        <field name="name">flipkart.upload.wizard.form</field>
+        <field name="model">flipkart.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Upload Flipkart Data">
+                <group>
+                    <field name="upload_type"/>
+                    <field name="account_id" invisible="upload_type not in ['fbf_inventory', 'sales_data']" required="upload_type in ['fbf_inventory', 'sales_data']"/>
+                    
+                    <label for="sales_start_date" string="Date Range" invisible="upload_type != 'sales_data'"/>
+                    <div class="o_row" invisible="upload_type != 'sales_data'">
+                        <field name="sales_start_date" placeholder="Start Date"/>
+                        <i class="fa fa-long-arrow-right mx-2" aria-label="Arrow icon" title="Arrow"/>
+                        <field name="sales_end_date" placeholder="End Date"/>
+                    </div>
+                    
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <div class="alert alert-info" role="alert" invisible="upload_type != 'sales_data'">
+                    <strong>Note:</strong> Sales data within the selected date range will be <b>replaced</b> by this upload.
+                </div>
+                <div class="alert alert-info" role="alert">
+                    <strong>Supported files (CSV or XLSX):</strong>
+                    <ul>
+                        <li><b>FBF Current Inventory</b> — from Flipkart Seller Hub → FBF Inventory page</li>
+                        <li><b>Overall Sales Data</b> — from Flipkart Seller Hub → Sales Report</li>
+                    </ul>
+                </div>
+                <footer>
+                    <button name="action_upload" string="Upload &amp; Import" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ═══ Upload — Action ═══ -->
+    <record id="action_flipkart_upload_wizard" model="ir.actions.act_window">
+        <field name="name">Upload Flipkart Data</field>
+        <field name="res_model">flipkart.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="material_theme.AppScreen">
+        <div class="o_action mt_app_screen">
+            <div class="mt_app_screen_body">
+
+                <!-- Header -->
+                <div class="mt_app_screen_header">
+                    <h1 class="mt_app_screen_title">Apps</h1>
+                    <p class="mt_app_screen_subtitle">Select an application to get started</p>
+                </div>
+
+                <!-- App Grid -->
+                <div class="mt_app_grid">
+                    <t t-foreach="apps" t-as="app" t-key="app.id">
+                        <div class="mt_app_tile" t-on-click="() => this.openApp(app)"
+                             t-att-title="app.name">
+                            <div class="mt_app_icon_wrap">
+                                <img
+                                    t-if="app.webIconData"
+                                    class="mt_app_icon"
+                                    t-att-src="app.webIconData"
+                                    t-att-alt="app.name"
+                                />
+                                <div t-else="" class="mt_app_icon_default">
+                                    <i class="oi oi-apps"/>
+                                </div>
+                            </div>
+                            <span class="mt_app_name">
+                                <t t-esc="app.name"/>
+                            </span>
+                        </div>
+                    </t>
+                </div>
+
+            </div>
+        </div>
+    </t>
+
+</templates>

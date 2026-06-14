@@ -1,0 +1,502 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="hide_price_b2b" inherit_id="website_sale.product_price" priority="100">
+        <xpath expr="//div[@itemprop='offers']" position="replace">
+            <t t-set="b2b_hide_price" t-value="combination_info.get('b2b_hide_price')"/>
+            <div itemprop="offers"
+                 itemscope="itemscope"
+                 itemtype="http://schema.org/Offer"
+                 t-attf-class="product_price mt-2 mb-3 d-inline-block #{'b2b_price_hidden' if b2b_hide_price else ''}">
+                <h3 t-if="not b2b_hide_price" class="css_editable_mode_hidden b2b_real_price">
+                    <span class="oe_price"
+                          style="white-space: nowrap;"
+                          t-out="combination_info['price']"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <span itemprop="price" style="display:none;" t-out="combination_info['price']"/>
+                    <span itemprop="priceCurrency" style="display:none;" t-esc="website.currency_id.name"/>
+                    <span t-attf-class="text-muted oe_default_price ms-1 h5 {{'' if combination_info['has_discounted_price'] and not combination_info['compare_list_price'] else 'd-none'}}"
+                          style="text-decoration: line-through; white-space: nowrap;"
+                          t-esc="combination_info['list_price']"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"
+                          itemprop="listPrice"/>
+                    <t t-if="is_view_active('website_sale.tax_indication')" t-call="website_sale.tax_indication"/>
+                    <del t-if="combination_info['compare_list_price'] and (combination_info['compare_list_price'] &gt; combination_info['price'])"
+                         class="text-muted ms-1 h5 oe_compare_list_price">
+                        <bdi dir="inherit">
+                            <span t-esc="combination_info['compare_list_price']"
+                                  groups="website_sale.group_product_price_comparison"
+                                  t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                        </bdi>
+                    </del>
+                </h3>
+                <h3 t-if="editable and not b2b_hide_price"
+                    class="css_non_editable_mode_hidden decimal_precision"
+                    t-att-data-precision="str(website.currency_id.decimal_places)">
+                    <span t-field="product.list_price"
+                          t-options="{'widget': 'monetary', 'display_currency': product.currency_id}"/>
+                    <t t-if="is_view_active('website_sale.tax_indication')" t-call="website_sale.tax_indication"/>
+                    <del t-if="combination_info['compare_list_price'] and (combination_info['compare_list_price'] &gt; combination_info['price'])">
+                        <bdi dir="inherit">
+                            <span t-field="product.compare_list_price"
+                                  groups="website_sale.group_product_price_comparison"
+                                  t-options="{'widget': 'monetary', 'display_currency': product.currency_id}"/>
+                        </bdi>
+                    </del>
+                </h3>
+                <h3 t-if="b2b_hide_price" class="b2b_price_on_request d-none"/>
+                <span t-if="b2b_hide_price" itemprop="price" style="display:none;">0.00</span>
+                <span itemprop="priceCurrency" style="display:none;" t-esc="website.currency_id.name"/>
+                <small t-if="not b2b_hide_price and combination_info.get('tax_disclaimer')" class="text-muted">
+                    <t t-out="combination_info['tax_disclaimer']"/>
+                </small>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="hide_price_list_b2b" inherit_id="website_sale.products_item" priority="100">
+        <xpath expr="//div[hasclass('product_price')]" position="replace">
+            <div class="product_price" itemprop="offers" itemscope="itemscope" itemtype="http://schema.org/Offer">
+                <t t-if="template_price_vals.get('b2b_hide_price')">
+                    <span class="d-none"/>
+                    <span itemprop="price" style="display:none;">0.00</span>
+                </t>
+                <t t-else="">
+                    <span class="h6 mb-0"
+                          t-if="template_price_vals['price_reduce'] or not website.prevent_zero_price_sale"
+                          t-out="template_price_vals['price_reduce']"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <span class="h6 mb-0" t-elif="any(ptav.price_extra for ptav in product.attribute_line_ids.product_template_value_ids)">&amp;nbsp;</span>
+                    <span class="h6 mb-0" t-else="" t-field="website.prevent_zero_price_sale_text"/>
+                    <t t-if="template_price_vals.get('base_price') and (template_price_vals['base_price'] &gt; template_price_vals['price_reduce']) and (template_price_vals['price_reduce'] or not website.prevent_zero_price_sale)">
+                        <del t-attf-class="text-muted me-1 h6 mb-0" style="white-space: nowrap;">
+                            <em class="small" t-esc="template_price_vals['base_price']" t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                        </del>
+                    </t>
+                    <span itemprop="price" style="display:none;" t-esc="template_price_vals['price_reduce']"/>
+                </t>
+                <span itemprop="priceCurrency" style="display:none;" t-esc="website.currency_id.name"/>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="grid_quick_add_b2b" inherit_id="website_sale.products_item" priority="110">
+        <xpath expr="//div[hasclass('o_wsale_product_btn')]" position="replace">
+            <div class="o_wsale_product_btn d-flex align-items-center gap-1 mt-1 w-100">
+                <t t-set="product_variant_id" t-value="product._get_first_possible_variant_id()"/>
+                <input name="product_id" t-att-value="product_variant_id" type="hidden"/>
+                <input name="product_template_id" t-att-value="product.id" type="hidden"/>
+
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_js_add_cart_json b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1" style="min-width:35px;"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_js_add_cart_json b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+
+                <t t-if="product_variant_id">
+                    <a href="#" role="button" class="btn btn-primary btn-sm flex-grow-1 a-submit" aria-label="Add to Request">
+                        <span class="fa fa-shopping-cart"/>
+                    </a>
+                </t>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="hide_delivery_method_form_b2b" inherit_id="website_sale.delivery_form" priority="130">
+        <xpath expr="//form[@id='o_delivery_form']" position="replace">
+            <div id="o_delivery_form" class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_billing_address_row_b2b" inherit_id="website_sale.billing_address_row" priority="130">
+        <xpath expr="//div[@id='billing_address_row']" position="replace">
+            <div id="billing_address_row" class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_cart_price_b2b" inherit_id="website_sale.cart_lines" priority="110">
+        <xpath expr="//div[@name='website_sale_cart_line_price']" position="replace">
+            <div class="mb-0 h6 fw-bold text-end" name="website_sale_cart_line_price">
+                <t t-if="line._b2b_should_hide_price()">
+                    <span class="d-none"/>
+                </t>
+                <t t-else="">
+                    <t t-if="line.discount">
+                        <del t-attf-class="#{'text-muted mr8'}"
+                             style="white-space: nowrap;"
+                             t-out="line._get_displayed_unit_price() * line.product_uom_qty"
+                             t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    </t>
+                    <t t-set="product_price" t-value="line._get_cart_display_price()"/>
+                    <t t-call="website_sale.cart_product_price"/>
+                    <small t-if="not line._is_not_sellable_line() and line.product_id.base_unit_price"
+                           class="cart_product_base_unit_price d-block text-muted"
+                           groups="website_sale.group_show_uom_price">
+                        <t t-call="website_sale.base_unit_price">
+                            <t t-set="product" t-value="line.product_id"/>
+                            <t t-set="combination_info"
+                               t-value="{'base_unit_price': product._get_base_unit_price(product_price/line.product_uom_qty)}"/>
+                        </t>
+                    </small>
+                </t>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="hide_checkout_summary_price_b2b" inherit_id="website_sale.checkout_layout" priority="120">
+        <xpath expr="//span[@id='amount_total_summary']" position="replace">
+            <t t-if="not website_sale_order._b2b_has_hidden_website_prices()">
+                <span id="amount_total_summary"
+                      class="monetary_field ms-1"
+                      t-field="website_sale_order.amount_total"
+                      t-options='{"widget": "monetary", "display_currency": website_sale_order.currency_id}'/>
+            </t>
+            <t t-else="">
+                <span id="amount_total_summary" class="ms-1 text-muted">Pending</span>
+            </t>
+        </xpath>
+        <xpath expr="//td[@name='website_sale_cart_summary_line_price']" position="replace">
+            <td t-attf-class="#{o_cart_sum_padding_top} td-price pe-0 text-end"
+                name="website_sale_cart_summary_line_price">
+                <t t-if="not line._b2b_should_hide_price()">
+                    <t t-call="website_sale.cart_product_price">
+                        <t t-set="product_price" t-value="line._get_cart_display_price()"/>
+                    </t>
+                </t>
+            </td>
+        </xpath>
+    </template>
+
+    <template id="hide_suggested_product_price_b2b" inherit_id="website_sale.suggested_products_list" priority="110">
+        <xpath expr="//div[@name='website_sale_suggested_product_price']" position="replace">
+            <div class="mb-0 h-6 fw-bold text-end d-flex" name="website_sale_suggested_product_price">
+                <t t-set="combination_info" t-value="product._get_combination_info_variant()"/>
+                <t t-if="combination_info.get('b2b_hide_price')">
+                    <span class="d-none"/>
+                </t>
+                <t t-else="">
+                    <del t-attf-class="text-muted mr8 {{'' if combination_info['has_discounted_price'] else 'd-none'}}"
+                         t-esc="combination_info['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"
+                         style="white-space: nowrap;"/>
+                    <span t-esc="combination_info['price']"
+                          t-options="{'widget': 'monetary','display_currency': website.currency_id}"
+                          style="white-space: nowrap;"/>
+                </t>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="hide_dynamic_product_price_b2b" inherit_id="website_sale.price_dynamic_filter_template_product_product" priority="110">
+        <xpath expr="." position="replace">
+            <t t-if="data.get('b2b_hide_price')">
+                <span class="d-none" name="product_price"/>
+            </t>
+            <t t-elif="not data.get('is_sample')">
+                <span t-esc="data['price']"
+                      class="fw-bold"
+                      name="product_price"
+                      t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6" style="white-space: nowrap;"
+                     t-esc="data['list_price']"
+                     t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="dynamic_snippet_qty_add_to_cart_b2b" inherit_id="website_sale.dynamic_filter_template_product_product_add_to_cart" priority="130">
+        <xpath expr="//div[hasclass('o_dynamic_snippet_btn_wrapper')]" position="replace">
+            <div class="o_dynamic_snippet_btn_wrapper d-flex flex-column align-items-start gap-2 w-100">
+                <div class="b2b_dynamic_price_line w-100" t-if="not data.get('b2b_hide_price') and not data.get('is_sample')">
+                    <span t-esc="data['price']"
+                          class="fw-bold"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6"
+                         t-esc="data['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                </div>
+                <div class="d-flex align-items-center gap-2 w-100">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button
+                    type="button"
+                    role="button"
+                    class="btn btn-primary js_add_cart ms-auto"
+                    title="Add to Cart"
+                    t-att-data-product-id="data.get('product_id') or product_id"
+                    t-att-data-product-template-id="data.get('product_template_id') or product_template_id"
+                    t-att-data-product-selected="record.is_product_variant"
+                    t-att-data-is-combo="record.type == 'combo'"
+                >
+                    <i class="fa fa-fw fa-shopping-cart"/>
+                </button>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="dynamic_snippet_qty_borderless2_b2b" inherit_id="website_sale.dynamic_filter_template_product_product_borderless_2" priority="130">
+        <xpath expr="//div[hasclass('o_dynamic_snippet_btn_wrapper')]" position="replace">
+            <div class="o_dynamic_snippet_btn_wrapper d-flex flex-column align-items-start gap-2 w-100">
+                <div class="b2b_dynamic_price_line w-100" t-if="not data.get('b2b_hide_price') and not data.get('is_sample')">
+                    <span t-esc="data['price']"
+                          class="fw-bold"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6"
+                         t-esc="data['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                </div>
+                <div class="d-flex align-items-center gap-2 w-100">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button
+                    type="button"
+                    role="button"
+                    class="btn btn-primary js_add_cart flex-grow-1"
+                    title="Add to Cart"
+                    t-att-data-product-id="data.get('product_id') or product_id"
+                    t-att-data-product-template-id="data.get('product_template_id') or product_template_id"
+                    t-att-data-product-selected="record.is_product_variant"
+                    t-att-data-is-combo="record.type == 'combo'"
+                >
+                    Add to Cart
+                </button>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="dynamic_snippet_qty_banner_b2b" inherit_id="website_sale.dynamic_filter_template_product_product_banner" priority="130">
+        <xpath expr="//button[hasclass('js_add_cart')]" position="replace">
+            <div class="d-flex flex-column align-items-start gap-2">
+                <div class="b2b_dynamic_price_line w-100" t-if="not data.get('b2b_hide_price') and not data.get('is_sample')">
+                    <span t-esc="data['price']"
+                          class="fw-bold"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6"
+                         t-esc="data['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button
+                    type="button"
+                    role="button"
+                    class="btn btn-primary js_add_cart mt-1"
+                    title="Add to Cart"
+                    t-att-data-product-id="data.get('product_id') or product_id"
+                    t-att-data-product-template-id="data.get('product_template_id') or product_template_id"
+                    t-att-data-product-selected="record.is_product_variant"
+                    t-att-data-is-combo="record.type == 'combo'"
+                >
+                    Add to Cart
+                </button>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="dynamic_snippet_qty_horizontal_b2b" inherit_id="website_sale.dynamic_filter_template_product_product_horizontal_card" priority="130">
+        <xpath expr="//div[hasclass('o_dynamic_snippet_btn_wrapper')]" position="replace">
+            <div class="o_dynamic_snippet_btn_wrapper d-flex flex-column align-items-start gap-2 ms-auto">
+                <div class="b2b_dynamic_price_line w-100" t-if="not data.get('b2b_hide_price') and not data.get('is_sample')">
+                    <span t-esc="data['price']"
+                          class="fw-bold"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6"
+                         t-esc="data['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button
+                    type="button"
+                    role="button"
+                    class="btn btn-primary js_add_cart"
+                    title="Add to Cart"
+                    t-att-data-product-id="data.get('product_id') or product_id"
+                    t-att-data-product-template-id="data.get('product_template_id') or product_template_id"
+                    t-att-data-product-selected="record.is_product_variant"
+                    t-att-data-is-combo="record.type == 'combo'"
+                >
+                    <i class="fa fa-fw fa-shopping-cart"/>
+                </button>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="dynamic_snippet_qty_horizontal2_b2b" inherit_id="website_sale.dynamic_filter_template_product_product_horizontal_card_2" priority="130">
+        <xpath expr="//div[hasclass('o_dynamic_snippet_btn_wrapper')]" position="replace">
+            <div class="o_dynamic_snippet_btn_wrapper d-flex flex-column align-items-start gap-2">
+                <div class="b2b_dynamic_price_line w-100" t-if="not data.get('b2b_hide_price') and not data.get('is_sample')">
+                    <span t-esc="data['price']"
+                          class="fw-bold"
+                          t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                    <del t-if="data.get('has_discounted_price')" class="text-danger ms-1 h6"
+                         t-esc="data['list_price']"
+                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"/>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                <div class="css_quantity input-group input-group-sm b2b_qty_group" style="max-width:118px;">
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_minus">
+                        <span class="fa fa-minus"/>
+                    </a>
+                    <input type="text" name="add_qty" class="form-control quantity text-center" value="1" data-min="1"/>
+                    <a href="#" class="btn btn-outline-secondary b2b_qty_action b2b_qty_plus">
+                        <span class="fa fa-plus"/>
+                    </a>
+                </div>
+                <button
+                    type="button"
+                    role="button"
+                    class="btn btn-primary js_add_cart"
+                    title="Add to Cart"
+                    t-att-data-product-id="data.get('product_id') or product_id"
+                    t-att-data-product-template-id="data.get('product_template_id') or product_template_id"
+                    t-att-data-product-selected="record.is_product_variant"
+                    t-att-data-is-combo="record.type == 'combo'"
+                >
+                    Add to Cart
+                </button>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="hide_variant_extra_price_b2b" inherit_id="website_sale.badge_extra_price" priority="110">
+        <xpath expr="//span[hasclass('badge')]" position="attributes">
+            <attribute name="t-if">price_extra</attribute>
+        </xpath>
+    </template>
+
+    <template id="hide_cart_total_b2b" inherit_id="website_sale.total" priority="110">
+        <xpath expr="//div[@id='cart_total']" position="replace">
+            <t t-if="website_sale_order._b2b_has_hidden_website_prices()">
+                <div id="cart_total" class="d-none"/>
+            </t>
+            <t t-else="">
+                <div id="cart_total" class="d-flex justify-content-between align-items-center fw-bold fs-5">
+                    <span>Total</span>
+                    <span t-field="website_sale_order.amount_total"
+                          t-options="{'widget': 'monetary', 'display_currency': website_sale_order.currency_id}"/>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="cart_b2b_labels" inherit_id="website_sale.navigation_buttons" priority="100">
+        <xpath expr="//a[@name='website_sale_main_button']" position="replace">
+            <a role="button"
+               name="website_sale_main_button"
+               t-attf-class="#{_cta_classes} btn btn-primary #{_form_send_navigation and 'order-lg-3 w-100 w-lg-auto ms-lg-auto' or 'w-100'}"
+               t-att-href="step_specific_values['main_button_href']">
+                <span>Submit Order Request</span>
+                <i class="fa fa-angle-right ms-2 fw-light"/>
+            </a>
+        </xpath>
+    </template>
+
+    <template id="hide_shop_categories_list_b2b" inherit_id="website_sale.products_categories_list" priority="120">
+        <xpath expr="//div" position="replace">
+            <div class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_shop_categories_top_b2b" inherit_id="website_sale.filmstrip_categories" priority="120">
+        <xpath expr="." position="replace">
+            <div class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_product_terms_text_b2b" inherit_id="website_sale.product_custom_text" priority="140">
+        <xpath expr="//p" position="replace">
+            <div class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_product_share_buttons_b2b" inherit_id="website_sale.product_share_buttons" priority="140">
+        <xpath expr="//div[hasclass('s_share')]" position="replace">
+            <div class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="hide_product_terms_and_share_wrapper_b2b" inherit_id="website_sale.product" priority="145">
+        <xpath expr="//div[@id='o_product_terms_and_share']" position="attributes">
+            <attribute name="class" add="d-none" separator=" "/>
+        </xpath>
+    </template>
+
+    <template id="hide_original_ecommerce_description_b2b" inherit_id="website_sale.product" priority="146">
+        <xpath expr="//div[@t-field='product.description_ecommerce']" position="replace">
+            <div class="d-none"/>
+        </xpath>
+    </template>
+
+    <template id="show_ecommerce_description_below_cart_b2b" inherit_id="website_sale.product" priority="150">
+        <xpath expr="//div[@id='o_product_terms_and_share']" position="after">
+            <t t-set="b2b_base_url" t-value="request.httprequest.url_root.rstrip('/')"/>
+            <a class="b2b_whatsapp_enquiry"
+               target="_blank"
+               rel="noopener"
+               aria-label="Enquire on WhatsApp"
+               title="Enquire on WhatsApp"
+               t-attf-href="https://wa.me/919819816402?text=#{product.name}%0A#{b2b_base_url}/web/image/product.template/#{product.id}/image_512">
+                <i class="fa fa-whatsapp" aria-hidden="true"/>
+                <span>WhatsApp Enquiry</span>
+            </a>
+            <div t-if="product.description_ecommerce"
+                 class="b2b_product_ecommerce_description mt-3 mb-3 text-muted"
+                 t-field="product.description_ecommerce">
+            </div>
+        </xpath>
+    </template>
+
+
+    <template id="b2b_product_zoom_icon" inherit_id="website_sale.product" priority="155">
+        <xpath expr="//div[hasclass('o_wsale_product_page')]" position="attributes">
+            <attribute name="data-ecom-zoom-click">1</attribute>
+            <attribute name="class" separator=" " add="ecom-zoomable zoomodoo-next"/>
+        </xpath>
+        <xpath expr="//div[hasclass('o_wsale_product_images')]" position="inside">
+            <div class="b2b_zoom_icon_hint" aria-hidden="true">
+                <i class="fa fa-search-plus"/>
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

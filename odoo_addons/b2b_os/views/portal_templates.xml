@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        B2B PORTAL: SIDEBAR ACTIONS
+        Replaces Sign/Pay buttons with B2B status badges and Confirm button.
+        Parent confirmed from DB: sale.sale_order_portal_template
+    -->
+    <template id="b2b_portal_sidebar_actions"
+              inherit_id="sale.sale_order_portal_template"
+              priority="100">
+        <xpath expr="//div[@id='sale_order_sidebar_button']" position="replace">
+            <div id="sale_order_sidebar_button">
+
+                <!-- DRAFT: pending admin pricing -->
+                <t t-if="sale_order.state == 'draft'">
+                    <t t-if="not sale_order._b2b_portal_pricing_ready()">
+                        <div class="alert alert-warning py-2 mb-3 text-center small">
+                            <i class="fa fa-clock-o me-1"/>
+                            <strong>Awaiting Pricing</strong><br/>
+                            Our team will review and send you pricing shortly.
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <div class="alert alert-success py-2 mb-3 text-center small">
+                            <i class="fa fa-check-circle me-1"/>
+                            <strong>Pricing Updated</strong><br/>
+                            Our team has securely assigned pricing. You may proceed to confirm.
+                        </div>
+                    </t>
+                </t>
+
+                <!-- SENT: admin priced, show confirm button -->
+                <t t-if="sale_order.state == 'sent'">
+                    <form method="POST"
+                          t-attf-action="/my/orders/#{sale_order.id}/confirm">
+                        <input type="hidden" name="csrf_token"
+                               t-att-value="request.csrf_token()"/>
+                        <button type="submit"
+                                class="btn btn-success btn-lg w-100 mb-2">
+                            <i class="fa fa-check me-1"/> Confirm Order
+                        </button>
+                    </form>
+                    <small class="text-muted d-block text-center mb-2">
+                        Review pricing below, then confirm.
+                    </small>
+                </t>
+
+                <!-- SALE: confirmed -->
+                <t t-if="sale_order.state in ('sale', 'done')">
+                    <div class="alert alert-success py-2 mb-2 text-center small">
+                        <i class="fa fa-check-circle me-1"/>
+                        <strong>Order Confirmed!</strong>
+                    </div>
+                    <form method="POST"
+                          t-attf-action="/my/orders/#{sale_order.id}/reorder">
+                        <input type="hidden" name="csrf_token"
+                               t-att-value="request.csrf_token()"/>
+                        <button type="submit"
+                                class="btn btn-dark btn-lg w-100 mb-2">
+                            <i class="fa fa-repeat me-1"/> Reorder Items
+                        </button>
+                    </form>
+                </t>
+
+                <!-- Always show PDF button -->
+                <div class="o_download_pdf d-flex gap-2 flex-lg-column flex-xl-row flex-wrap">
+                    <a class="btn btn-light o_print_btn o_portal_invoice_print flex-grow-1"
+                       t-att-href="sale_order.get_portal_url(report_type='pdf')"
+                       id="print_invoice_report"
+                       title="View Details"
+                       role="button"
+                       target="_blank">
+                        <i class="fa fa-print me-1"/>View Details
+                    </a>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+    <!--
+        B2B PORTAL: INJECT PRODUCT IMAGES + QTY EDITOR + CONFIRM
+        into the main order content area.
+        Parent: sale.sale_order_portal_content
+    -->
+    <template id="b2b_portal_content_actions"
+              inherit_id="sale.sale_order_portal_content"
+              priority="100">
+        <xpath expr="//div[@id='introduction']" position="before">
+
+            <!-- Edit Quantities (draft and sent) -->
+            <t t-if="sale_order.state in ('draft', 'sent')">
+                <div class="card shadow-sm mb-4 border-warning d-print-none">
+                    <div class="card-header bg-warning bg-opacity-25 d-flex align-items-center py-2">
+                        <i class="fa fa-pencil me-2 text-warning"/>
+                        <span class="fw-bold">Your Request Items</span>
+                        <span class="ms-auto badge bg-warning text-dark small">
+                            <t t-if="sale_order.state == 'draft' and not sale_order._b2b_portal_pricing_ready()">Pricing Pending</t>
+                            <t t-if="sale_order.state == 'draft' and sale_order._b2b_portal_pricing_ready()">Pricing Updated</t>
+                            <t t-if="sale_order.state == 'sent'">Priced - Ready to Confirm</t>
+                        </span>
+                    </div>
+                    <form method="POST" t-attf-action="/my/orders/#{sale_order.id}/update-lines">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <div class="card-body p-0">
+                            <table class="table table-hover mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:50px;"></th>
+                                        <th>Product</th>
+                                        <th class="text-end" style="width:110px;">Rate</th>
+                                        <th class="text-center" style="width:140px;">Quantity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="sale_order.order_line" t-as="line">
+                                        <t t-if="not line.display_type">
+                                            <tr>
+                                                <td class="align-middle">
+                                                    <img t-if="line.product_id.image_128"
+                                                         t-att-src="'/web/image/product.product/' + str(line.product_id.id) + '/image_128'"
+                                                         class="rounded border"
+                                                         style="width:40px;height:40px;object-fit:contain;"
+                                                         t-att-alt="line.product_id.name"/>
+                                                </td>
+                                                <td class="align-middle">
+                                                    <strong t-out="line.product_id.name"/>
+                                                    <div class="text-muted small" t-if="line.product_id.default_code">
+                                                        Ref: <t t-out="line.product_id.default_code"/>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end align-middle fw-bold">
+                                                    <t t-if="not line._b2b_portal_should_hide_price()">
+                                                        <t t-set="b2b_discounted_unit_price" t-value="line.price_unit * (1 - ((line.discount or 0.0) / 100.0))"/>
+                                                        <t t-out="b2b_discounted_unit_price" t-options="{'widget': 'monetary', 'display_currency': sale_order.currency_id}"/>
+                                                    </t>
+                                                    <t t-else="">
+                                                        <span class="text-muted small">Pending</span>
+                                                    </t>
+                                                </td>
+                                                <td class="text-center align-middle">
+                                                    <input type="number" t-att-name="'qty_' + str(line.id)"
+                                                           t-att-value="int(line.product_uom_qty)"
+                                                           min="1"
+                                                           class="form-control form-control-sm text-center mx-auto"
+                                                           style="width:70px;"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer bg-light d-flex justify-content-end p-2 d-print-none">
+                            <button type="submit" class="btn btn-primary btn-sm px-3">
+                                <i class="fa fa-save me-2"/>Update Quantities
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="d-flex justify-content-end mb-3 d-print-none">
+                    <form method="POST"
+                          t-attf-action="/my/orders/#{sale_order.id}/edit-in-cart">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button type="submit" class="btn btn-dark">
+                            <i class="fa fa-shopping-cart me-1"/>Edit and Add More in Cart
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Delete Request Button (available in both draft and sent states) -->
+                <div class="d-flex justify-content-end mb-4 d-print-none">
+                    <form method="POST"
+                          t-attf-action="/my/orders/#{sale_order.id}/delete"
+                          onsubmit="return confirm('Are you sure you want to delete this quotation request? This cannot be undone.');">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="fa fa-trash me-1"/>Delete Request
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Confirm button inside content once pricing is available -->
+                <t t-if="sale_order.state == 'sent' or (sale_order.state == 'draft' and sale_order._b2b_portal_pricing_ready())">
+                    <div class="card shadow-sm mb-4 border-success d-print-none">
+                        <div class="card-body text-center">
+                            <p class="text-muted mb-3" t-if="sale_order.state == 'sent' or (sale_order.state == 'draft' and sale_order._b2b_portal_pricing_ready())">
+                                Our team has added pricing above. Review and confirm your order.
+                            </p>
+                            <form method="POST"
+                                  t-attf-action="/my/orders/#{sale_order.id}/confirm">
+                                <input type="hidden" name="csrf_token"
+                                       t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fa fa-check me-2"/>Confirm Order
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </t>
+            </t>
+
+            <!-- Confirmed banner -->
+            <t t-if="sale_order.state in ('sale', 'done')">
+                <div class="card shadow-sm mb-4 d-print-none">
+                    <div class="card-header bg-light d-flex align-items-center py-2">
+                        <i class="fa fa-list-alt me-2 text-dark"/>
+                        <span class="fw-bold">Order Items</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:50px;"></th>
+                                    <th>Product</th>
+                                    <th class="text-end" style="width:110px;">Price</th>
+                                    <th class="text-center" style="width:140px;">Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="sale_order.order_line" t-as="line">
+                                    <t t-if="not line.display_type">
+                                        <tr>
+                                            <td class="align-middle">
+                                                <img t-if="line.product_id.image_128"
+                                                     t-att-src="'/web/image/product.product/' + str(line.product_id.id) + '/image_128'"
+                                                     class="rounded border"
+                                                     style="width:40px;height:40px;object-fit:contain;"
+                                                     t-att-alt="line.product_id.name"/>
+                                            </td>
+                                            <td class="align-middle">
+                                                <strong t-out="line.product_id.name"/>
+                                                <div class="text-muted small" t-if="line.product_id.default_code">
+                                                    Ref: <t t-out="line.product_id.default_code"/>
+                                                </div>
+                                            </td>
+                                            <td class="text-end align-middle fw-bold">
+                                                <t t-set="b2b_discounted_unit_price" t-value="line.price_unit * (1 - ((line.discount or 0.0) / 100.0))"/>
+                                                <t t-out="b2b_discounted_unit_price" t-options="{'widget': 'monetary', 'display_currency': sale_order.currency_id}"/>
+                                            </td>
+                                            <td class="text-center align-middle">
+                                                <span t-out="int(line.product_uom_qty)"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="alert alert-success d-flex align-items-center mb-4 d-print-none">
+                    <i class="fa fa-check-circle fa-2x me-3"/>
+                    <div>
+                        <strong>Order Confirmed!</strong><br/>
+                        Your order is being processed. You will receive updates by email.
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mb-4 d-print-none">
+                    <form method="POST"
+                          t-attf-action="/my/orders/#{sale_order.id}/reorder">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button type="submit" class="btn btn-dark">
+                            <i class="fa fa-repeat me-1"/>Reorder This Order
+                        </button>
+                    </form>
+                </div>
+            </t>
+
+        </xpath>
+
+        <!-- Dynamically Hide Total if all items evaluate to 1.0 dummy rates -->
+        <xpath expr="//div[@id='total']" position="attributes">
+            <attribute name="t-if">sale_order._b2b_portal_should_show_prices()</attribute>
+        </xpath>
+    </template>
+
+    <!-- Hide Sidebar Pricing completely! -->
+    <template id="b2b_portal_sidebar_amount" inherit_id="sale.sale_order_portal_template">
+        <xpath expr="//h2[@data-id='total_amount']" position="replace">
+            <t t-if="sale_order._b2b_portal_should_show_prices()">
+                <h2 t-field="sale_order.amount_total" data-id="total_amount" class="mb-0 text-break"/>
+            </t>
+            <t t-else="">
+                <h2 data-id="total_amount" class="text-muted mb-0 text-break">Pending Pricing</h2>
+            </t>
+        </xpath>
+        <xpath expr="//h4[@data-id='total_amount']" position="replace">
+            <t t-if="sale_order._b2b_portal_should_show_prices()">
+                <h4 t-field="sale_order.amount_total" class="text-success" data-id="total_amount"/>
+            </t>
+            <t t-else="">
+                <h4 class="text-muted" data-id="total_amount">Pending Pricing</h4>
+            </t>
+        </xpath>
+        <xpath expr="//span[@data-id='total_amount']" position="replace">
+            <t t-if="sale_order._b2b_portal_should_show_prices()">
+                <span t-field="sale_order.amount_total" data-id="total_amount"/>
+            </t>
+            <t t-else="">
+                <span data-id="total_amount" class="text-muted">Pending Pricing</span>
+            </t>
+        </xpath>
+        <xpath expr="//div[@name='sale_order_advantage']" position="attributes">
+            <attribute name="t-if">sale_order._b2b_portal_should_show_prices() and sale_order.amount_undiscounted - sale_order.amount_untaxed &gt; 0.01</attribute>
+        </xpath>
+    </template>
+
+    <template id="b2b_portal_native_table_masks" inherit_id="sale.sale_order_portal_content">
+        <!-- Mask Unit Price in Native Table & PDF -->
+        <xpath expr="//div[@t-field='line.price_unit']" position="replace">
+            <t t-if="not line._b2b_portal_should_hide_price()">
+                <t t-set="b2b_discounted_unit_price" t-value="line.price_unit * (1 - ((line.discount or 0.0) / 100.0))"/>
+                <div t-out="b2b_discounted_unit_price"
+                     t-options="{'widget': 'monetary', 'display_currency': sale_order.currency_id}"
+                     class="text-end"/>
+            </t>
+            <t t-else="">
+                <span class="text-muted">Pending</span>
+            </t>
+        </xpath>
+
+        <!-- Mask Subtotal Amount in Native Table & PDF -->
+        <xpath expr="//span[hasclass('oe_order_line_price_subtotal')]" position="replace">
+            <t t-if="not line._b2b_portal_should_hide_price()">
+                <span class="oe_order_line_price_subtotal" t-field="line.price_subtotal"/>
+            </t>
+            <t t-else="">
+                <span class="text-muted">Pending</span>
+            </t>
+        </xpath>
+
+        <!-- Mask Section Subtotal in Native Table & PDF -->
+        <xpath expr="//span[@t-out='current_subtotal']" position="replace">
+            <t t-if="sale_order._b2b_portal_should_show_prices()">
+                <span t-out="current_subtotal" t-options='{"widget": "monetary", "display_currency": sale_order.currency_id}'/>
+            </t>
+            <t t-else="">
+                <span class="text-muted fst-italic">Pending</span>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="b2b_portal_my_quotations_mask" inherit_id="sale.portal_my_quotations">
+        <xpath expr="//span[@t-field='quotation.amount_total']" position="replace">
+            <t t-if="quotation._b2b_portal_should_show_prices()">
+                <span t-field="quotation.amount_total"/>
+            </t>
+            <t t-else="">
+                <span class="text-muted">Pending</span>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="b2b_portal_my_orders_mask" inherit_id="sale.portal_my_orders">
+        <xpath expr="//span[@t-field='order.amount_total']" position="replace">
+            <t t-if="order._b2b_portal_should_show_prices()">
+                <span t-field="order.amount_total"/>
+            </t>
+            <t t-else="">
+                <span class="text-muted">Pending</span>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

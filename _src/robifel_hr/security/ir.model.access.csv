@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_salary_config_admin,robifel.salary.config.admin,model_robifel_salary_config,base.group_system,1,1,1,1
+access_salary_period_admin,robifel.salary.period.admin,model_robifel_salary_period,base.group_system,1,1,1,1
+access_attendance_day_user,robifel.attendance.day.user,model_robifel_attendance_day,base.group_user,1,1,1,0
+access_attendance_day_admin,robifel.attendance.day.admin,model_robifel_attendance_day,base.group_system,1,1,1,1
+access_employee_location_user,robifel.employee.location.user,model_robifel_employee_location,base.group_user,1,1,1,0
+access_employee_location_admin,robifel.employee.location.admin,model_robifel_employee_location,base.group_system,1,1,1,1
+access_hr_settings_read,robifel.hr.settings.read,model_robifel_hr_settings,base.group_user,1,0,0,0
+access_hr_settings_admin,robifel.hr.settings.admin,model_robifel_hr_settings,base.group_system,1,1,1,1

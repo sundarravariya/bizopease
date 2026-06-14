@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====================================================
+         B2B SUBMIT PAGE
+         Replaces the standard /shop/payment page.
+         Shows order summary + note field + submit button.
+         ===================================================== -->
+    <template id="b2b_order_submit_page" name="B2B - Order Request Summary">
+        <t t-call="website.layout">
+            <div id="b2b_submit_page" class="container my-5">
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+
+                        <!-- Header -->
+                        <div class="text-center mb-4">
+                            <i class="fa fa-file-text-o fa-3x text-primary mb-3"/>
+                            <h2 class="fw-bold">Review Your Order Request</h2>
+                            <p class="text-muted">
+                                Review your items below and submit. Our team will get back to you with the best pricing.
+                            </p>
+                        </div>
+
+                        <!-- Order Lines Summary -->
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fa fa-shopping-cart me-2"/>Your Items</h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Product</th>
+                                            <th class="text-center">Qty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="order.website_order_line" t-as="line">
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <img t-if="line.product_id.image_128"
+                                                             t-att-src="'/web/image/product.product/' + str(line.product_id.id) + '/image_128'"
+                                                             class="rounded me-3 border"
+                                                             style="width:48px;height:48px;object-fit:contain;"
+                                                             t-att-alt="line.product_id.name"/>
+                                                        <div>
+                                                            <strong t-out="line.product_id.name"/>
+                                                            <div class="small text-muted" t-if="line.product_id.default_code">
+                                                                SKU: <span t-out="line.product_id.default_code"/>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center align-middle">
+                                                    <span class="badge bg-secondary fs-6" t-out="int(line.product_uom_qty)"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                    <tfoot class="table-light">
+                                        <tr>
+                                            <td><strong>Total Items</strong></td>
+                                            <td class="text-center">
+                                                <strong t-out="int(sum(l.product_uom_qty for l in order.website_order_line))"/>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Submit Form -->
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <form method="POST" action="/b2b/submit-request">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                                    <div class="mb-3">
+                                        <label for="customer_note" class="form-label fw-semibold">
+                                            <i class="fa fa-comment me-1"/>Additional Notes (optional)
+                                        </label>
+                                        <textarea name="customer_note"
+                                                  id="customer_note"
+                                                  class="form-control"
+                                                  rows="3"
+                                                  placeholder="Any special requirements, delivery preferences, etc."/>
+                                    </div>
+
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary btn-lg">
+                                            <i class="fa fa-paper-plane me-2"/>Submit Order Request
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Back link -->
+                        <div class="text-center mt-3">
+                            <a href="/shop/cart" class="text-muted small">
+                                <i class="fa fa-arrow-left me-1"/>Back to Cart
+                            </a>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ====================================================
+         B2B SUCCESS PAGE
+         Shown after order request is submitted.
+         ===================================================== -->
+    <template id="b2b_order_success_page" name="B2B - Order Request Submitted">
+        <t t-call="website.layout">
+            <div id="b2b_success_page" class="container my-5">
+                <div class="row justify-content-center">
+                    <div class="col-lg-6 text-center">
+
+                        <div class="mb-4">
+                            <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex p-4 mb-3">
+                                <i class="fa fa-check-circle fa-4x text-success"/>
+                            </div>
+                            <h2 class="fw-bold">Request Submitted!</h2>
+                            <p class="text-muted fs-5">
+                                Thank you! Your order request (#<strong t-out="order.name"/>) has been received.
+                            </p>
+                        </div>
+
+                        <div class="card shadow-sm mb-4 text-start">
+                            <div class="card-body">
+                                <h6 class="fw-bold text-muted text-uppercase small mb-3">What happens next?</h6>
+                                <div class="d-flex mb-2">
+                                    <span class="badge bg-primary me-3 mt-1" style="min-width:24px;">1</span>
+                                    <p class="mb-0">Our team reviews your request and prepares a custom price quotation.</p>
+                                </div>
+                                <div class="d-flex mb-2">
+                                    <span class="badge bg-primary me-3 mt-1" style="min-width:24px;">2</span>
+                                    <p class="mb-0">You'll receive an email with the priced quotation.</p>
+                                </div>
+                                <div class="d-flex mb-2">
+                                    <span class="badge bg-primary me-3 mt-1" style="min-width:24px;">3</span>
+                                    <p class="mb-0">Review the quotation in your account and confirm to place the order.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href="/my/orders" class="btn btn-outline-primary me-2">
+                            <i class="fa fa-list me-1"/>View My Orders
+                        </a>
+                        <a href="/shop" class="btn btn-primary">
+                            <i class="fa fa-shopping-bag me-1"/>Continue Shopping
+                        </a>
+
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

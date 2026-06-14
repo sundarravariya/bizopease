@@ -1,0 +1,80 @@
+<odoo>
+    <!-- List view with no aggregation -->
+    <record id="view_product_quantity_price_list" model="ir.ui.view">
+        <field name="name">product.quantity.price.list</field>
+        <field name="model">product.quantity.price</field>
+        <field name="arch" type="xml">
+            <list default_group_by="product_tmpl_id" multi_edit="1" create="1" edit="1">
+                <field name="product_tmpl_id"/>
+                <field name="bracket_label"/>
+                <field name="price_display" string="Sale Price" nolabel="1"/>
+                <field name="price" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search view for better filtering -->
+    <record id="view_product_quantity_price_search" model="ir.ui.view">
+        <field name="name">product.quantity.price.search</field>
+        <field name="model">product.quantity.price</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_tmpl_id" string="Product Name" 
+                       filter_domain="[('product_tmpl_id.name', 'ilike', self)]"/>
+                <field name="bracket_label"/>
+                <field name="price"/>
+                <group expand="1" string="Group By">
+                    <filter string="Product" name="group_product" context="{'group_by': 'product_tmpl_id'}"/>
+                    <filter string="Bracket" name="group_bracket" context="{'group_by': 'bracket_label'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Pivot view for matrix-like pricelist -->
+    <record id="view_product_quantity_price_pivot" model="ir.ui.view">
+        <field name="name">product.quantity.price.pivot</field>
+        <field name="model">product.quantity.price</field>
+        <field name="arch" type="xml">
+            <pivot string="Pricelist Sheet">
+                <field name="product_tmpl_id" type="row"/>
+                <field name="bracket_label" type="col"/>
+                <field name="price" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Custom CSS to hide aggregation in group view -->
+    <template id="pricelist_assets" name="Pricelist Assets" inherit_id="web.assets_backend">
+        <xpath expr="." position="inside">
+            <style>
+                /* Hide all aggregations in quantity price list view */
+                .o_list_view[data-resmodel="product.quantity.price"] .o_group_header .o_list_number {
+                    display: none !important;
+                }
+                
+                /* Hide the entire aggregation column in grouped view */
+                body[data-resmodel="product.quantity.price"] .o_list_view .o_group_header .o_list_number,
+                body[data-resmodel="product.quantity.price"] .o_list_view .o_group_header td:last-child {
+                    display: none !important;
+                }
+                
+                /* Hide red crossed out numbers specifically */
+                .o_list_view .o_group_header .text-decoration-line-through {
+                    display: none !important;
+                }
+            </style>
+        </xpath>
+    </template>
+
+    <record id="view_product_quantity_price_action" model="ir.actions.act_window">
+        <field name="name">Pricelist Sheet</field>
+        <field name="res_model">product.quantity.price</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'group_by': 'product_tmpl_id'}</field>
+    </record>
+
+    <menuitem id="menu_product_quantity_price" name="Pricelist Sheet"
+              parent="sale.sale_menu_root"
+              action="view_product_quantity_price_action"/>
+</odoo>

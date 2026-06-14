@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="paperformat_flipkart_label" model="report.paperformat">
+        <field name="name">Flipkart 55x40mm Label</field>
+        <field name="default" eval="True"/>
+        <field name="format">custom</field>
+        <field name="page_height">40</field>
+        <field name="page_width">55</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">2</field>
+        <field name="margin_bottom">1</field>
+        <field name="margin_left">1</field>
+        <field name="margin_right">1</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">0</field>
+        <field name="dpi">300</field>
+    </record>
+
+    <record id="action_report_flipkart_barcode_labels" model="ir.actions.report">
+        <field name="name">Generate &amp; Download Barcodes</field>
+        <field name="model">flipkart.consignment</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">flipkart_os.report_flipkart_barcode_labels</field>
+        <field name="report_file">flipkart_os.report_flipkart_barcode_labels</field>
+        <field name="paperformat_id" ref="paperformat_flipkart_label"/>
+        <field name="binding_model_id" ref="model_flipkart_consignment"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_flipkart_barcode_labels">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <style>
+                    .label-page {
+                        width: 53mm;
+                        height: 38mm;
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 6px;
+                        line-height: 1.2;
+                        overflow: hidden;
+                        page-break-after: always;
+                    }
+                    .separator-page {
+                        width: 53mm;
+                        height: 38mm;
+                        background-color: #000000 !important;
+                        -webkit-print-color-adjust: exact;
+                        color: #ffffff !important;
+                        font-family: Arial, Helvetica, sans-serif;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                        page-break-after: always;
+                    }
+                    .text-bold { font-weight: bold; }
+                    .mt-1 { margin-top: 1px; }
+                    .mt-2 { margin-top: 2px; }
+                    .pull-left { float: left; width: 50%; }
+                    .pull-right { float: right; width: 50%; }
+                    .clearfix::after { content: ""; clear: both; display: table; }
+                </style>
+                <t t-foreach="doc.line_ids" t-as="line">
+                    <!-- Product Labels -->
+                    <t t-foreach="line.get_label_range()" t-as="i">
+                        <div class="page label-page">
+                            <div class="text-bold" style="font-size: 8px;">SKU ID : <span t-esc="line.sku_id"/></div>
+                            <div>Generic Name : <span t-esc="line.product_name[:30]"/></div>
+                            <div>Model Name : <span t-esc="(line.model_id or line.product_name)[:30]"/></div>
+                            <div class="clearfix mt-1">
+                                <div class="pull-left">
+                                    <div>Type : <span t-esc="line.product_name[:20]"/></div>
+                                    <div>Net Quantity : 1 U</div>
+                                    <div>Date of MFG : <span t-esc="context_today().strftime('%b \'%Y')"/></div>
+                                    <div>Dimensions : <span t-esc="int(line.length_cm)"/>cm x <span t-esc="int(line.breadth_cm)"/>cm x <span t-esc="int(line.height_cm)"/>cm</div>
+                                </div>
+                                <div class="pull-right">
+                                    <div class="text-bold">Brand : <t t-esc="line.brand"/></div>
+                                    <div class="text-bold">MRP : ₹ <t t-esc="int(line.cost_price)"/></div>
+                                    <div>Inclusive of all taxes</div>
+                                </div>
+                            </div>
+                            <div class="text-bold mt-1">Manufactured and Marketed by :</div>
+                            <div t-if="doc.account == 'roxxcart'">
+                                Roxxcart, 209, Paleja House, Bhandari Street, Mumbai - 400003<br/>
+                                For Consumer Complaints Please Contact :<br/>
+                                Support Email : support@roxxcart.com &#160;&#160;&#160;&#160; Phone : +919930405234
+                            </div>
+                            <div t-if="doc.account == 'robifel'">
+                                Robifel, 207, Paleja House, Bhandari Street, Mandvi, Mumbai - 400003<br/>
+                                For Consumer Complaints Please Contact :<br/>
+                                Support Email : support@robifel.in &#160;&#160;&#160;&#160; Phone : +919930405195
+                            </div>
+                            <div class="mt-2 text-center" style="text-align: center;">
+                                <div class="text-bold pull-left" style="width:40%; text-align:left; padding-top:4px;">FSN ID &amp; Barcode :</div>
+                                <div class="pull-right" style="width:60%;">
+                                    <img t-att-src="'/report/barcode/?barcode_type=%s&amp;value=%s&amp;width=%s&amp;height=%s' % ('Code128', line.fsn, 120, 20)" style="max-width:100%; height:15px;"/>
+                                    <div class="text-bold"><span t-esc="line.fsn"/></div>
+                                </div>
+                                <div class="clearfix"></div>
+                            </div>
+                        </div>
+                    </t>
+                    
+                    <!-- Separator Label -->
+                    <div class="page separator-page">
+                        <div class="text-center" style="width: 100%;">
+                            <h2 style="margin:2px; font-size:14px; font-weight:bold;"><span t-esc="line.fsn"/></h2>
+                            <h3 style="margin:2px; font-size:12px; font-weight:bold;"><span t-esc="line.sku_id[:30]"/>...</h3>
+                            <p style="margin:5px 0; font-size:10px;">Qty printed: <span t-esc="line.quantity_sent"/></p>
+                            <p style="margin:2px; font-size:10px;">■■ END OF BATCH ■■</p>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

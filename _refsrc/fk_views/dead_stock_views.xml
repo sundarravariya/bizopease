@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Dead Stock List View -->
+    <record id="view_flipkart_dead_stock_tree" model="ir.ui.view">
+        <field name="name">flipkart.dead.stock.tree</field>
+        <field name="model">flipkart.dead.stock</field>
+        <field name="arch" type="xml">
+            <list string="Dead Stock Analysis" decoration-danger="state == 'dead'" decoration-warning="state == 'potential'">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="main_stock"/>
+                <field name="fbf_stock"/>
+                <field name="total_stock" sum="Total Stock"/>
+                <field name="sales_30d" sum="Total Sales 30D"/>
+                <field name="sell_through_rate" widget="percentage_float"/>
+                <field name="stock_value" string="Amount" optional="show" sum="Total Dead Stock Value"/>
+                <field name="state" widget="badge" decoration-danger="state == 'dead'" decoration-warning="state == 'potential'" decoration-success="state == 'healthy'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Dead Stock Pivot View -->
+    <record id="view_flipkart_dead_stock_pivot" model="ir.ui.view">
+        <field name="name">flipkart.dead.stock.pivot</field>
+        <field name="model">flipkart.dead.stock</field>
+        <field name="arch" type="xml">
+            <pivot string="Dead Stock Analysis">
+                <field name="product_id" type="row"/>
+                <field name="total_stock" type="measure"/>
+                <field name="sales_30d" type="measure"/>
+                <field name="sell_through_rate" type="measure"/>
+                <field name="stock_value" string="Amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Dead Stock Search View -->
+    <record id="view_flipkart_dead_stock_search" model="ir.ui.view">
+        <field name="name">flipkart.dead.stock.search</field>
+        <field name="model">flipkart.dead.stock</field>
+        <field name="arch" type="xml">
+            <search string="Search Dead Stock">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <filter string="Dead Stock" name="dead" domain="[('state', '=', 'dead')]"/>
+                <filter string="Potential Dead" name="potential" domain="[('state', '=', 'potential')]"/>
+                <filter string="Healthy Stock" name="healthy" domain="[('sell_through_rate', '>=', 25.0)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Status" name="group_by_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Dead Stock Action -->
+    <record id="action_flipkart_dead_stock" model="ir.actions.act_window">
+        <field name="name">Dead Stock Analysis</field>
+        <field name="res_model">flipkart.dead.stock</field>
+        <field name="view_mode">list,pivot,form</field>
+        <field name="context">{'search_default_dead': 1}</field>
+    </record>
+
+    <!-- Generate Dead Stock Wizard -->
+    <record id="view_flipkart_dead_stock_generate_form" model="ir.ui.view">
+        <field name="name">flipkart.dead.stock.generate.form</field>
+        <field name="model">flipkart.dead.stock.generate</field>
+        <field name="arch" type="xml">
+            <form string="Generate Dead Stock Analysis">
+                <group>
+                    <field name="warehouse_id"/>
+                </group>
+                <footer>
+                    <button name="action_generate" string="Run Analysis" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_flipkart_dead_stock_generate" model="ir.actions.act_window">
+        <field name="name">Run Dead Stock Analysis</field>
+        <field name="res_model">flipkart.dead.stock.generate</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

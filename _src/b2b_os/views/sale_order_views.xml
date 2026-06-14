@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Standalone Sales Order Lines list view -->
+    <record id="view_order_line_tree_inherit_b2b" model="ir.ui.view">
+        <field name="name">sale.order.line.tree.b2b</field>
+        <field name="model">sale.order.line</field>
+        <field name="inherit_id" ref="sale.view_order_line_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="b2b_product_image" widget="image" options="{'size': [40, 40]}" string=" "/>
+            </xpath>
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="b2b_product_cost" string="Cost Price" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Inline sol_o2m list inside Sales Order Form -->
+    <record id="view_order_form_cost_inherit_b2b" model="ir.ui.view">
+        <field name="name">sale.order.form.cost.b2b</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='order_line']/form//field[@name='price_unit']" position="after">
+                <field name="b2b_product_cost" string="Cost Price" readonly="1"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list//field[@name='name']" position="after">
+                <field name="b2b_product_cost" string="Cost Price" readonly="1"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']//field[@name='product_template_id']" position="before">
+                <field name="b2b_product_image" widget="image" options="{'size': [40, 40]}" string=" " readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 1-click invoice button replacement -->
+    <record id="view_order_form_1click_invoice_b2b" model="ir.ui.view">
+        <field name="name">sale.order.form.1click.b2b</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@id='create_invoice']" position="attributes">
+                <attribute name="name">action_b2b_1click_invoice_delivery</attribute>
+                <attribute name="type">object</attribute>
+                <attribute name="string">1-Click Invoice &amp; Delivery</attribute>
+            </xpath>
+            <xpath expr="//button[@id='create_invoice_percentage']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_order_form_b2b_actions" model="ir.ui.view">
+        <field name="name">sale.order.form.b2b.actions</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_confirm' and @id='action_confirm']" position="replace"/>
+            <xpath expr="//button[@name='action_confirm' and not(@id)]" position="replace"/>
+            <xpath expr="//header" position="inside">
+                <button name="action_b2b_accept_pricing"
+                        type="object"
+                        string="Accept Pricing"
+                        class="btn-secondary"
+                        invisible="state not in ('draft', 'sent')"/>
+                <button name="action_b2b_admin_confirm"
+                        type="object"
+                        string="Confirm B2B Order"
+                        class="btn-primary"
+                        invisible="state not in ('draft', 'sent')"/>
+                <button name="action_b2b_create_customer_quotation"
+                        type="object"
+                        string="Create Customer Quotation"
+                        class="btn-secondary"
+                        invisible="state not in ('draft', 'sent')"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

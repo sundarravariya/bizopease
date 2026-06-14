@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Carrying Agent Form -->
+    <record id="view_flipkart_carrying_agent_form" model="ir.ui.view">
+        <field name="name">flipkart.carrying.agent.form</field>
+        <field name="model">flipkart.carrying.agent</field>
+        <field name="arch" type="xml">
+            <form string="Carrying Agent">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_ledger" type="object" class="oe_stat_button" icon="fa-book">
+                            <field string="Ledger Entries" name="ledger_ids" widget="statinfo"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Wei Logistics"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="contact_details"/>
+                        </group>
+                        <group>
+                            <field name="outstanding_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Carrying Agent List -->
+    <record id="view_flipkart_carrying_agent_list" model="ir.ui.view">
+        <field name="name">flipkart.carrying.agent.list</field>
+        <field name="model">flipkart.carrying.agent</field>
+        <field name="arch" type="xml">
+            <list string="Carrying Agents">
+                <field name="name"/>
+                <field name="outstanding_balance" decoration-danger="outstanding_balance &gt; 0" decoration-success="outstanding_balance &lt; 0" decoration-bf="outstanding_balance != 0"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Agent Ledger Form -->
+    <record id="view_flipkart_agent_ledger_form" model="ir.ui.view">
+        <field name="name">flipkart.agent.ledger.form</field>
+        <field name="model">flipkart.agent.ledger</field>
+        <field name="arch" type="xml">
+            <form string="Agent Ledger Entry">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="agent_id"/>
+                            <field name="date"/>
+                            <field name="entry_type"/>
+                        </group>
+                        <group>
+                            <field name="amount_inr"/>
+                            <field name="reference"/>
+                            <field name="notes"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Agent Ledger List -->
+    <record id="view_flipkart_agent_ledger_list" model="ir.ui.view">
+        <field name="name">flipkart.agent.ledger.list</field>
+        <field name="model">flipkart.agent.ledger</field>
+        <field name="arch" type="xml">
+            <list string="Agent Ledger" decoration-danger="entry_type in ('bill', 'adjustment')" decoration-success="entry_type=='payment'" decoration-bf="1">
+                <field name="date"/>
+                <field name="agent_id"/>
+                <field name="entry_type" widget="badge" 
+                       decoration-danger="entry_type=='bill'" 
+                       decoration-success="entry_type=='payment'" 
+                       decoration-info="entry_type=='adjustment'"/>
+                <field name="debit" sum="Total Debit" decoration-danger="debit &gt; 0" decoration-bf="debit &gt; 0"/>
+                <field name="credit" sum="Total Credit" decoration-success="credit &gt; 0" decoration-bf="credit &gt; 0"/>
+                <field name="balance" sum="Net Balance" decoration-danger="balance &gt; 0" decoration-success="balance &lt; 0" decoration-bf="balance != 0"/>
+                <field name="reference"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_agent_ledger_summary_list" model="ir.ui.view">
+        <field name="name">flipkart.agent.ledger.summary.list</field>
+        <field name="model">flipkart.agent.ledger.summary</field>
+        <field name="arch" type="xml">
+            <list string="Agent Ledger Summary" create="0" edit="0" delete="0">
+                <field name="agent_id"/>
+                <field name="balance" sum="Net Balance" decoration-danger="balance &gt; 0" decoration-success="balance &lt; 0" decoration-bf="balance != 0"/>
+                <button name="action_open_ledger_details" type="object" string="View Ledger" icon="fa-list"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_flipkart_carrying_agent_search" model="ir.ui.view">
+        <field name="name">flipkart.carrying.agent.search</field>
+        <field name="model">flipkart.carrying.agent</field>
+        <field name="arch" type="xml">
+            <search string="Search Carrying Agents">
+                <field name="name"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_flipkart_agent_ledger_search" model="ir.ui.view">
+        <field name="name">flipkart.agent.ledger.search</field>
+        <field name="model">flipkart.agent.ledger</field>
+        <field name="arch" type="xml">
+            <search string="Search Agent Ledger">
+                <field name="agent_id"/>
+                <field name="reference"/>
+                <field name="notes"/>
+                <field name="filter_date_from" string="From" filter_domain="[('date', '&gt;=', self)]"/>
+                <field name="filter_date_to" string="To" filter_domain="[('date', '&lt;=', self)]"/>
+                <separator/>
+                <filter string="Last 30 Days" name="last_30_days" domain="[('date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last Year" name="last_year" domain="[('date', '&gt;=', (context_today() - relativedelta(years=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Agent" name="group_agent" context="{'group_by': 'agent_id'}"/>
+                    <filter string="Month" name="group_month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_flipkart_agent_ledger_summary_search" model="ir.ui.view">
+        <field name="name">flipkart.agent.ledger.summary.search</field>
+        <field name="model">flipkart.agent.ledger.summary</field>
+        <field name="arch" type="xml">
+            <search string="Search Agent Ledger Summary">
+                <field name="agent_id"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Actions -->
+    <record id="action_flipkart_carrying_agent" model="ir.actions.act_window">
+        <field name="name">Carrying Agents</field>
+        <field name="res_model">flipkart.carrying.agent</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_flipkart_agent_ledger" model="ir.actions.act_window">
+        <field name="name">Agent Ledger &amp; Payments</field>
+        <field name="res_model">flipkart.agent.ledger.summary</field>
+        <field name="view_mode">list</field>
+    </record>
+    
+</odoo>

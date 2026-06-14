@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ Supplier Reorder — List ═══ -->
+    <record id="view_flipkart_supplier_reorder_list" model="ir.ui.view">
+        <field name="name">flipkart.supplier.reorder.list</field>
+        <field name="model">flipkart.supplier.reorder</field>
+        <field name="arch" type="xml">
+            <list string="Supplier Reorder Dashboard"
+                  decoration-danger="urgency == 'critical'"
+                  decoration-warning="urgency == 'moderate'"
+                  decoration-success="urgency == 'healthy'">
+                <header>
+                    <button name="%(flipkart_os.action_flipkart_supplier_reorder_generate)d" string="Generate Supplier Recommendations" type="action" class="btn-primary"/>
+                </header>
+                <field name="sku"/>
+                <field name="product_id"/>
+                <field name="physical_stock" string="Main Stock"/>
+                <field name="incoming_qty" string="Incoming"/>
+                <field name="daily_avg_sales" string="Daily Sales"/>
+                <field name="lead_time_days" column_invisible="1"/>
+                <field name="order_cycle_days" column_invisible="1"/>
+                <field name="days_in_hand" string="Cover Days" decoration-danger="days_in_hand &lt;= lead_time_days"/>
+                <field name="stockout_date" optional="show"/>
+                <field name="next_po_arrival_date" string="Next PO" optional="show"/>
+                <field name="pipeline_lowest_days" string="Pipeline Low" optional="show"/>
+                <field name="order_now_qty" string="Order Now" decoration-bf="1" sum="Total Order Now"/>
+                <field name="next_order_date" string="Next Order" optional="show"/>
+                <field name="next_order_qty" string="Next Qty" optional="hide"/>
+                <field name="urgency" widget="badge"
+                       decoration-danger="urgency == 'critical'"
+                       decoration-warning="urgency == 'moderate'"
+                       decoration-success="urgency == 'healthy'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Supplier Reorder — Form ═══ -->
+    <record id="view_flipkart_supplier_reorder_form" model="ir.ui.view">
+        <field name="name">flipkart.supplier.reorder.form</field>
+        <field name="model">flipkart.supplier.reorder</field>
+        <field name="arch" type="xml">
+            <form string="Reorder Details">
+                <sheet>
+                    <group>
+                        <group string="Product &amp; Stock">
+                            <field name="product_id"/>
+                            <field name="sku"/>
+                            <field name="physical_stock"/>
+                            <field name="total_fbf_stock"/>
+                            <field name="incoming_qty"/>
+                            <field name="total_available"/>
+                        </group>
+                        <group string="Sales &amp; Config">
+                            <field name="daily_avg_sales"/>
+                            <field name="lead_time_days"/>
+                            <field name="target_cover_days"/>
+                            <field name="order_cycle_days"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="days_in_hand"/>
+                        <field name="stockout_date"/>
+                        <field name="next_po_arrival_date"/>
+                        <field name="pipeline_lowest_days"/>
+                        <field name="order_now_qty"/>
+                        <field name="next_order_date"/>
+                        <field name="next_order_qty"/>
+                        <field name="reorder_trigger_date"/>
+                        <field name="reorder_qty"/>
+                        <field name="urgency"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ═══ Supplier Reorder — Search ═══ -->
+    <record id="view_flipkart_supplier_reorder_search" model="ir.ui.view">
+        <field name="name">flipkart.supplier.reorder.search</field>
+        <field name="model">flipkart.supplier.reorder</field>
+        <field name="arch" type="xml">
+            <search string="Supplier Reorder">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <filter string="Action Required" name="action_required" domain="[('action_required', '=', True)]"/>
+                <filter string="Critical" name="filter_critical" domain="[('urgency', '=', 'critical')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_urgency" string="Urgency" context="{'group_by': 'urgency'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ Wizard ═══ -->
+    <record id="view_flipkart_supplier_reorder_wizard" model="ir.ui.view">
+        <field name="name">flipkart.supplier.reorder.generate.form</field>
+        <field name="model">flipkart.supplier.reorder.generate</field>
+        <field name="arch" type="xml">
+            <form string="Generate Supplier Reorder">
+                <p>Calculates daily sales velocity, existing stock, dated incoming purchase orders, and a cash-efficient order-now quantity.</p>
+                <group>
+                    <field name="warehouse_id"/>
+                </group>
+                <footer>
+                    <button name="action_generate" string="Generate Recommendations" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ═══ Actions ═══ -->
+    <record id="action_flipkart_supplier_reorder" model="ir.actions.act_window">
+        <field name="name">Supplier Reorder</field>
+        <field name="res_model">flipkart.supplier.reorder</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_flipkart_supplier_reorder_search"/>
+        <field name="context">{'search_default_action_required': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No reorder data. Click "Generate Supplier Recs" to calculate.</p>
+        </field>
+    </record>
+
+    <record id="action_flipkart_supplier_reorder_generate" model="ir.actions.act_window">
+        <field name="name">Generate Supplier Recommendations</field>
+        <field name="res_model">flipkart.supplier.reorder.generate</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="b2b_os.addToCartNotificationCompact"
+       t-inherit="website_sale.addToCartNotification"
+       t-inherit-mode="extension">
+        <xpath expr="//div[@t-foreach='mainLines']" position="replace">
+            <div class="b2b_cart_notification_lines">
+                <div class="b2b_cart_notification_line"
+                     t-foreach="mainLines"
+                     t-as="line"
+                     t-key="line.id">
+                    <t t-call="website_sale.cartLine"/>
+                </div>
+            </div>
+        </xpath>
+        <xpath expr="//a[@href='/shop/cart']" position="attributes">
+            <attribute name="class">btn btn-primary b2b_cart_notification_button</attribute>
+        </xpath>
+    </t>
+
+    <t t-name="b2b_os.cartLineCompact"
+       t-inherit="website_sale.cartLine"
+       t-inherit-mode="extension">
+        <xpath expr="." position="replace">
+            <div t-attf-class="b2b_cart_notification_item #{line.linked_line_id and 'b2b_cart_notification_item--linked' or ''}">
+                <img class="b2b_cart_notification_image"
+                     t-att-src="line.image_url"
+                     t-att-alt="line.name"/>
+                <div class="b2b_cart_notification_content">
+                    <div class="b2b_cart_notification_head">
+                        <span class="b2b_cart_notification_name" t-out="getProductSummary(line)"/>
+                        <span t-if="!line.linked_line_id"
+                              class="b2b_cart_notification_price"
+                              t-out="getFormattedPrice(line)"/>
+                    </div>
+                    <span t-if="line.description"
+                          class="b2b_cart_notification_description"
+                          t-out="line.description"/>
+                </div>
+            </div>
+            <div t-foreach="getLinkedLines(line.id)"
+                 t-as="linkedLine"
+                 t-key="linkedLine.id"
+                 class="b2b_cart_notification_linked_line">
+                <t t-call="website_sale.cartLine">
+                    <t t-set="line" t-value="linkedLine"/>
+                </t>
+            </div>
+        </xpath>
+    </t>
+
+</templates>

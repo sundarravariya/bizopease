@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ROOT MENU: BUSINESS OS -->
+    <menuitem id="menu_flipkart_os_root" name="Business OS" sequence="1"/>
+
+    <menuitem id="menu_business_ai_assistant"
+              name="AI Assistant"
+              parent="menu_flipkart_os_root"
+              action="action_flipkart_ai_assistant"
+              groups="flipkart_os.group_flipkart_ai_assistant_user"
+              sequence="3"/>
+
+    <!-- 1. SALES ANALYTICS -->
+    <menuitem id="menu_business_sales_analytics" name="Sales Analytics" parent="menu_flipkart_os_root" sequence="10"/>
+    
+    <menuitem id="menu_business_sales_performance"
+              name="Sales Performance"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_sales_dashboard"
+              sequence="10"/>
+
+    <menuitem id="menu_business_dead_stock"
+              name="Dead Stock Analysis"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_dead_stock_generate"
+              sequence="20"/>
+
+    
+
+    <!-- 1.5. LEDGER -->
+    <menuitem id="menu_business_ledger_root" name="Ledger" parent="menu_flipkart_os_root" sequence="15"/>
+
+    <menuitem id="menu_business_unified_ledger"
+              name="Unified Ledger"
+              parent="menu_business_ledger_root"
+              action="action_flipkart_unified_ledger_summary"
+              sequence="5"/>
+
+    <menuitem id="menu_business_unified_ledger_entry"
+              name="Create Entry"
+              parent="menu_business_ledger_root"
+              action="action_flipkart_unified_ledger_entry_wizard"
+              sequence="10"/>
+
+    <menuitem id="menu_business_ledger_details"
+              name="Detailed Ledgers"
+              parent="menu_business_ledger_root"
+              sequence="90"/>
+
+    <menuitem id="menu_business_partner_ledger"
+              name="Partner Ledger (Details)"
+              parent="menu_business_ledger_details"
+              action="action_business_ledger_summary"
+              sequence="10"/>
+
+    <menuitem id="menu_business_manual_entry"
+              name="Manual Partner Entry"
+              parent="menu_business_ledger_details"
+              action="action_business_manual_entry"
+              sequence="20"
+              active="False"/>
+
+    <!-- 2. OPERATIONS -->
+    <menuitem id="menu_business_operations" name="Operations" parent="menu_flipkart_os_root" sequence="20"/>
+
+    <menuitem id="menu_business_quick_sale" name="Quick Sales Order" parent="menu_business_operations" action="sale.action_quotations_with_onboarding" sequence="5"/>
+
+    <menuitem id="menu_business_daily_orders"
+              name="Daily Orders"
+              parent="menu_business_operations"
+              action="action_flipkart_daily_order"
+              sequence="10"/>
+
+    <menuitem id="menu_business_returns"
+              name="Returns Management"
+              parent="menu_business_operations"
+              action="action_flipkart_return_management"
+              sequence="20"/>
+
+    <menuitem id="menu_business_consignments_root"
+              name="Consignments"
+              parent="menu_business_operations"
+              sequence="30"/>
+              
+    <menuitem id="menu_business_consignments"
+              name="All Consignments"
+              parent="menu_business_consignments_root"
+              action="action_flipkart_consignment"
+              sequence="10"/>
+
+    <!-- 3. INVENTORY & REPLENISHMENT -->
+    <menuitem id="menu_business_inventory_root" name="Inventory &amp; Reordering" parent="menu_flipkart_os_root" sequence="30"/>
+
+    
+    <!-- Stock Valuation Dashboard -->
+    <menuitem id="menu_business_stock_valuation"
+              name="Stock Valuation"
+              parent="menu_business_inventory_root"
+              action="action_flipkart_stock_valuation"
+              sequence="5"/>
+
+    <menuitem id="menu_business_fbf_inventory"
+              name="FBF Inventory"
+              parent="menu_business_inventory_root"
+              action="action_flipkart_fbf_stock"
+              sequence="10"/>
+
+    <menuitem id="menu_business_fbf_replenishment_root" name="FBF Replenishment" parent="menu_business_inventory_root" sequence="20"/>
+    
+    <menuitem id="menu_business_fbf_replenishment"
+              name="Recommendations"
+              parent="menu_business_fbf_replenishment_root"
+              action="action_flipkart_fbf_replenishment"
+              sequence="10"/>
+              
+    <menuitem id="menu_business_fbf_replenishment_gen"
+              name="Generate FBF Recommendations"
+              parent="menu_business_fbf_replenishment_root"
+              action="action_flipkart_fbf_replenishment_generate"
+              sequence="20"/>
+
+    <menuitem id="menu_business_supplier_reorder_root" name="Supplier Reorders" parent="menu_business_inventory_root" sequence="30"/>
+
+    <menuitem id="menu_business_supplier_reorder"
+              name="Recommendations"
+              parent="menu_business_supplier_reorder_root"
+              action="action_flipkart_supplier_reorder"
+              sequence="10"/>
+              
+    <menuitem id="menu_business_supplier_reorder_gen"
+              name="Generate Supplier Recommendations"
+              parent="menu_business_supplier_reorder_root"
+              action="action_flipkart_supplier_reorder_generate"
+              sequence="20"/>
+
+    <!-- 3.5. PROCUREMENT & FINANCE -->
+    <menuitem id="menu_business_procurement_root" name="Procurement &amp; Finance" parent="menu_flipkart_os_root" sequence="35"/>
+
+    <!-- Native Odoo Sub-Items -->
+    
+    <menuitem id="menu_business_invoices"
+              name="Invoices"
+              parent="menu_business_procurement_root"
+              action="account.action_move_out_invoice_type"
+              sequence="12"/>
+
+    <menuitem id="menu_business_native_po"
+              name="Purchase Orders"
+              parent="menu_business_procurement_root"
+              action="purchase.purchase_rfq"
+              sequence="10"/>
+              
+    <menuitem id="menu_business_native_pricelist"
+              name="Vendor Price List"
+              parent="menu_business_procurement_root"
+              action="product.product_supplierinfo_type_action"
+              sequence="15"/>
+
+    <!-- Carrying Agent Details -->
+    <menuitem id="menu_business_carrying_agents"
+              name="Carrying Agents"
+              parent="menu_business_procurement_root"
+              action="action_flipkart_carrying_agent"
+              sequence="20"/>
+
+    <menuitem id="menu_business_agent_ledger"
+              name="Agent Ledger (Details)"
+              parent="menu_business_ledger_details"
+              action="action_flipkart_agent_ledger"
+              sequence="30"/>
+
+    <menuitem id="menu_business_bill_payment_root"
+              name="Bill/Payment"
+              parent="menu_business_procurement_root"
+              sequence="40"/>
+
+    <menuitem id="menu_business_bill_payment_transactions"
+              name="Create Entry"
+              parent="menu_business_bill_payment_root"
+              action="action_flipkart_bill_payment_entry_wizard"
+              sequence="5"
+              active="False"/>
+
+    <menuitem id="menu_business_bill_payment_manage_transactions"
+              name="All Transactions"
+              parent="menu_business_bill_payment_root"
+              action="action_flipkart_bill_payment_transaction"
+              sequence="10"/>
+
+    <menuitem id="menu_business_bill_payment_vendors"
+              name="Bill/Payment Vendors"
+              parent="menu_business_bill_payment_root"
+              action="action_flipkart_bill_payment_vendor"
+              sequence="20"/>
+
+    <menuitem id="menu_business_money_associates"
+              name="Money Associates"
+              parent="menu_business_bill_payment_root"
+              action="action_flipkart_money_associate"
+              sequence="30"/>
+
+    <menuitem id="menu_business_bill_vendor_ledger"
+              name="Vendor Ledger (Details)"
+              parent="menu_business_ledger_details"
+              action="action_flipkart_bill_vendor_ledger"
+              sequence="40"/>
+
+    <menuitem id="menu_business_associate_ledger"
+              name="Associate Ledger (Details)"
+              parent="menu_business_ledger_details"
+              action="action_flipkart_associate_ledger"
+              sequence="50"/>
+
+    <!-- 4. UPLOAD CENTER -->
+    <menuitem id="menu_business_uploads" name="Upload Control Center" parent="menu_flipkart_os_root" sequence="40"/>
+
+    <menuitem id="menu_business_upload_core"
+              name="Upload FBF / Sales"
+              parent="menu_business_uploads"
+              action="action_flipkart_upload_wizard"
+              sequence="10"/>
+
+    <menuitem id="menu_business_upload_daily"
+              name="Upload Daily Orders"
+              parent="menu_business_uploads"
+              action="action_flipkart_daily_order_upload"
+              sequence="20"/>
+
+    <menuitem id="menu_business_upload_returns"
+              name="Upload Returns CSV"
+              parent="menu_business_uploads"
+              action="action_flipkart_return_upload_wizard"
+              sequence="30"/>
+
+    <menuitem id="menu_business_scan_returns"
+              name="Scan Returns (Tracking ID)"
+              parent="menu_business_uploads"
+              action="action_flipkart_return_scan"
+              sequence="40"/>
+
+    <menuitem id="menu_business_upload_listings"
+              name="Upload Master Listings"
+              parent="menu_business_uploads"
+              action="action_flipkart_listing_upload"
+              sequence="50"/>
+
+    <!-- 5. SETUP & MASTER DATA -->
+    <menuitem id="menu_business_setup" name="Setup &amp; Master Data" parent="menu_flipkart_os_root" sequence="90"/>
+
+    <menuitem id="menu_business_settings"
+              name="Settings"
+              parent="menu_business_setup"
+              action="action_flipkart_settings"
+              sequence="5"/>
+
+    <menuitem id="menu_business_products"
+              name="Products"
+              parent="menu_flipkart_os_root"
+              action="stock.product_template_action_product"
+              sequence="11"/>
+
+    <menuitem id="menu_business_listings"
+              name="Master Listings"
+              parent="menu_business_setup"
+              action="action_flipkart_listing"
+              sequence="10"/>
+
+    <menuitem id="menu_business_fsns"
+              name="Flipkart FSNs"
+              parent="menu_business_setup"
+              action="sr_product_multiple_barcode.action_sr_multi_barcode_manager"
+              sequence="15"/>
+
+    <menuitem id="menu_business_accounts"
+              name="Flipkart Accounts"
+              parent="menu_business_setup"
+              action="action_flipkart_account"
+              sequence="20"/>
+
+    <menuitem id="menu_business_warehouse_config"
+              name="Warehouse Mapping"
+              parent="menu_business_setup"
+              action="action_flipkart_warehouse_config"
+              sequence="30"/>
+
+</odoo>

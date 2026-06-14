@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Kept as a compatibility data file because it is listed in older module
+        versions. Ledger views/actions now live in menus.xml to avoid duplicate
+        XML IDs overwriting each other during upgrades.
+    -->
+</odoo>

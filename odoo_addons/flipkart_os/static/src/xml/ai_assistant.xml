@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flipkart_os.AIAssistant">
+        <div t-att-class="'o_flipkart_ai ' + (state.sidebarOpen ? 'sidebar-open' : 'sidebar-closed')">
+            <aside class="o_flipkart_ai_sidebar">
+                <div class="o_flipkart_ai_sidebar_header">
+                    <button class="btn btn-primary w-100" t-on-click="newSession">New Chat</button>
+                </div>
+                <div class="o_flipkart_ai_sessions">
+                    <t t-foreach="state.sessions" t-as="session" t-key="session.id">
+                        <button t-att-class="'o_flipkart_ai_session ' + (state.currentSession &amp;&amp; state.currentSession.id === session.id ? 'active' : '')"
+                                t-on-click="() => this.loadSession(session)">
+                            <span t-esc="session.name"/>
+                        </button>
+                    </t>
+                </div>
+            </aside>
+
+            <main class="o_flipkart_ai_main">
+                <header class="o_flipkart_ai_header">
+                    <div>
+                        <h2>Business OS AI Assistant</h2>
+                        <p>
+                            <t t-if="state.settings.enabled">
+                                <span t-esc="state.settings.provider_name"/> · <span t-esc="state.settings.model"/>
+                            </t>
+                            <t t-else="">
+                                Assistant disabled in Business OS Settings
+                            </t>
+                        </p>
+                    </div>
+                    <div class="o_flipkart_ai_header_actions">
+                        <button class="btn btn-light" t-on-click="toggleSidebar">Chats</button>
+                        <button class="btn btn-secondary"
+                                t-att-disabled="state.loading || !state.currentSession"
+                                t-on-click="deleteCurrentSession">Delete Chat</button>
+                    </div>
+                </header>
+
+                <section class="o_flipkart_ai_prompts">
+                    <button class="btn btn-light" t-on-click="() => this.usePrompt('What should I focus on today?')">Today focus</button>
+                    <button class="btn btn-light" t-on-click="() => this.usePrompt('Which products are at stockout risk and why?')">Stockout risk</button>
+                    <button class="btn btn-light" t-on-click="() => this.usePrompt('Review supplier reorder and tell me what to order now.')">Supplier reorder</button>
+                    <button class="btn btn-light" t-on-click="() => this.usePrompt('Where is cash blocked in stock, POs, or ledgers?')">Cash blocked</button>
+                </section>
+
+                <section t-if="pendingActions.length" class="o_flipkart_ai_actions">
+                    <t t-foreach="pendingActions" t-as="item" t-key="item.id">
+                        <div class="o_flipkart_ai_action_card">
+                            <div>
+                                <strong t-esc="item.title"/>
+                                <p t-esc="item.summary"/>
+                            </div>
+                            <div class="o_flipkart_ai_action_buttons">
+                                <button class="btn btn-primary" t-on-click="() => this.approveAction(item)">Approve Draft</button>
+                                <button class="btn btn-secondary" t-on-click="() => this.rejectAction(item)">Reject</button>
+                            </div>
+                        </div>
+                    </t>
+                </section>
+
+                <section class="o_flipkart_ai_messages" t-ref="messages">
+                    <t t-if="!state.messages.length">
+                        <div class="o_flipkart_ai_empty">
+                            Ask about sales, stock, purchase orders, ledgers, consignments, returns, or supplier reorder.
+                        </div>
+                    </t>
+                    <t t-foreach="state.messages" t-as="message" t-key="message.id || message.content">
+                        <div t-att-class="'o_flipkart_ai_message ' + message.role">
+                            <div class="o_flipkart_ai_message_role">
+                                <t t-esc="message.role === 'user' ? 'You' : 'Assistant'"/>
+                            </div>
+                            <div class="o_flipkart_ai_message_content" t-esc="message.content"/>
+                        </div>
+                    </t>
+                    <div t-if="state.loading" class="o_flipkart_ai_message assistant">
+                        <div class="o_flipkart_ai_message_role">Assistant</div>
+                        <div class="o_flipkart_ai_message_content">Checking Odoo data...</div>
+                    </div>
+                </section>
+
+                <section t-if="pastActions.length" class="o_flipkart_ai_past_actions">
+                    <t t-foreach="pastActions" t-as="item" t-key="item.id">
+                        <button class="btn btn-link" t-on-click="() => this.openResult(item)">
+                            <span t-esc="item.title"/> · <span t-esc="item.state"/>
+                        </button>
+                    </t>
+                </section>
+
+                <footer class="o_flipkart_ai_composer">
+                    <textarea t-model="state.input"
+                              t-on-keydown="onKeydown"
+                              placeholder="Ask in normal language. Enter sends. Shift+Enter adds a line."
+                              rows="3"/>
+                    <button class="btn btn-primary" t-att-disabled="state.loading || !state.input" t-on-click="sendMessage">
+                        <t t-if="state.loading">Thinking...</t>
+                        <t t-else="">Send</t>
+                    </button>
+                </footer>
+            </main>
+        </div>
+    </t>
+</templates>

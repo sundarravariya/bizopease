@@ -1,0 +1,156 @@
+// =============================================================
+// Material Theme — App Screen (Enterprise-style home)
+// =============================================================
+
+.mt_app_screen {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    background: $mt-surface-muted;
+    overflow-y: auto;
+}
+
+.mt_app_screen_body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 56px 32px 64px;
+    max-width: 1280px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+// ------ Header -----------------------------------------------
+
+.mt_app_screen_header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.mt_app_screen_title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: $mt-text;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+}
+
+.mt_app_screen_subtitle {
+    font-size: 1rem;
+    color: $mt-text-muted;
+    margin: 0;
+}
+
+// ------ App Grid ---------------------------------------------
+
+.mt_app_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 16px;
+    width: 100%;
+    max-width: 1100px;
+}
+
+// ------ App Tile ---------------------------------------------
+
+.mt_app_tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 12px 20px;
+    border-radius: $mt-radius-sm;
+    background: transparent;
+    cursor: pointer;
+    user-select: none;
+    transition: background $mt-ease-fast,
+                box-shadow $mt-ease-fast,
+                transform $mt-ease-fast;
+
+    &:hover {
+        background: $mt-surface;
+        box-shadow: $mt-shadow-md;
+        transform: translateY(-3px);
+
+        .mt_app_name {
+            color: $mt-primary;
+        }
+    }
+
+    &:active {
+        transform: translateY(0);
+        box-shadow: $mt-shadow-sm;
+    }
+}
+
+// ------ Icon -------------------------------------------------
+
+.mt_app_icon_wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: $mt-shadow-sm;
+    flex-shrink: 0;
+    background: $mt-surface;
+}
+
+.mt_app_icon {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.mt_app_icon_default {
+    width: 100%;
+    height: 100%;
+    background: $mt-primary;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+    font-size: 28px;
+}
+
+// ------ App Name ---------------------------------------------
+
+.mt_app_name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: $mt-text;
+    text-align: center;
+    line-height: 1.35;
+    max-width: 110px;
+    word-break: break-word;
+    transition: color $mt-ease-fast;
+}
+
+// ------ Responsive -------------------------------------------
+
+@media (max-width: 768px) {
+    .mt_app_screen_body {
+        padding: 32px 16px 48px;
+    }
+
+    .mt_app_screen_title {
+        font-size: 1.5rem;
+    }
+
+    .mt_app_grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 12px;
+    }
+
+    .mt_app_icon_wrap {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+    }
+
+    .mt_app_tile {
+        padding: 16px 8px 14px;
+        gap: 8px;
+    }
+}

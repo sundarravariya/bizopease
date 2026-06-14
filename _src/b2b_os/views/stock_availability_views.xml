@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_b2b_stock_availability_list" model="ir.ui.view">
+        <field name="name">product.template.b2b.stock.availability.list</field>
+        <field name="model">product.template</field>
+        <field name="arch" type="xml">
+            <list string="Stock Availability" create="0" edit="1" delete="0">
+                <field name="image_128" widget="image" string=" " options="{'size': [48, 48]}"/>
+                <field name="name"/>
+                <field name="default_code" optional="show"/>
+                <field name="list_price" optional="show"/>
+                <field name="b2b_stock_clearance" string="Stock Clearance" widget="boolean_toggle"/>
+                <field name="website_published" string="Available" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_template_form_stock_clearance_b2b" model="ir.ui.view">
+        <field name="name">product.template.form.stock.clearance.b2b</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='list_price']" position="after">
+                <field name="b2b_stock_clearance"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_b2b_stock_availability" model="ir.actions.act_window">
+        <field name="name">Stock Availability</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('sale_ok', '=', True)]</field>
+        <field name="context">{'search_default_filter_to_sell': 1}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_b2b_stock_availability_list')})]"/>
+    </record>
+
+    <menuitem id="menu_b2b_os_stock_availability"
+              name="Stock Availability"
+              parent="menu_b2b_os_root"
+              action="action_b2b_stock_availability"
+              sequence="40"/>
+
+</odoo>

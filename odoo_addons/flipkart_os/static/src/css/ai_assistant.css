@@ -1,0 +1,265 @@
+.o_flipkart_ai {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    height: calc(100vh - 46px);
+    max-height: calc(100vh - 46px);
+    background: #f6f7f9;
+    overflow: hidden;
+}
+
+.o_flipkart_ai.sidebar-closed {
+    grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.o_flipkart_ai_sidebar {
+    border-right: 1px solid #dde1e6;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    transition: width 0.18s ease;
+}
+
+.o_flipkart_ai.sidebar-closed .o_flipkart_ai_sidebar {
+    border-right: 0;
+    width: 0;
+}
+
+.o_flipkart_ai_sidebar_header {
+    padding: 12px;
+    border-bottom: 1px solid #eef0f2;
+}
+
+.o_flipkart_ai_sessions {
+    overflow: auto;
+    padding: 8px;
+}
+
+.o_flipkart_ai_session {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: #2f3742;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.o_flipkart_ai_session:hover,
+.o_flipkart_ai_session.active {
+    background: #edf2ff;
+}
+
+.o_flipkart_ai_main {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.o_flipkart_ai_header {
+    padding: 18px 22px 10px;
+    background: #fff;
+    border-bottom: 1px solid #eef0f2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex: 0 0 auto;
+}
+
+.o_flipkart_ai_header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.o_flipkart_ai_header p {
+    margin: 4px 0 0;
+    color: #6b7280;
+}
+
+.o_flipkart_ai_header_actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.o_flipkart_ai_prompts {
+    padding: 12px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #fff;
+    flex: 0 0 auto;
+}
+
+.o_flipkart_ai_actions,
+.o_flipkart_ai_past_actions {
+    padding: 0 22px 10px;
+    background: #fff;
+    flex: 0 0 auto;
+}
+
+.o_flipkart_ai_action_card {
+    border: 1px solid #d9e2f1;
+    background: #f8fbff;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+}
+
+.o_flipkart_ai_action_card p {
+    margin: 4px 0 0;
+}
+
+.o_flipkart_ai_action_buttons {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.o_flipkart_ai_messages {
+    padding: 18px 22px;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    scroll-behavior: smooth;
+}
+
+.o_flipkart_ai_empty {
+    color: #6b7280;
+    text-align: center;
+    margin-top: 64px;
+}
+
+.o_flipkart_ai_message {
+    max-width: 900px;
+    margin-bottom: 14px;
+}
+
+.o_flipkart_ai_message.user {
+    margin-left: auto;
+}
+
+.o_flipkart_ai_message_role {
+    color: #6b7280;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.o_flipkart_ai_message_content {
+    background: #fff;
+    border: 1px solid #e3e6ea;
+    border-radius: 8px;
+    padding: 12px 14px;
+    white-space: pre-wrap;
+    line-height: 1.45;
+}
+
+.o_flipkart_ai_message.user .o_flipkart_ai_message_content {
+    background: #111827;
+    color: #fff;
+    border-color: #111827;
+}
+
+.o_flipkart_ai_composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 10px;
+    padding: 14px 22px;
+    background: #fff;
+    border-top: 1px solid #dde1e6;
+    flex: 0 0 auto;
+    align-items: end;
+}
+
+.o_flipkart_ai_composer textarea {
+    width: 100%;
+    height: 76px;
+    min-height: 76px;
+    max-height: 130px;
+    resize: none;
+    border: 1px solid #cfd6dd;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.o_flipkart_ai_composer button {
+    height: 42px;
+    min-width: 96px;
+}
+
+@media (max-width: 768px) {
+    .o_flipkart_ai,
+    .o_flipkart_ai.sidebar-open,
+    .o_flipkart_ai.sidebar-closed {
+        grid-template-columns: minmax(0, 1fr);
+        height: calc(100vh - 46px);
+        max-height: calc(100vh - 46px);
+        position: relative;
+    }
+
+    .o_flipkart_ai_sidebar {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 82vw;
+        max-width: 320px;
+        z-index: 2;
+        box-shadow: 8px 0 24px rgba(15, 23, 42, 0.18);
+    }
+
+    .o_flipkart_ai.sidebar-closed .o_flipkart_ai_sidebar {
+        transform: translateX(-105%);
+        width: 82vw;
+        border-right: 1px solid #dde1e6;
+    }
+
+    .o_flipkart_ai_header {
+        padding: 12px 14px;
+        align-items: flex-start;
+    }
+
+    .o_flipkart_ai_header h2 {
+        font-size: 18px;
+    }
+
+    .o_flipkart_ai_header_actions {
+        gap: 6px;
+    }
+
+    .o_flipkart_ai_header_actions .btn {
+        padding: 6px 9px;
+        white-space: nowrap;
+    }
+
+    .o_flipkart_ai_prompts {
+        padding: 10px 14px;
+    }
+
+    .o_flipkart_ai_messages {
+        padding: 12px 14px;
+    }
+
+    .o_flipkart_ai_composer {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 10px 14px;
+    }
+
+    .o_flipkart_ai_composer textarea {
+        height: 68px;
+        min-height: 68px;
+    }
+
+    .o_flipkart_ai_composer button {
+        width: 100%;
+    }
+}
