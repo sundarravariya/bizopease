@@ -7,7 +7,7 @@
 
 $env:PATH = "C:\Program Files\nodejs;" + $env:PATH
 $SERVER = "root@82.180.144.9"
-$REMOTE_PATH = "/var/www/dashboard-robifel/"
+$REMOTE_PATH = "/var/www/bizopease/"
 
 Write-Host "🔨 Building production bundle..." -ForegroundColor Cyan
 npm run build

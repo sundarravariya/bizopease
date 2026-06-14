@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BizOpease — Custom Admin Portal for Odoo 18 CE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #09090d;
+      --surface: #12121a;
+      --surface2: #1b1b26;
+      --border: #29293a;
+      --text: #f0f0f5;
+      --muted: #8c8caf;
+      --accent: #7367f0;
+      --accent2: #3d5af1;
+      --accent-glow: rgba(115, 103, 240, 0.35);
+      --radius: 20px;
+      --font: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .landing-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: 100vh;
+    }
+
+    @media (min-width: 992px) {
+      .landing-container {
+        grid-template-columns: 1.2fr 1fr;
+      }
+    }
+
+    /* Left Panel - Product Features Showcase */
+    .left-panel {
+      display: none;
+      background: radial-gradient(circle at 10% 20%, rgba(115,103,240,0.08) 0%, transparent 60%),
+                  radial-gradient(circle at 90% 80%, rgba(61,90,241,0.05) 0%, transparent 60%);
+      padding: 4rem;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid var(--border);
+    }
+
+    @media (min-width: 992px) {
+      .left-panel {
+        display: flex;
+      }
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 900; color: white;
+      box-shadow: 0 0 30px rgba(115,103,240,0.3);
+    }
+
+    .brand-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+    .brand-title span { color: var(--accent); }
+
+    .hero-text {
+      font-size: 2.8rem;
+      font-weight: 900;
+      line-height: 1.25;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, #ffffff, #8c8caf);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sub-text {
+      font-size: 1.1rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 3rem;
+      max-width: 540px;
+    }
+
+    .features-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.2rem;
+    }
+
+    .feat-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: rgba(115,103,240,0.1);
+      border: 1px solid rgba(115,103,240,0.2);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .feat-text h4 { font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .feat-text p { font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
+
+    /* Right Panel - Sign In & Sign Up Form */
+    .right-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      background: radial-gradient(circle at 50% 0%, rgba(115,103,240,0.04) 0%, transparent 60%);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.4);
+    }
+
+    .card-header { text-align: center; margin-bottom: 2rem; }
+    .card-header h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+    .card-header p { font-size: 0.875rem; color: var(--muted); }
+
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; letter-spacing: 0.05em; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: var(--font);
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+
+    /* Slug/Subdomain Group Custom Styles */
+    .slug-wrapper { position: relative; display: flex; align-items: center; }
+    .slug-wrapper input { padding-right: 8rem; }
+    .slug-suffix {
+      position: absolute;
+      right: 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px var(--accent-glow);
+      transition: opacity 0.2s;
+      margin-top: 1rem;
+    }
+    .btn-submit:hover { opacity: 0.9; }
+
+    .toast {
+      padding: 0.875rem 1rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #f87171;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+      display: none;
+      text-align: center;
+    }
+
+    .success-screen {
+      display: none;
+      text-align: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .success-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: rgba(16,185,129,0.15);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: #34d399;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+    }
+  </style>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+  <div class="landing-container">
+    <!-- Left panel -->
+    <div class="left-panel">
+      <div class="brand-wrap">
+        <div class="logo">B</div>
+        <div class="brand-title">Biz<span>Opease</span></div>
+      </div>
+      <h1 class="hero-text">The Business OS.<br/>Re-designed.</h1>
+      <p class="sub-text">BizOpease white-labels Odoo 18 Community Edition with isolated postgres workspaces, robust GPS attendance, settlements consoles, and specialized Flipkart seller logistics.</p>
+
+      <div class="features-list">
+        <div class="feature-item">
+          <div class="feat-icon">⚡</div>
+          <div class="feat-text">
+            <h4>Isolated Postgres Workspaces</h4>
+            <p>Complete data separation. Each tenant runs on an independent database.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feat-icon">📍</div>
+          <div class="feat-text">
+            <h4>Operations & Attendance App</h4>
+            <p>GPS and NFC shifts logging for field staff with hardware security locks.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feat-icon">📊</div>
+          <div class="feat-text">
+            <h4>Flipkart Seller Integration</h4>
+            <p>Replenishment calculators, consignment packing slips, box TSPL direct prints, and scanner reverse ledgering.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+      <div class="card" id="signup-card">
+        <div class="card-header">
+          <h2>Create Workspace</h2>
+          <p>Get started with your isolated Odoo instance</p>
+        </div>
+
+        <div class="toast" id="toast-msg"></div>
+
+        <form id="signup-form" onsubmit="handleSignup(event)">
+          <div class="form-group">
+            <label>Subdomain Address</label>
+            <div class="slug-wrapper">
+              <input type="text" id="slug" required placeholder="yourcompany" oninput="checkSlugAvailability()" />
+              <span class="slug-suffix">.bizopease.com</span>
+            </div>
+            <span id="slug-status" style="font-size:0.75rem; display:block; margin-top:0.25rem;"></span>
+          </div>
+
+          <div class="form-group">
+            <label>Business / Company Name</label>
+            <input type="text" id="companyName" required placeholder="ACME Trading Corp" />
+          </div>
+
+          <div class="form-group">
+            <label>Admin User Email</label>
+            <input type="email" id="email" required placeholder="admin@example.com" />
+          </div>
+
+          <div class="form-group">
+            <label>Admin User Password</label>
+            <input type="password" id="password" required placeholder="••••••••" />
+          </div>
+
+          <div class="form-group">
+            <label>Subscription Package</label>
+            <select id="plan">
+              <option value="starter">Starter Plan — Rs 1,000/month</option>
+              <option value="pro">Pro Plan — Rs 2,500/month</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn-submit" id="submit-btn">Subscribe &amp; Deploy</button>
+        </form>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="card success-screen" id="success-card">
+        <div class="success-icon">✓</div>
+        <h2>Workspace Provisioned!</h2>
+        <p style="color:var(--muted); line-height:1.5;">Your Odoo instance database is successfully created. Custom logistics, sales, and HR addons are loaded.</p>
+        <p style="font-weight:700; color:white;" id="success-url"></p>
+        <button class="btn-submit" onclick="window.location.href='https://dashboard.robifel.in/'">Login to Portal</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let slugOk = false;
+    let timer;
+
+    function checkSlugAvailability() {
+      const slugInput = document.getElementById('slug');
+      const slug = slugInput.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+      slugInput.value = slug;
+
+      const status = document.getElementById('slug-status');
+      if (!slug) {
+        status.textContent = '';
+        slugOk = false;
+        return;
+      }
+
+      clearTimeout(timer);
+      status.textContent = 'Checking availability...';
+      status.style.color = 'var(--muted)';
+
+      timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/signup/check-availability?slug=${slug}`);
+          const data = await res.json();
+          if (data.available) {
+            status.textContent = 'Subdomain is available!';
+            status.style.color = '#34d399';
+            slugOk = true;
+          } else {
+            status.textContent = data.reason || 'Not available';
+            status.style.color = '#f87171';
+            slugOk = false;
+          }
+        } catch {
+          status.textContent = 'Failed to verify availability';
+          status.style.color = '#f87171';
+        }
+      }, 500);
+    }
+
+    async function handleSignup(e) {
+      e.preventDefault();
+      const toast = document.getElementById('toast-msg');
+      toast.style.display = 'none';
+
+      if (!slugOk) {
+        toast.textContent = 'Please choose an available subdomain.';
+        toast.style.display = 'block';
+        return;
+      }
+
+      const slug = document.getElementById('slug').value;
+      const workspaceName = document.getElementById('companyName').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const plan = document.getElementById('plan').value;
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Deploying Workspace (this takes a moment)...';
+
+      try {
+        const preRes = await fetch('/api/signup/pre-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, workspaceName, email, password, plan })
+        });
+        const preData = await preRes.json();
+
+        if (!preRes.ok) {
+          throw new Error(preData.error || 'Pre-registration failed');
+        }
+
+        // Handle Test Onboarding / Mock mode (Razorpay not configured)
+        if (!preData.razorpayEnabled) {
+          finalizeSignup(slug, workspaceName, email, password, plan);
+          return;
+        }
+
+        // Open Razorpay Checkout for Subscriptions
+        const options = {
+          key: preData.keyId,
+          subscription_id: preData.subscriptionId,
+          name: 'BizOpease SaaS',
+          description: `Subscription to ${plan.toUpperCase()} plan`,
+          image: '/BizOpease_Icon.png',
+          handler: function (response) {
+            finalizeSignup(slug, workspaceName, email, password, plan, response.razorpay_payment_id, response.razorpay_subscription_id, response.razorpay_signature);
+          },
+          theme: { color: '#7367f0' }
+        };
+        const rzp = new Razorpay(options);
+        rzp.open();
+        btn.disabled = false;
+        btn.textContent = 'Subscribe & Deploy';
+      } catch (err) {
+        toast.textContent = err.message;
+        toast.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Subscribe & Deploy';
+      }
+    }
+
+    async function finalizeSignup(slug, workspaceName, email, password, plan, paymentId = '', subId = '', sig = '') {
+      const toast = document.getElementById('toast-msg');
+      try {
+        const res = await fetch('/api/signup/finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug, workspaceName, email, password, plan,
+            razorpay_payment_id: paymentId,
+            razorpay_subscription_id: subId,
+            razorpay_signature: sig
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Deployment failed');
+
+        // Toggle success UI
+        document.getElementById('signup-card').style.display = 'none';
+        const successCard = document.getElementById('success-card');
+        successCard.style.display = 'flex';
+        document.getElementById('success-url').textContent = `${slug}.bizopease.com`;
+      } catch (err) {
+        toast.textContent = err.message;
+        toast.style.display = 'block';
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = false;
+        btn.textContent = 'Subscribe & Deploy';
+      }
+    }
+  </script>
+</body>
+</html>

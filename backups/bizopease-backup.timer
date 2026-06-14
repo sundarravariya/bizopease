@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer for BizOpease Nightly PostgreSQL Base Backup (WAL-G)
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=bizopease-backup.service
+
+[Install]
+WantedBy=timers.target

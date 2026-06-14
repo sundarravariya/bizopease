@@ -1,0 +1,14 @@
+[Unit]
+Description=BizOpease Nightly PostgreSQL Base Backup (WAL-G)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/bash /opt/bizopease-backups/backup-pitr.sh
+WorkingDirectory=/opt/bizopease-backups
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

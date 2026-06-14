@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Robifel Admin</string>
-    <string name="title_activity_main">Robifel Admin</string>
+    <string name="app_name">BizOpease</string>
+    <string name="title_activity_main">BizOpease</string>
     <string name="package_name">in.robifel.portal</string>
     <string name="custom_url_scheme">in.robifel.portal</string>
 </resources>
