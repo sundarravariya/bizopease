@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { searchRead } from '../../services/odoo';
 import { BRAND, companyName, brandInitial } from '../../config/brand';
+
+// Which Odoo module each menu id needs. Items not listed always show.
+const MODULE_BY_ID: Record<string, string> = {
+  'money-manager': 'flipkart_os', 'tasks': 'flipkart_os', 'consignments': 'flipkart_os',
+  'scanner': 'flipkart_os', 'returns': 'flipkart_os', 'create-entry': 'flipkart_os',
+  'flipkart-os': 'flipkart_os', 'settlements': 'flipkart_os',
+  'sales': 'sale_management', 'purchase': 'purchase', 'inventory': 'stock',
+  'accounting': 'account', 'crm': 'crm', 'hr': 'hr', 'b2b': 'b2b_os',
+  'attendance': 'robifel_hr', 'salary': 'robifel_hr', 'live-map': 'robifel_hr',
+  'kiosk': 'robifel_hr', 'hr-settings': 'robifel_hr',
+};
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse,
   DollarSign, Users, Settings, ChevronDown, ChevronRight,
@@ -25,6 +37,8 @@ interface NavItem {
   children?: NavItem[];
   dividerBefore?: boolean;
   groupLabel?: string;
+  /** Odoo module(s) that must be installed for this item to appear. Omit = always show. */
+  module?: string | string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -225,7 +239,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const location = useLocation();
-  const items = user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV;
+
+  // Tenant module-awareness: hide menus whose Odoo module isn't installed in
+  // this workspace's DB. null = not yet loaded -> show everything (no flicker).
+  const [installed, setInstalled] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!user?.is_admin) return;
+    searchRead<{ name: string }>('ir.module.module', {
+      domain: [['state', '=', 'installed']], fields: ['name'], limit: 0,
+    }).then(mods => setInstalled(new Set((mods || []).map(m => m.name)))).catch(() => setInstalled(null));
+  }, [user?.is_admin]);
+
+  const hasModule = (id: string) => {
+    const mod = MODULE_BY_ID[id];
+    if (!mod || !installed) return true;            // unknown / not loaded -> show
+    return installed.has(mod);
+  };
+
+  const baseItems = user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV;
+  const items = baseItems
+    .filter(it => hasModule(it.id))
+    .map(it => it.children ? { ...it, children: it.children.filter(c => hasModule(c.id)) } : it)
+    .filter(it => !it.children || it.children.length > 0 || !!it.path);
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     // Auto-open the group containing the active path
     const active = new Set<string>();
