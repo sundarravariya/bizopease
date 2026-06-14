@@ -56,6 +56,16 @@ function getDateRange(preset: string): [string, string] | null {
 
 const inr = (n: number) =>
   `₹${Math.abs(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Compact (no decimals) -- used in the small stat cards so they don't overflow.
+const inr0 = (n: number) => `₹${Math.round(Math.abs(n || 0)).toLocaleString('en-IN')}`;
+// Short Indian notation (K / L / Cr) -- for tight spots like the donut center.
+const inrShort = (n: number) => {
+  const a = Math.abs(n || 0);
+  if (a >= 1e7) return `₹${(a / 1e7).toFixed(2).replace(/\.?0+$/, '')}Cr`;
+  if (a >= 1e5) return `₹${(a / 1e5).toFixed(2).replace(/\.?0+$/, '')}L`;
+  if (a >= 1e3) return `₹${(a / 1e3).toFixed(1).replace(/\.0$/, '')}K`;
+  return `₹${Math.round(a)}`;
+};
 
 type MainTab = 'overview' | 'expenses' | 'withdrawals';
 
@@ -179,25 +189,27 @@ export default function ExpenseManager() {
 
       <div className="max-w-2xl mx-auto px-3 pt-3 pb-32">
         {/* ── Header ────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className={`text-xl font-black ${txt}`}>Expense Manager</h1>
-            <p className={`text-xs ${sub}`}>Track & analyse business spending</p>
+        <div className="flex items-center justify-between gap-2 mb-3 pl-10 lg:pl-0">
+          <div className="min-w-0">
+            <h1 className={`text-xl font-black whitespace-nowrap ${txt}`}>Expense Manager</h1>
+            <p className={`text-xs truncate ${sub}`}>Track & analyse business spending</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {isAdmin && (
               <button onClick={() => setOwnersOpen(true)}
-                className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border ${border} ${sub}`}
-                title="Manage Owners">
-                <Settings size={13} /> Owners
+                className={`p-2 rounded-xl border ${border} ${sub}`}
+                title="Manage Owners" aria-label="Manage Owners">
+                <Settings size={15} />
               </button>
             )}
             <button onClick={exportCsv}
-              className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl border ${border} ${sub}`}>
-              <Download size={13} /> Export
+              className={`p-2 rounded-xl border ${border} ${sub}`}
+              title="Export CSV" aria-label="Export CSV">
+              <Download size={15} />
             </button>
-            <button onClick={loadExpenses} className={`p-1.5 rounded-xl border ${border} ${sub}`}>
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <button onClick={loadExpenses} className={`p-2 rounded-xl border ${border} ${sub}`}
+              title="Refresh" aria-label="Refresh">
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
@@ -240,7 +252,7 @@ export default function ExpenseManager() {
         <div className="grid grid-cols-3 gap-2.5 mb-3">
           <div className={`rounded-2xl p-3 border ${card}`}>
             <div className={`flex items-center gap-1 text-[10px] font-semibold uppercase ${sub}`}><Wallet size={10} /> Total</div>
-            <p className={`text-lg font-black mt-1 ${txt}`}>{inr(totalSpend)}</p>
+            <p className={`text-base font-black mt-1 truncate ${txt}`} title={inr(totalSpend)}>{inr0(totalSpend)}</p>
             <p className={`text-[10px] mt-0.5 ${sub}`}>{expenses.length} entries</p>
           </div>
           <div className={`rounded-2xl p-3 border ${card}`}>
@@ -248,11 +260,11 @@ export default function ExpenseManager() {
             <p className="text-sm font-black mt-1 truncate" style={{ color: topCat?.color ?? '#5a6a8a' }}>
               {topCat?.name ?? '—'}
             </p>
-            <p className={`text-[10px] mt-0.5 ${sub}`}>{topCat ? inr(topCat.value) : '₹0'}</p>
+            <p className={`text-[10px] mt-0.5 truncate ${sub}`}>{topCat ? inr0(topCat.value) : '₹0'}</p>
           </div>
           <div className={`rounded-2xl p-3 border ${card}`}>
             <div className={`flex items-center gap-1 text-[10px] font-semibold uppercase ${sub}`}><TrendingDown size={10} /> Withdrawn</div>
-            <p className="text-lg font-black mt-1 text-rose-500">{inr(totalWithdrawal)}</p>
+            <p className="text-base font-black mt-1 truncate text-rose-500" title={inr(totalWithdrawal)}>{inr0(totalWithdrawal)}</p>
             <p className={`text-[10px] mt-0.5 ${sub}`}>{withdrawals.length} entries</p>
           </div>
         </div>
@@ -298,9 +310,9 @@ export default function ExpenseManager() {
                       </PieChart>
                     </ResponsiveContainer>
                     {/* Center total -- overlaid on the donut hole */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ bottom: 34 }}>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2" style={{ bottom: 34 }}>
                       <span className={`text-[10px] font-bold uppercase tracking-wider ${sub}`}>Total Spent</span>
-                      <span className={`text-lg font-black ${txt}`}>{inr(totalSpend)}</span>
+                      <span className={`text-lg font-black leading-tight max-w-[110px] text-center truncate ${txt}`} title={inr(totalSpend)}>{inrShort(totalSpend)}</span>
                     </div>
                   </div>
                 </div>
@@ -506,7 +518,7 @@ function ManageOwnersSheet({ isDark, owners, onClose, onChanged }: {
   };
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className={`w-full sm:max-w-lg max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl ${isDark ? 'bg-[#161b2e]' : 'bg-white'} shadow-2xl animate-slide-up`}
         onClick={e => e.stopPropagation()}>
         <div className="pt-2.5 flex justify-center sm:hidden"><div className="w-10 h-1 rounded-full bg-gray-400/40" /></div>
@@ -569,13 +581,12 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
   const border = isDark ? 'border-[#2a3250]' : 'border-gray-100';
 
   const submit = async () => {
-    if (!form.description?.trim()) { onError('Description is required.'); return; }
     if (!form.amount || parseFloat(form.amount) <= 0) { onError('Enter a valid amount.'); return; }
     setSaving(true);
     try {
       const vals: Record<string, any> = {
         date: form.date, amount: parseFloat(form.amount),
-        category: form.category, description: form.description.trim(),
+        category: form.category, description: form.description?.trim() || false,
         note: form.note || false,
       };
       if (form.paid_by_id)  vals.paid_by_id  = Number(form.paid_by_id);
@@ -587,7 +598,7 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
   };
 
   return (
-    <div className="fixed inset-0 z-[55] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className={`w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl ${isDark ? 'bg-[#161b2e]' : 'bg-white'} shadow-2xl animate-slide-up`}
         onClick={e => e.stopPropagation()}>
         <div className="pt-2.5 flex justify-center sm:hidden"><div className="w-10 h-1 rounded-full bg-gray-400/40" /></div>
@@ -595,17 +606,25 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
           <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>Add Expense</h2>
           <button onClick={onClose} className={`p-1.5 rounded-xl ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={18} /></button>
         </div>
+
+        {/* Big editable amount at the top */}
+        <div className={`px-5 pt-5 pb-4 border-b ${border}`}>
+          <p className={`text-[11px] font-bold uppercase tracking-wider text-center ${isDark ? 'text-[#6a7a9a]' : 'text-gray-400'}`}>Amount Spent</p>
+          <div className="flex items-center justify-center gap-1 mt-1">
+            <span className={`text-3xl font-black ${isDark ? 'text-[#6a7a9a]' : 'text-gray-400'}`}>₹</span>
+            <input
+              inputMode="decimal" type="text" autoFocus placeholder="0"
+              value={form.amount || ''}
+              onChange={e => setF('amount', e.target.value.replace(/[^0-9.]/g, ''))}
+              className={`text-5xl font-black bg-transparent outline-none text-center w-full max-w-[230px] ${isDark ? 'text-white placeholder-[#3a4566]' : 'text-gray-900 placeholder-gray-300'}`}
+              style={{ caretColor: '#7367f0' }} />
+          </div>
+        </div>
+
         <div className="overflow-y-auto px-5 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}>Date *</label>
-              <input type="date" value={form.date || ''} onChange={e => setF('date', e.target.value)} className={field} />
-            </div>
-            <div>
-              <label className={lbl}>Amount (₹) *</label>
-              <input type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.amount || ''} onChange={e => setF('amount', e.target.value)} className={field} />
-            </div>
+          <div>
+            <label className={lbl}>Date *</label>
+            <input type="date" value={form.date || ''} onChange={e => setF('date', e.target.value)} className={field} />
           </div>
 
           {/* Category grid */}
@@ -625,7 +644,7 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
           </div>
 
           <div>
-            <label className={lbl}>Description *</label>
+            <label className={lbl}>Description <span className="font-normal opacity-60">(optional)</span></label>
             <input value={form.description || ''} onChange={e => setF('description', e.target.value)}
               placeholder="e.g. Office rent, travel reimbursement…" className={field} />
           </div>
@@ -676,7 +695,7 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
               placeholder="Optional additional details…" className={`${field} resize-none`} />
           </div>
 
-          <button onClick={submit} disabled={saving || !form.description?.trim() || !form.amount}
+          <button onClick={submit} disabled={saving || !form.amount}
             className="w-full py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
             {saving ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />} Save Expense

@@ -7,7 +7,7 @@ import WorkHoursGate from '../WorkHoursGate';
 import { useTheme } from '../../context/ThemeContext';
 
 // Routes that render as full-screen phone-style apps (no desktop top bar / outer padding)
-const BARE_ROUTES = ['/settlements/studio', '/tasks'];
+const BARE_ROUTES = ['/settlements/studio', '/settlements/expenses', '/tasks'];
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

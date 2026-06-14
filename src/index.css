@@ -538,3 +538,11 @@ textarea.input {
 .status-dot.warning { @apply bg-amber-400; }
 .status-dot.error { @apply bg-red-400; }
 .status-dot.idle { @apply bg-gray-400; }
+
+/* Recharts: remove the focus/tap outline that renders as a black box on mobile */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-layer:focus,
+.recharts-sector:focus,
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible { outline: none !important; }
