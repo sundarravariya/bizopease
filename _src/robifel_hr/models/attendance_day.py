@@ -74,6 +74,9 @@ class RobifelAttendanceDay(models.Model):
         # 'auto' = toggle: if already checked in today and not out yet -> out, else in.
         if kind == 'auto':
             kind = 'out' if (rec and rec.check_in and not rec.check_out) else 'in'
+        # Work-location lockout: reject a check-in/out done outside the geofence.
+        # (No-op when the geofence is disabled or no workplace centre is set.)
+        self.env['robifel.hr.settings'].assert_within_geofence(lat, lng)
         ts = when or fields.Datetime.now()
         if kind == 'in':
             vals = {'status': 'present', 'check_in': ts, 'method': 'self',

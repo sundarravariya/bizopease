@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { odooCall, listStaffEmployees } from '../../../services/odoo';
-import { scanNfc, nfcStatus, cancelNfc } from '../../../services/native';
+import { scanNfc, nfcStatus, cancelNfc, getPosition } from '../../../services/native';
 import {
   Clock, CheckCircle2, RefreshCw, Nfc, MapPin, Trash2, AlertCircle, CalendarOff,
-  CreditCard, Users, Check,
+  CreditCard, Users, Check, LocateFixed,
 } from 'lucide-react';
 
 interface Emp { id: number; name: string; robifel_nfc_badge?: string | false; }
@@ -22,6 +22,12 @@ export default function HrSettings() {
   const [scanning, setScanning] = useState(false);
   const [nfcMsg, setNfcMsg] = useState<string | null>(null);
   const [kioskEnabled, setKioskEnabled] = useState(true);
+  const [geoEnabled, setGeoEnabled] = useState(false);
+  const [geoLat, setGeoLat] = useState('');
+  const [geoLng, setGeoLng] = useState('');
+  const [geoRadius, setGeoRadius] = useState('150');
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [emps, setEmps] = useState<Emp[]>([]);
   const [badgeBusy, setBadgeBusy] = useState<number | null>(null);
   const [badgeMsg, setBadgeMsg] = useState<string | null>(null);
@@ -39,7 +45,7 @@ export default function HrSettings() {
 
   useEffect(() => {
     odooCall<any>('robifel.hr.settings', 'get_settings', [], {})
-      .then(s => { if (s) { setStart(s.work_start || '10:00'); setEnd(s.work_end || '19:00'); setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6'); setMode(s.attendance_mode || 'gps_selfie'); setTags(parseTags(s.nfc_tag_ids)); setKioskEnabled(s.kiosk_enabled !== false); } })
+      .then(s => { if (s) { setStart(s.work_start || '10:00'); setEnd(s.work_end || '19:00'); setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6'); setMode(s.attendance_mode || 'gps_selfie'); setTags(parseTags(s.nfc_tag_ids)); setKioskEnabled(s.kiosk_enabled !== false); setGeoEnabled(!!s.geofence_enabled); setGeoLat(s.geofence_lat ? String(s.geofence_lat) : ''); setGeoLng(s.geofence_lng ? String(s.geofence_lng) : ''); setGeoRadius(String(s.geofence_radius || 150)); } })
       .catch(() => {})
       .finally(() => setLoading(false));
     loadEmps();
@@ -48,9 +54,20 @@ export default function HrSettings() {
   const save = async () => {
     setSaving(true); setSaved(false);
     try {
-      await odooCall('robifel.hr.settings', 'save_settings', [{ work_start: start, work_end: end, enforce_work_hours: enforce, weekly_off: weeklyOff, attendance_mode: mode, nfc_tag_ids: tags.join(','), kiosk_enabled: kioskEnabled }], {});
+      await odooCall('robifel.hr.settings', 'save_settings', [{ work_start: start, work_end: end, enforce_work_hours: enforce, weekly_off: weeklyOff, attendance_mode: mode, nfc_tag_ids: tags.join(','), kiosk_enabled: kioskEnabled, geofence_enabled: geoEnabled, geofence_lat: parseFloat(geoLat) || 0, geofence_lng: parseFloat(geoLng) || 0, geofence_radius: parseInt(geoRadius, 10) || 150 }], {});
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch { /* ignore */ } finally { setSaving(false); }
+  };
+
+  const captureLoc = async () => {
+    setGeoMsg(null); setGeoBusy(true);
+    try {
+      const pos = await getPosition();
+      if (!pos) { setGeoMsg('Could not get a location fix. Enable GPS / grant location permission and retry.'); return; }
+      setGeoLat(pos.lat.toFixed(7)); setGeoLng(pos.lng.toFixed(7));
+      setGeoMsg(`Captured this device's location ✓ (±${Math.round(pos.accuracy || 0)}m). Tap Save to apply.`);
+    } catch (e: any) { setGeoMsg(e?.message || 'Location lookup failed.'); }
+    finally { setGeoBusy(false); }
   };
 
   const assignBadge = async (empId: number) => {
@@ -159,6 +176,40 @@ export default function HrSettings() {
                       ))}
                     </div>
                   ) : <p className={`text-[11px] ${sub}`}>No tags registered yet.</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Work-location geofence */}
+            <div className={`border-t pt-4 space-y-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+              <h3 className={`font-bold text-sm flex items-center gap-2 ${txt}`}><LocateFixed size={15} className="text-[#7367f0]" /> Work Location (Geofence)</h3>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" checked={geoEnabled} onChange={e => setGeoEnabled(e.target.checked)} className="w-4 h-4 rounded text-brand-violet" />
+                <span className={`text-xs ${sub}`}>Lock attendance to the workplace — reject any check-in / check-out done outside the radius below.</span>
+              </label>
+
+              {geoEnabled && (
+                <div className={`rounded-xl p-3 space-y-3 ${isDark ? 'bg-[#111827]' : 'bg-gray-50'}`}>
+                  <p className={`text-[11px] ${sub}`}>Stand at the workplace and tap the button below to set the centre point, then choose how far employees may be from it.</p>
+                  <div>
+                    <button type="button" onClick={captureLoc} disabled={geoBusy} className="btn-secondary text-xs px-3 py-2 flex items-center gap-2">
+                      {geoBusy ? <RefreshCw size={13} className="animate-spin" /> : <LocateFixed size={14} />}
+                      {geoBusy ? 'Getting location…' : 'Use my current location'}
+                    </button>
+                    {geoMsg && <div className={`mt-1.5 text-[11px] flex items-center gap-1.5 ${geoMsg.includes('✓') ? 'text-emerald-500' : 'text-amber-500'}`}><AlertCircle size={12} /> {geoMsg}</div>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="label">Latitude</label><input value={geoLat} onChange={e => setGeoLat(e.target.value)} placeholder="e.g. 26.9124" className={inp} /></div>
+                    <div><label className="label">Longitude</label><input value={geoLng} onChange={e => setGeoLng(e.target.value)} placeholder="e.g. 75.7873" className={inp} /></div>
+                  </div>
+                  <div>
+                    <label className="label">Allowed radius (metres)</label>
+                    <input type="number" min={20} step={10} value={geoRadius} onChange={e => setGeoRadius(e.target.value)} className={inp} />
+                    <p className={`text-[11px] mt-1 ${sub}`}>Tip: 100–200m absorbs normal GPS drift. Too tight and staff may fail to check in even while on-site.</p>
+                  </div>
+                  {(geoLat || geoLng)
+                    ? <p className="text-[11px] text-emerald-500 flex items-center gap-1.5"><Check size={12} /> Workplace centre set.</p>
+                    : <p className={`text-[11px] flex items-center gap-1.5 text-amber-500`}><AlertCircle size={12} /> No centre set yet — the geofence won't block anyone until you set one.</p>}
                 </div>
               )}
             </div>
