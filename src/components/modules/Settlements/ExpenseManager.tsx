@@ -189,7 +189,7 @@ export default function ExpenseManager() {
 
       <div className="max-w-2xl mx-auto px-3 pt-3 pb-32">
         {/* ── Header ────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-2 mb-3 pl-10 lg:pl-0">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <div className="min-w-0">
             <h1 className={`text-xl font-black whitespace-nowrap ${txt}`}>Expense Manager</h1>
             <p className={`text-xs truncate ${sub}`}>Track & analyse business spending</p>
