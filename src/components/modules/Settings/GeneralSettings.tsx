@@ -37,6 +37,19 @@ export default function GeneralSettings() {
     }
   }, [activeTab]);
 
+  // Load persisted preferences from Odoo (ir.config_parameter) so saved values
+  // survive a refresh / other devices.
+  useEffect(() => {
+    (async () => {
+      try {
+        const t = await odooCall<string | false>('ir.config_parameter', 'get_param', ['bizopease.api_timeout_ms', '30000']);
+        if (t) setTimeoutMs(String(t));
+        const o = await odooCall<string | false>('ir.config_parameter', 'get_param', ['bizopease.image_optimizer', 'true']);
+        setOptimizerEnabled(o !== 'false');
+      } catch { /* keep defaults if Odoo is unreachable */ }
+    })();
+  }, []);
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -55,13 +68,19 @@ export default function GeneralSettings() {
     }
   };
 
-  const handleSaveGeneral = (e: React.FormEvent) => {
+  const handleSaveGeneral = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+    setMessage(null);
+    try {
+      await odooCall('ir.config_parameter', 'set_param', ['bizopease.api_timeout_ms', String(timeoutMs)]);
+      await odooCall('ir.config_parameter', 'set_param', ['bizopease.image_optimizer', optimizerEnabled ? 'true' : 'false']);
+      setMessage({ type: 'success', text: 'Settings saved.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: 'Could not save settings: ' + (err?.message || 'unknown error') });
+    } finally {
       setLoading(false);
-      setMessage({ type: 'success', text: 'General settings updated. App config reloaded.' });
-    }, 800);
+    }
   };
 
   const handleRunVacuum = async () => {
