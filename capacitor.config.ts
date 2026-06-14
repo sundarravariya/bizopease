@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'in.robifel.portal',
-  appName: 'Robifel Admin',
+  appName: 'BizOpease',
   webDir: 'dist',
   server: {
     // Native shell loads the live app from its own subdomain, which serves the
