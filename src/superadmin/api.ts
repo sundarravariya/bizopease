@@ -31,6 +31,7 @@ export const sa = {
   extend: (id: string, days: number) => call(`/workspaces/${id}/extend`, 'POST', { days }),
   setPlan: (id: string, planType: string) => call(`/workspaces/${id}/set-plan`, 'POST', { planType }),
   deleteWorkspace: (id: string) => call(`/workspaces/${id}`, 'DELETE'),
+  workspaceUsers: (id: string) => call<{ odooDb: string; adminEmail: string; note: string }>(`/workspaces/${id}/users`, 'GET'),
   backups: () => call<any[]>('/backups', 'GET'),
   runBackup: () => call('/backups/run', 'POST', {}),
   logs: () => call<{ stdout: string; stderr: string }>('/logs', 'GET'),

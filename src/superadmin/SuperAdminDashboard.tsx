@@ -110,12 +110,28 @@ function Workspaces({ notify }: { notify: (ok: boolean, m: string) => void }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'expired' | 'unpaid'>('all');
+  const [detail, setDetail] = useState<any | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     sa.workspaces().then(setRows).catch(e => notify(false, e.message)).finally(() => setLoading(false));
   }, []); // eslint-disable-line
   useEffect(() => { load(); }, [load]);
+
+  const effStatus = (w: any) => {
+    const expired = w.subscription_expires_at && new Date(w.subscription_expires_at) < new Date();
+    return w.subscription_status === 'active' && !expired ? 'active' : (expired ? 'expired' : 'unpaid');
+  };
+  const filtered = rows.filter(w => {
+    if (filter !== 'all' && effStatus(w) !== filter) return false;
+    if (!q.trim()) return true;
+    const s = q.toLowerCase();
+    return (w.workspace_name || '').toLowerCase().includes(s) ||
+      (w.admin_email || '').toLowerCase().includes(s) ||
+      (w.tenant_id || '').toLowerCase().includes(s);
+  });
 
   const act = async (fn: Promise<any>, msg: string) => {
     try { await fn; notify(true, msg); load(); } catch (e: any) { notify(false, e.message); }
@@ -131,10 +147,21 @@ function Workspaces({ notify }: { notify: (ok: boolean, m: string) => void }) {
   return (
     <>
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-black">Workspaces <span className="text-[#6a7a9a] text-sm font-medium">({rows.length})</span></h1>
+        <h1 className="text-xl font-black">Workspaces <span className="text-[#6a7a9a] text-sm font-medium">({filtered.length})</span></h1>
         <div className="flex gap-2">
           <button onClick={load} className="px-3 py-2 rounded-xl bg-[#1e2440] text-sm flex items-center gap-1.5"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh</button>
           <button onClick={() => setShowCreate(true)} className="px-3 py-2 rounded-xl bg-[#7367f0] text-sm font-bold flex items-center gap-1.5"><Plus size={15} /> New Workspace</button>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, email or slug..."
+          className="flex-1 rounded-xl px-3 py-2 text-sm bg-[#12182b] border border-[#222c45] text-white outline-none focus:border-[#7367f0]" />
+        <div className="flex p-1 rounded-xl bg-[#12182b] border border-[#222c45]">
+          {(['all', 'active', 'expired', 'unpaid'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${filter === f ? 'bg-[#7367f0] text-white' : 'text-[#8897b5]'}`}>{f}</button>
+          ))}
         </div>
       </div>
 
@@ -153,11 +180,13 @@ function Workspaces({ notify }: { notify: (ok: boolean, m: string) => void }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1b2336]">
-                {rows.map(w => (
+                {filtered.map(w => (
                   <tr key={w.tenant_id} className="hover:bg-white/[0.02]">
                     <td className="px-4 py-3">
-                      <p className="font-semibold">{w.workspace_name}</p>
-                      <p className="text-[11px] font-mono text-[#5a6a8a]">{w.odoo_db_name || w.tenant_id}</p>
+                      <button onClick={() => setDetail(w)} className="text-left group">
+                        <p className="font-semibold group-hover:text-[#9d95f5]">{w.workspace_name}</p>
+                        <p className="text-[11px] font-mono text-[#5a6a8a]">{w.odoo_db_name || w.tenant_id}</p>
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-[#8897b5] text-xs">{w.admin_email}</td>
                     <td className="px-4 py-3">
@@ -178,7 +207,7 @@ function Workspaces({ notify }: { notify: (ok: boolean, m: string) => void }) {
                     </td>
                   </tr>
                 ))}
-                {rows.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-[#6a7a9a]">No workspaces yet.</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={6} className="text-center py-10 text-[#6a7a9a]">No workspaces match.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -186,7 +215,70 @@ function Workspaces({ notify }: { notify: (ok: boolean, m: string) => void }) {
       )}
 
       {showCreate && <CreateWorkspace onClose={() => setShowCreate(false)} onDone={() => { setShowCreate(false); load(); }} notify={notify} />}
+      {detail && <TenantDetail w={detail} onClose={() => setDetail(null)} onChanged={load} notify={notify} />}
     </>
+  );
+}
+
+// ── Tenant detail drawer ──────────────────────────────────────────────────────
+function TenantDetail({ w, onClose, onChanged, notify }: { w: any; onClose: () => void; onChanged: () => void; notify: (ok: boolean, m: string) => void }) {
+  const [users, setUsers] = useState<{ odooDb: string; adminEmail: string; note: string } | null>(null);
+  const [extDays, setExtDays] = useState(30);
+  useEffect(() => { sa.workspaceUsers(w.tenant_id).then(setUsers).catch(() => {}); }, [w.tenant_id]);
+
+  const act = async (fn: Promise<any>, msg: string) => {
+    try { await fn; notify(true, msg); onChanged(); onClose(); } catch (e: any) { notify(false, e.message); }
+  };
+  const Row = ({ k, v }: { k: string; v: any }) => (
+    <div className="flex justify-between gap-4 py-2 border-b border-[#1b2336] text-sm">
+      <span className="text-[#6a7a9a]">{k}</span><span className="text-right font-medium break-all">{v || '-'}</span>
+    </div>
+  );
+  const odooUrl = `https://odoo.robifel.in/web?db=${encodeURIComponent(w.odoo_db_name || '')}`;
+  const wsUrl = `https://bizopease.robifel.in/${w.tenant_id}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md h-full bg-[#0d1322] border-l border-[#222c45] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-black text-lg">{w.workspace_name}</h3>
+            <p className="text-xs font-mono text-[#5a6a8a]">{w.odoo_db_name || w.tenant_id}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-[#6a7a9a]"><X size={18} /></button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          <a href={wsUrl} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-[#7367f0]/15 text-[#9d95f5] text-xs font-bold text-center">Open Workspace</a>
+          <a href={odooUrl} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-[#1e2440] text-xs font-bold text-center">Odoo Backend</a>
+        </div>
+
+        <div className="bg-[#12182b] border border-[#222c45] rounded-2xl p-4 mb-4">
+          <Row k="Admin email" v={w.admin_email} />
+          <Row k="Plan" v={w.plan_type || 'starter'} />
+          <Row k="Status" v={w.subscription_status} />
+          <Row k="Expires" v={fmtDate(w.subscription_expires_at)} />
+          <Row k="Created" v={fmtDate(w.created_at)} />
+          <Row k="Razorpay sub" v={w.razorpay_subscription_id} />
+          <Row k="Last payment" v={w.last_payment_id} />
+          {users && <Row k="Odoo DB" v={users.odooDb} />}
+        </div>
+
+        <div className="bg-[#12182b] border border-[#222c45] rounded-2xl p-4 space-y-3">
+          <p className="text-xs font-bold text-[#9d95f5]">Subscription actions</p>
+          <div className="flex gap-2">
+            <input type="number" value={extDays} onChange={e => setExtDays(Number(e.target.value))}
+              className="w-20 rounded-lg px-2 py-2 text-sm bg-[#1e2440] border border-[#2a3250] text-white outline-none" />
+            <button onClick={() => act(sa.extend(w.tenant_id, extDays), `Extended ${extDays} days`)} className="flex-1 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 text-sm font-bold">Extend</button>
+            <button onClick={() => act(sa.activate(w.tenant_id, extDays), 'Activated')} className="flex-1 px-3 py-2 rounded-xl bg-blue-500/15 text-blue-400 text-sm font-bold">Activate</button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => act(sa.deactivate(w.tenant_id), 'Deactivated')} className="flex-1 px-3 py-2 rounded-xl bg-amber-500/15 text-amber-400 text-sm font-bold">Deactivate</button>
+            <button onClick={() => { if (confirm(`Remove ${w.workspace_name} from registry? (Odoo DB is NOT dropped)`)) act(sa.deleteWorkspace(w.tenant_id), 'Removed'); }} className="flex-1 px-3 py-2 rounded-xl bg-red-500/15 text-red-400 text-sm font-bold flex items-center justify-center gap-1.5"><Trash2 size={14} /> Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -244,6 +336,14 @@ function Backups({ notify }: { notify: (ok: boolean, m: string) => void }) {
           <button onClick={run} disabled={running} className="px-3 py-2 rounded-xl bg-[#7367f0] text-sm font-bold flex items-center gap-1.5 disabled:opacity-60"><Play size={14} /> Run Backup Now</button>
         </div>
       </div>
+      <details className={`${card} p-4 mb-4 text-sm`}>
+        <summary className="cursor-pointer font-bold text-[#9d95f5]">Restore instructions</summary>
+        <div className="mt-3 text-[#8897b5] space-y-2 text-xs leading-relaxed">
+          <p>Each set contains one <span className="font-mono">.dump</span> per database plus <span className="font-mono">filestore.tar.gz</span>. To restore a single tenant on the server:</p>
+          <pre className="bg-[#0b0f1c] rounded-lg p-3 overflow-x-auto text-[#9fb0d0]">sudo /usr/local/bin/odoo-restore.sh /var/backups/odoo/&lt;date&gt;/&lt;db&gt;.dump &lt;db&gt;</pre>
+          <p>This stops Odoo, drops and recreates the database, restores the dump, and starts Odoo. Restore the filestore (attachments) by extracting <span className="font-mono">filestore.tar.gz</span> into <span className="font-mono">/var/lib/odoo/.local/share/Odoo/</span>.</p>
+        </div>
+      </details>
       {loading ? <Loader /> : rows.length === 0 ? <p className="text-[#6a7a9a]">No backups yet. Run one or wait for the daily 2 AM job.</p> : (
         <div className="space-y-3">
           {rows.map(b => (

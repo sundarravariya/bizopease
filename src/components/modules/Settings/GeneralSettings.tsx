@@ -138,17 +138,6 @@ export default function GeneralSettings() {
               <form onSubmit={handleSaveGeneral} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="label">Odoo Target Database</label>
-                    <select
-                      value={activeDb}
-                      onChange={(e) => setActiveDb(e.target.value)}
-                      className={`input text-xs ${isDark ? 'bg-[#111827] border-white/10 text-white' : ''}`}
-                    >
-                      <option value="robifel">robifel (Port 8069 - Production)</option>
-                      <option value="queenfinger">queenfinger (Port 8070 - Secondary)</option>
-                    </select>
-                  </div>
-                  <div>
                     <label className="label">API Request Timeout (ms)</label>
                     <input
                       type="number"
