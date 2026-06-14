@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { searchRead, createRecord, writeRecord } from '../../../services/odoo';
+import { registerWorkspaceLogins } from '../../../services/workspaceUsers';
 import {
   Plus, RefreshCw, Search, Eye, List, LayoutGrid,
   Mail, Phone, X, Users, UserCheck, CalendarOff, Building2,
@@ -11,6 +12,17 @@ function generatePassword(len = 12): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
   return Array.from(crypto.getRandomValues(new Uint8Array(len)))
     .map(b => chars[b % chars.length]).join('');
+}
+
+// Find an hr.department by name, creating it if it doesn't exist yet.
+async function resolveDepartmentId(name: string): Promise<number | undefined> {
+  const n = (name || '').trim();
+  if (!n) return undefined;
+  try {
+    const found = await searchRead<{ id: number }>('hr.department', { domain: [['name', '=', n]], fields: ['id'], limit: 1 });
+    if (found[0]?.id) return found[0].id;
+    return await createRecord('hr.department', { name: n });
+  } catch { return undefined; }
 }
 
 interface Employee {
@@ -105,12 +117,19 @@ export default function Employees() {
         }
       }
 
+      // Create the linked HR employee in the same action (the user account and
+      // the employee record point at each other via user_id).
+      const departmentId = await resolveDepartmentId(acctForm.department);
       await createRecord('hr.employee', {
         name: acctForm.name.trim(),
         work_email: login,
         job_title: acctForm.jobTitle.trim(),
         user_id: userId,
+        ...(departmentId ? { department_id: departmentId } : {}),
       });
+
+      // Register this login so the employee can resolve their workspace at sign-in.
+      registerWorkspaceLogins([login]);
 
       setAcctResult({ userId, login, password: acctForm.password, name: acctForm.name.trim() });
       await syncData();
@@ -147,6 +166,9 @@ export default function Employees() {
         }));
         setEmployees(mapped);
         localStorage.setItem('portal_employees', JSON.stringify(mapped));
+        // Backfill the workspace login map from existing employees (best-effort),
+        // so staff created before this feature can still resolve their workspace.
+        registerWorkspaceLogins(mapped.map(m => m.email));
       }
     } catch {
       console.warn('Odoo offline, using cache');
@@ -525,11 +547,11 @@ export default function Employees() {
                   <Check size={18} />
                   <span className='font-bold text-sm'>Account created successfully!</span>
                 </div>
-                <p className={`text-xs ${ts}`}>Share these credentials with <strong className={th}>{acctResult.name}</strong>. They can log in at the portal URL immediately with <strong>{acctForm.role}</strong>-level access.</p>
+                <p className={`text-xs ${ts}`}>A login <strong className={th}>and</strong> a linked HR employee record were created together. Share these credentials with <strong className={th}>{acctResult.name}</strong> — they can sign in immediately with <strong>{acctForm.role}</strong>-level access.</p>
 
                 <div className={`rounded-xl p-4 space-y-3 ${isDark ? 'bg-[#0f1420] border border-[#2a3250]' : 'bg-gray-50 border border-gray-200'}`}>
                   {[
-                    { label: 'Portal URL', value: 'https://dashboard.robifel.in', key: 'url' },
+                    { label: 'Portal URL', value: 'https://bizopease.robifel.in', key: 'url' },
                     { label: 'Login Email', value: acctResult.login, key: 'login' },
                     { label: 'Password', value: acctResult.password, key: 'pw' },
                   ].map(row => (
@@ -544,7 +566,7 @@ export default function Employees() {
                       </button>
                     </div>
                   ))}
-                  <button onClick={() => copyToClipboard(`Portal URL: https://dashboard.robifel.in\nEmail: ${acctResult.login}\nPassword: ${acctResult.password}`, 'all')}
+                  <button onClick={() => copyToClipboard(`Portal URL: https://bizopease.robifel.in\nEmail: ${acctResult.login}\nPassword: ${acctResult.password}`, 'all')}
                     className={`w-full mt-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${copied === 'all' ? 'bg-green-500/15 text-green-400' : isDark ? 'bg-white/5 hover:bg-white/10 text-[#7367f0]' : 'bg-gray-100 hover:bg-gray-200 text-[#7367f0]'}`}>
                     {copied === 'all' ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy All Credentials</>}
                   </button>

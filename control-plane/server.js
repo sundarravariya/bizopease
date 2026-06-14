@@ -279,17 +279,77 @@ app.post('/api/auth/find-workspace', loginLimiter, (req, res) => {
     [email],
     (err, ws) => {
       if (err) return res.status(500).json({ error: 'Registry lookup failed' });
-      if (!ws) return res.status(404).json({ error: 'No workspace found for this email address. Contact your administrator.' });
-
-      // Return workspace info (no sensitive data)
-      res.json({
-        tenantId: ws.tenant_id,
-        workspaceName: ws.workspace_name,
-        odooDb: ws.odoo_db_name || ('ws_' + ws.tenant_id),
-        status: ws.subscription_status
+      const reply = (w) => res.json({
+        tenantId: w.tenant_id,
+        workspaceName: w.workspace_name,
+        odooDb: w.odoo_db_name || ('ws_' + w.tenant_id),
+        status: w.subscription_status
       });
+      if (ws) return reply(ws);
+
+      // Not a workspace owner — fall back to the employee/user map.
+      masterDb.get(
+        `SELECT w.tenant_id, w.workspace_name, w.odoo_db_name, w.subscription_status
+           FROM workspace_users u JOIN workspaces w ON w.tenant_id = u.tenant_id
+          WHERE u.email = ? LIMIT 1`,
+        [email],
+        (e2, ws2) => {
+          if (e2) return res.status(500).json({ error: 'Registry lookup failed' });
+          if (!ws2) return res.status(404).json({ error: 'No workspace found for this email address. Contact your administrator.' });
+          reply(ws2);
+        }
+      );
     }
   );
+});
+
+/**
+ * POST /api/workspace/register-users
+ * The portal (logged in as a workspace admin) pushes its Odoo res.users logins
+ * here so non-owner employees can resolve their workspace at login. Authorized
+ * by the caller's same-origin Odoo session cookie — we ask Odoo who they are and
+ * trust ONLY the DB that session is bound to (clients can't spoof another DB).
+ * Body: { emails: string[] }
+ */
+app.post('/api/workspace/register-users', async (req, res) => {
+  let emails = (req.body && req.body.emails) || [];
+  if (typeof (req.body || {}).email === 'string') emails = [req.body.email];
+  if (!Array.isArray(emails)) return res.status(400).json({ error: 'emails[] required' });
+  const clean = [...new Set(emails.map(e => String(e || '').trim().toLowerCase()).filter(e => e.includes('@')))];
+  if (!clean.length) return res.json({ registered: 0 });
+
+  // Verify the caller via their Odoo session cookie.
+  const cookie = req.headers['cookie'] || '';
+  const m = /(?:^|;\s*)session_id=([^;]+)/.exec(cookie);
+  if (!m) return res.status(401).json({ error: 'Not authenticated' });
+  let sessDb = null, sessUid = null;
+  try {
+    const r = await fetch((ODOO_URL || 'http://127.0.0.1:8069') + '/web/session/get_session_info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cookie': 'session_id=' + m[1] },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'call', id: 1, params: {} })
+    });
+    const data = await r.json();
+    sessUid = data?.result?.uid || null;
+    sessDb = data?.result?.db || null;
+  } catch (e) {
+    return res.status(503).json({ error: 'Could not verify session with Odoo' });
+  }
+  if (!sessUid || !sessDb) return res.status(401).json({ error: 'Session invalid' });
+
+  // Resolve the workspace from the session's DB (not from the client).
+  masterDb.get('SELECT tenant_id, odoo_db_name FROM workspaces WHERE odoo_db_name = ?', [sessDb], (err, ws) => {
+    if (err) return res.status(500).json({ error: 'Registry error' });
+    if (!ws) return res.status(404).json({ error: 'No workspace for this database' });
+    // INSERT OR IGNORE: an email stays linked to the workspace that first claimed
+    // it — another tenant can't hijack an existing employee's login.
+    const stmt = masterDb.prepare('INSERT OR IGNORE INTO workspace_users (email, tenant_id, odoo_db_name) VALUES (?, ?, ?)');
+    clean.forEach(e => stmt.run(e, ws.tenant_id, ws.odoo_db_name));
+    stmt.finalize(e2 => {
+      if (e2) return res.status(500).json({ error: 'Registry write failed' });
+      res.json({ registered: clean.length });
+    });
+  });
 });
 
 /**

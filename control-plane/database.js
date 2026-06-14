@@ -45,6 +45,19 @@ masterDb.serialize(() => {
     updated_at               TEXT DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Email -> workspace map for NON-owner logins (employees). The owner is found
+  // via workspaces.admin_email; everyone else is registered here by the portal
+  // (which lists Odoo res.users) so login can resolve their workspace/DB.
+  // Each email belongs to EXACTLY ONE workspace (email is the primary key), so an
+  // employee is linked to that database/workspace alone and can't be claimed by
+  // another tenant. Registration uses INSERT OR IGNORE — the first link wins.
+  masterDb.run(`CREATE TABLE IF NOT EXISTS workspace_users (
+    email        TEXT PRIMARY KEY,          -- Odoo login, lower-cased (globally unique)
+    tenant_id    TEXT NOT NULL,             -- workspaces.tenant_id
+    odoo_db_name TEXT NOT NULL DEFAULT '',
+    created_at   TEXT DEFAULT CURRENT_TIMESTAMP
+  )`);
+
   // System-wide settings: API keys, credentials, config values
   masterDb.run(`CREATE TABLE IF NOT EXISTS system_settings (
     key    TEXT PRIMARY KEY,
