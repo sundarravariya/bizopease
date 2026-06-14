@@ -12,7 +12,7 @@ TARGET_DIR="/var/www/bizopease-saas"
 echo "🔨 Packing control plane modules..."
 
 # Copy files via scp
-scp -r server.js database.js provisioner.js package.json landing.html superadmin.html "$SERVER:$TARGET_DIR/"
+scp -r server.js database.js provisioner.js package.json index.html superadmin.html "$SERVER:$TARGET_DIR/"
 
 echo "📦 Installing backend packages on remote server..."
 ssh "$SERVER" "cd $TARGET_DIR && npm install"
