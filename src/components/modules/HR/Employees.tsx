@@ -198,12 +198,12 @@ export default function Employees() {
         await createRecord('hr.employee', empVals);
       }
 
-      await syncData();
-
       if (createdLogin) {
-        // Show the credentials screen (keeps the modal open).
+        // Show the credentials screen; syncData runs when the user clicks Done
+        // so the Odoo session has settled after res.users creation.
         setAcctResult({ login: createdLogin.login, password: createdLogin.password, name: form.name.trim() });
       } else {
+        await syncData();
         setShowCreate(false);
         showToast(acct.createLogin ? 'Employee saved and linked to the existing login.' : 'Employee added successfully!');
         setForm({ ...blankForm });
@@ -605,7 +605,7 @@ export default function Employees() {
                   <p className='text-xs text-amber-500 font-medium'>Ask the employee to change their password after first login via Settings → Profile.</p>
                 </div>
 
-                <button onClick={() => { setShowCreate(false); setAcctResult(null); setForm({ ...blankForm }); }} className='btn-primary text-xs px-4 py-2 w-full'>Done</button>
+                <button onClick={() => { setShowCreate(false); setAcctResult(null); setForm({ ...blankForm }); syncData(); }} className='btn-primary text-xs px-4 py-2 w-full'>Done</button>
               </div>
             )}
           </div>
