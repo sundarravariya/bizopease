@@ -322,7 +322,7 @@ app.post('/api/workspace/register-users', async (req, res) => {
   const cookie = req.headers['cookie'] || '';
   const m = /(?:^|;\s*)session_id=([^;]+)/.exec(cookie);
   if (!m) return res.status(401).json({ error: 'Not authenticated' });
-  let sessDb = null, sessUid = null;
+  let sessDb = null, sessUid = null, sessUsername = null;
   try {
     const r = await fetch((ODOO_URL || 'http://127.0.0.1:8069') + '/web/session/get_session_info', {
       method: 'POST',
@@ -332,22 +332,39 @@ app.post('/api/workspace/register-users', async (req, res) => {
     const data = await r.json();
     sessUid = data?.result?.uid || null;
     sessDb = data?.result?.db || null;
+    sessUsername = (data?.result?.username || data?.result?.login || '').toLowerCase().trim() || null;
   } catch (e) {
     return res.status(503).json({ error: 'Could not verify session with Odoo' });
   }
   if (!sessUid || !sessDb) return res.status(401).json({ error: 'Session invalid' });
 
-  // Resolve the workspace from the session's DB (not from the client).
-  masterDb.get('SELECT tenant_id, odoo_db_name FROM workspaces WHERE odoo_db_name = ?', [sessDb], (err, ws) => {
-    if (err) return res.status(500).json({ error: 'Registry error' });
-    if (!ws) return res.status(404).json({ error: 'No workspace for this database' });
-    // INSERT OR IGNORE: an email stays linked to the workspace that first claimed
-    // it — another tenant can't hijack an existing employee's login.
+  function doRegister(ws) {
+    // Also stamp odoo_db_name on the workspace if it was blank so future
+    // lookups by DB name work (happens once for workspaces provisioned manually).
+    if (!ws.odoo_db_name) {
+      masterDb.run('UPDATE workspaces SET odoo_db_name = ? WHERE tenant_id = ?', [sessDb, ws.tenant_id]);
+      ws.odoo_db_name = sessDb;
+    }
     const stmt = masterDb.prepare('INSERT OR IGNORE INTO workspace_users (email, tenant_id, odoo_db_name) VALUES (?, ?, ?)');
     clean.forEach(e => stmt.run(e, ws.tenant_id, ws.odoo_db_name));
     stmt.finalize(e2 => {
       if (e2) return res.status(500).json({ error: 'Registry write failed' });
       res.json({ registered: clean.length });
+    });
+  }
+
+  // Resolve the workspace from the session's DB (not from the client).
+  // Primary: exact odoo_db_name match.
+  // Fallback: admin_email matches the session login (covers workspaces where
+  //           odoo_db_name was not set during manual provisioning).
+  masterDb.get('SELECT tenant_id, odoo_db_name FROM workspaces WHERE odoo_db_name = ?', [sessDb], (err, ws) => {
+    if (err) return res.status(500).json({ error: 'Registry error' });
+    if (ws) return doRegister(ws);
+    if (!sessUsername) return res.status(404).json({ error: 'No workspace for this database' });
+    masterDb.get('SELECT tenant_id, odoo_db_name FROM workspaces WHERE LOWER(admin_email) = ?', [sessUsername], (e2, ws2) => {
+      if (e2) return res.status(500).json({ error: 'Registry error' });
+      if (!ws2) return res.status(404).json({ error: 'No workspace for this database' });
+      doRegister(ws2);
     });
   });
 });
@@ -363,80 +380,73 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Email, password, and tenantId are required' });
   }
 
-  // Re-verify workspace ownership (prevent tenantId spoofing)
+  const emailNorm = email.toLowerCase().trim();
+
+  // Try workspace owner first, then fall back to employee registry.
+  // This prevents tenantId spoofing while still allowing employee logins.
+  async function attemptOdooLogin(ws) {
+    // Check subscription is active
+    if (ws.subscription_status !== 'active') {
+      return res.status(403).json({
+        error: 'Workspace subscription is ' + ws.subscription_status + '. Please contact support.',
+        status: ws.subscription_status
+      });
+    }
+    if (ws.subscription_expires_at && new Date(ws.subscription_expires_at) < new Date()) {
+      return res.status(403).json({
+        error: 'Workspace subscription has expired. Please renew.',
+        status: 'expired'
+      });
+    }
+
+    const odooDb = ws.odoo_db_name || ('ws_' + ws.tenant_id);
+    const odooUrl = ODOO_URL || 'http://127.0.0.1:8069';
+    try {
+      const odooRes = await fetch(odooUrl + '/web/session/authenticate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'call', id: 1,
+          params: { db: odooDb, login: email, password }
+        })
+      });
+      const odooData = await odooRes.json();
+      const uid = odooData?.result?.uid;
+      const odooSessionId = odooData?.result?.session_id || '';
+      if (!uid) return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+
+      const token = jwt.sign(
+        { role: 'tenant', email: emailNorm, workspace: ws.tenant_id, odooDb, odooUid: uid },
+        JWT_SECRET, { expiresIn: '7d' }
+      );
+      console.log(`[Auth] Login: ${email} → workspace ${ws.tenant_id} (DB: ${odooDb}) UID: ${uid}`);
+      res.json({ token, workspace: ws.tenant_id, workspaceName: ws.workspace_name, odooDb, odooSessionId, email: emailNorm });
+    } catch (fetchErr) {
+      console.error('[Auth] Odoo authenticate failed:', fetchErr.message);
+      res.status(503).json({ error: 'Could not reach Odoo server. Please try again.' });
+    }
+  }
+
+  // 1. Check if the email is the workspace owner.
   masterDb.get(
     'SELECT tenant_id, workspace_name, odoo_db_name, subscription_status, subscription_expires_at FROM workspaces WHERE tenant_id = ? AND LOWER(admin_email) = ?',
-    [tenantId, email.toLowerCase().trim()],
-    async (err, ws) => {
+    [tenantId, emailNorm],
+    (err, ws) => {
       if (err) return res.status(500).json({ error: 'Registry error' });
-      if (!ws) return res.status(401).json({ error: 'Invalid credentials' });
+      if (ws) return attemptOdooLogin(ws);
 
-      // Check subscription is active
-      if (ws.subscription_status !== 'active') {
-        return res.status(403).json({
-          error: 'Workspace subscription is ' + ws.subscription_status + '. Please contact support.',
-          status: ws.subscription_status
-        });
-      }
-
-      // Check expiry
-      if (ws.subscription_expires_at && new Date(ws.subscription_expires_at) < new Date()) {
-        return res.status(403).json({
-          error: 'Workspace subscription has expired. Please renew.',
-          status: 'expired'
-        });
-      }
-
-      const odooDb = ws.odoo_db_name || ('ws_' + ws.tenant_id);
-      const odooUrl = ODOO_URL || 'http://127.0.0.1:8069';
-
-      // Authenticate against Odoo to verify credentials
-      try {
-        const odooRes = await fetch(odooUrl + '/web/session/authenticate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0', method: 'call', id: 1,
-            params: { db: odooDb, login: email, password }
-          })
-        });
-
-        const odooData = await odooRes.json();
-        const uid = odooData?.result?.uid;
-        const odooSessionId = odooData?.result?.session_id || '';
-
-        if (!uid) {
-          return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+      // 2. Not the owner — check if this is a registered employee for this workspace.
+      masterDb.get(
+        `SELECT w.tenant_id, w.workspace_name, w.odoo_db_name, w.subscription_status, w.subscription_expires_at
+           FROM workspaces w JOIN workspace_users u ON u.tenant_id = w.tenant_id
+          WHERE w.tenant_id = ? AND u.email = ?`,
+        [tenantId, emailNorm],
+        (e2, ws2) => {
+          if (e2) return res.status(500).json({ error: 'Registry error' });
+          if (!ws2) return res.status(401).json({ error: 'Invalid credentials' });
+          attemptOdooLogin(ws2);
         }
-
-        // Credentials verified — issue control-plane JWT
-        const token = jwt.sign(
-          {
-            role: 'tenant',
-            email: email.toLowerCase().trim(),
-            workspace: ws.tenant_id,
-            odooDb,
-            odooUid: uid
-          },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-
-        console.log(`[Auth] Login: ${email} → workspace ${ws.tenant_id} (DB: ${odooDb}) UID: ${uid}`);
-
-        res.json({
-          token,
-          workspace: ws.tenant_id,
-          workspaceName: ws.workspace_name,
-          odooDb,
-          odooSessionId,
-          email: email.toLowerCase().trim()
-        });
-
-      } catch (fetchErr) {
-        console.error('[Auth] Odoo authenticate failed:', fetchErr.message);
-        res.status(503).json({ error: 'Could not reach Odoo server. Please try again.' });
-      }
+      );
     }
   );
 });
