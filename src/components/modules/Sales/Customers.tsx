@@ -575,7 +575,7 @@ export default function Customers() {
               <button
                 onClick={() => {
                   setDrawerCustomer(null);
-                  navigate('../quotations');
+                  navigate('../quotations', { relative: 'path' });
                 }}
                 className="btn-primary w-full justify-center py-2.5"
               >

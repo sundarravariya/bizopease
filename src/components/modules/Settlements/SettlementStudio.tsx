@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useDeferredValue } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { searchRead, createRecord, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import {
@@ -95,6 +95,8 @@ export default function SettlementStudio() {
   const [entryOpen, setEntryOpen] = useState(false);
 
   const navigate = useNavigate();
+  const { workspace } = useParams<{ workspace: string }>();
+  const goExpenses = () => navigate(workspace ? `/${workspace}/settlements/expenses` : '../expenses', workspace ? undefined : { relative: 'path' } as any);
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4500); };
 
   // ── data loading ──────────────────────────────────────────────────────────
@@ -314,7 +316,7 @@ export default function SettlementStudio() {
               <Plus size={15} className="flex-shrink-0" />
               <span className="truncate">Add {TABS.find(t => t.key === tab)?.label.replace(/s$/, '')}</span>
             </button>
-            <button onClick={() => navigate('../expenses')}
+            <button onClick={goExpenses}
               className={`flex-1 min-w-0 h-12 lg:h-14 rounded-2xl shadow-xl flex items-center justify-center gap-2 font-bold text-[11px] lg:text-sm border border-amber-500/30 ${bgSoft} text-amber-400`}>
               <Receipt size={15} className="flex-shrink-0" />
               <span className="truncate">Expenses</span>
