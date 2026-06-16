@@ -213,6 +213,7 @@ export default function Tasks() {
 
   const allScopeIds = useMemo(() => [...scopeTasks, ...scopeOverdue].map(t => t.id), [scopeTasks, scopeOverdue]);
   const allSelected = allScopeIds.length > 0 && allScopeIds.every(id => selIds.has(id));
+  const someSelected = selIds.size > 0 && !allSelected;
   const toggleSelectAll = () => {
     if (allSelected) setSelIds(new Set());
     else setSelIds(new Set(allScopeIds));
@@ -294,10 +295,11 @@ export default function Tasks() {
               </div>
             )}
             {allScopeIds.length > 0 && (
-              <button onClick={toggleSelectAll}
-                className={`ml-auto text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${allSelected ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' : `${border} ${sub}`}`}>
-                {allSelected ? 'Deselect All' : 'Select All'}
-              </button>
+              <label className="ml-auto flex items-center cursor-pointer p-1.5" title={allSelected ? 'Deselect all' : 'Select all'}>
+                <input type="checkbox" className="w-4 h-4 rounded accent-[#7367f0] cursor-pointer"
+                  checked={allSelected} onChange={toggleSelectAll}
+                  ref={el => { if (el) el.indeterminate = someSelected; }} />
+              </label>
             )}
           </div>
 
@@ -364,7 +366,7 @@ export default function Tasks() {
       <BulkDeleteBar model="robifel.task" label="task" ids={Array.from(selIds)}
         onClear={() => setSelIds(new Set())} onDeleted={() => { setSelIds(new Set()); loadTasks(); }} />
 
-      <button onClick={() => setCreateOpen(true)} className="fixed bottom-6 right-6 z-40 h-13 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-2 text-white font-bold text-sm" style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
+      <button onClick={() => setCreateOpen(true)} className={`fixed ${selIds.size > 0 ? 'bottom-20' : 'bottom-6'} right-6 z-40 h-13 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-2 text-white font-bold text-sm transition-all`} style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
         <Plus size={17} /> New Task
       </button>
 
