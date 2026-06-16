@@ -229,11 +229,11 @@ export default function FbfReplenishment() {
       </div>
 
       {/* Filters */}
-      <div className={`card border rounded-2xl p-3 ${cardBg} flex flex-wrap gap-3 items-center`}>
-        {/* Account filter */}
-        <div className='flex items-center gap-2'>
-          <span className={`text-[11px] font-semibold uppercase tracking-wider ${textMuted}`}>Account</span>
-          <div className='flex gap-1'>
+      <div className={`card border rounded-2xl p-3 space-y-2.5 ${cardBg}`}>
+        {/* Account */}
+        <div className='flex items-start gap-2'>
+          <span className={`text-[11px] font-semibold uppercase tracking-wider shrink-0 w-20 pt-1 ${textMuted}`}>Account</span>
+          <div className='flex gap-1 flex-wrap'>
             <button onClick={() => setAccountFilter('all')}
               className={`text-xs px-3 py-1 rounded-lg font-semibold border transition-all ${accountFilter === 'all' ? 'bg-[#7367f0] text-white border-[#7367f0]' : isDark ? 'border-[#2a3250] text-[#5a6a8a]' : 'border-gray-200 text-gray-500'}`}>
               All
@@ -246,25 +246,19 @@ export default function FbfReplenishment() {
             ))}
           </div>
         </div>
-
-        <div className={`w-px h-5 ${isDark ? 'bg-[#2a3250]' : 'bg-gray-200'}`} />
-
-        {/* Warehouse filter */}
+        {/* Warehouse */}
         <div className='flex items-center gap-2'>
-          <span className={`text-[11px] font-semibold uppercase tracking-wider ${textMuted}`}>Warehouse</span>
+          <span className={`text-[11px] font-semibold uppercase tracking-wider shrink-0 w-20 ${textMuted}`}>Warehouse</span>
           <select value={warehouseFilter} onChange={e => setWarehouseFilter(e.target.value)}
-            className={`text-xs px-2 py-1.5 rounded-lg border outline-none font-medium ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
+            className={`text-xs px-2 py-1.5 rounded-lg border outline-none font-medium flex-1 min-w-0 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : 'bg-white border-gray-200 text-gray-700'}`}>
             <option value='all'>All Warehouses</option>
             {allWarehouses.map(wh => <option key={wh} value={wh}>{wh}</option>)}
           </select>
         </div>
-
-        <div className={`w-px h-5 ${isDark ? 'bg-[#2a3250]' : 'bg-gray-200'}`} />
-
-        {/* Urgency filter */}
-        <div className='flex items-center gap-2'>
-          <span className={`text-[11px] font-semibold uppercase tracking-wider ${textMuted}`}>Urgency</span>
-          <div className='flex gap-1'>
+        {/* Urgency */}
+        <div className='flex items-start gap-2'>
+          <span className={`text-[11px] font-semibold uppercase tracking-wider shrink-0 w-20 pt-1 ${textMuted}`}>Urgency</span>
+          <div className='flex gap-1 flex-wrap'>
             {(['all', 'critical', 'moderate', 'healthy'] as UrgencyFilter[]).map(f => (
               <button key={f} onClick={() => setUrgencyFilter(f)}
                 className={`text-xs px-3 py-1 rounded-lg font-semibold capitalize border transition-all ${
@@ -305,82 +299,125 @@ export default function FbfReplenishment() {
           <div key={wh} className={`card border rounded-2xl overflow-hidden ${cardBg}`}>
             {/* Warehouse header */}
             <div
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer select-none ${isDark ? 'bg-[#111827]/40 border-b border-[#2a3250]' : 'bg-gray-50 border-b border-gray-100'}`}
+              className={`px-4 py-3 cursor-pointer select-none ${isDark ? 'bg-[#111827]/40 border-b border-[#2a3250]' : 'bg-gray-50 border-b border-gray-100'}`}
               onClick={() => toggleCollapse(wh)}
             >
-              <Warehouse size={16} className='text-[#7367f0] flex-shrink-0' />
-              <span className={`font-bold text-sm flex-1 ${textMain}`}>{wh}</span>
-
-              {/* Per-warehouse mini stats */}
-              <div className='flex items-center gap-3 text-[11px] font-semibold'>
-                {whCritical > 0 && <span className='text-red-400'>{whCritical} critical</span>}
-                {whModerate > 0 && <span className='text-amber-400'>{whModerate} moderate</span>}
-                <span className={textMuted}>{whItems.length} SKUs</span>
-                <span className='text-[#7367f0]'>{whUnits.toLocaleString('en-IN')} units</span>
+              {/* Row 1: name + collapse */}
+              <div className='flex items-center gap-2'>
+                <Warehouse size={15} className='text-[#7367f0] flex-shrink-0' />
+                <span className={`font-bold text-sm flex-1 ${textMain}`}>{wh}</span>
+                {isCollapsed ? <ChevronDown size={15} className={textMuted} /> : <ChevronUp size={15} className={textMuted} />}
               </div>
-
-              {/* Consignment button for this warehouse */}
-              {selectedInWh.length > 0 && (
-                <button
-                  onClick={e => { e.stopPropagation(); handleCreateConsignment(whItems); }}
-                  disabled={consigning}
-                  className='btn-primary text-[11px] px-3 py-1.5 flex items-center gap-1.5 ml-2'
-                >
-                  <Send size={11} /> Consign ({selectedInWh.length})
-                </button>
-              )}
-
-              {isCollapsed ? <ChevronDown size={15} className={textMuted} /> : <ChevronUp size={15} className={textMuted} />}
+              {/* Row 2: stats + consign */}
+              <div className='flex items-center gap-2 mt-1.5 flex-wrap' onClick={e => e.stopPropagation()}>
+                <div className='flex gap-2 text-[11px] font-semibold flex-wrap flex-1'>
+                  {whCritical > 0 && <span className='text-red-400'>{whCritical} critical</span>}
+                  {whModerate > 0 && <span className='text-amber-400'>{whModerate} moderate</span>}
+                  <span className={textMuted}>{whItems.length} SKUs</span>
+                  <span className='text-[#7367f0]'>{whUnits.toLocaleString('en-IN')} units</span>
+                </div>
+                {selectedInWh.length > 0 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); handleCreateConsignment(whItems); }}
+                    disabled={consigning}
+                    className='btn-primary text-[11px] px-3 py-1.5 flex items-center gap-1.5 shrink-0'
+                  >
+                    <Send size={11} /> Consign ({selectedInWh.length})
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Table */}
+            {/* Content */}
             {!isCollapsed && (
-              <div className='overflow-x-auto'>
-                <table className='w-full text-left border-collapse text-sm'>
-                  <thead>
-                    <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${tableHead}`}>
-                      <th className='py-2.5 px-4 w-10'>
-                        <input type='checkbox' className='rounded' checked={allWhSelected}
-                          onChange={e => toggleWarehouseAll(wh, e.target.checked)} />
-                      </th>
-                      <th className='py-2.5 px-4'>Product / SKU</th>
-                      <th className='py-2.5 px-4'>Account</th>
-                      <th className='py-2.5 px-4 text-right'>FBF Stock</th>
-                      <th className='py-2.5 px-4 text-right'>7D</th>
-                      <th className='py-2.5 px-4 text-right'>14D</th>
-                      <th className='py-2.5 px-4 text-right'>Vel.</th>
-                      <th className='py-2.5 px-4 text-right'>Qty to Send</th>
-                      <th className='py-2.5 px-4 text-right'>Cover</th>
-                      <th className='py-2.5 px-4 text-center'>Urgency</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${tableDivide}`}>
-                    {whItems.map(item => (
-                      <tr key={item.id} className={`transition-colors ${rowHover} ${item.selected ? 'bg-[#7367f0]/5' : ''}`}>
-                        <td className='py-2.5 px-4'>
-                          <input type='checkbox' className='rounded' checked={item.selected} onChange={() => toggleItem(item.id)} />
-                        </td>
-                        <td className='py-2.5 px-4'>
-                          <div className={`font-semibold text-xs ${textMain}`}>{Array.isArray(item.product_id) ? item.product_id[1] : '--'}</div>
-                          <div className={`text-[10px] mt-0.5 font-mono ${textMuted}`}>{item.sku}{item.fsn ? ` · ${item.fsn}` : ''}</div>
-                        </td>
-                        <td className={`py-2.5 px-4 text-xs ${textMuted}`}>{Array.isArray(item.account_id) ? item.account_id[1] : '--'}</td>
-                        <td className={`py-2.5 px-4 text-right font-medium text-xs ${textMain}`}>{item.fbf_stock}</td>
-                        <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.sales_7d}</td>
-                        <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.sales_14d}</td>
-                        <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{(Number(item.daily_sales) || 0).toFixed(1)}</td>
-                        <td className='py-2.5 px-4 text-right font-black text-[#7367f0] text-xs'>{item.qty_to_send}</td>
-                        <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.days_cover_after}d</td>
-                        <td className='py-2.5 px-4 text-center'>
-                          {item.urgency === 'critical' && <span className='badge badge-red'>Critical</span>}
-                          {item.urgency === 'moderate' && <span className='badge badge-amber'>Moderate</span>}
-                          {item.urgency === 'healthy' && <span className='badge badge-green'>Healthy</span>}
-                        </td>
+              <>
+                {/* Mobile cards */}
+                <div className={`md:hidden divide-y ${tableDivide}`}>
+                  {/* Select-all row */}
+                  <div className={`flex items-center gap-2 px-4 py-2 ${isDark ? 'bg-[#111827]/20' : 'bg-gray-50/50'}`}>
+                    <input type='checkbox' className='rounded' checked={allWhSelected}
+                      onChange={e => toggleWarehouseAll(wh, e.target.checked)} />
+                    <span className={`text-[11px] font-semibold ${textMuted}`}>Select all ({whItems.length})</span>
+                  </div>
+                  {whItems.map(item => (
+                    <div key={item.id} className={`flex gap-3 px-4 py-3 ${item.selected ? 'bg-[#7367f0]/5' : ''}`}>
+                      <input type='checkbox' className='rounded mt-1 shrink-0' checked={item.selected} onChange={() => toggleItem(item.id)} />
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div className='min-w-0'>
+                            <p className={`font-semibold text-xs leading-snug ${textMain}`}>{Array.isArray(item.product_id) ? item.product_id[1] : '--'}</p>
+                            <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>{item.sku}</p>
+                          </div>
+                          <div className='shrink-0'>
+                            {item.urgency === 'critical' && <span className='badge badge-red'>Critical</span>}
+                            {item.urgency === 'moderate' && <span className='badge badge-amber'>Moderate</span>}
+                            {item.urgency === 'healthy' && <span className='badge badge-green'>Healthy</span>}
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-3 mt-2 flex-wrap text-[11px]'>
+                          <span className={textMuted}>{Array.isArray(item.account_id) ? item.account_id[1] : '--'}</span>
+                          <span className={textMuted}>Stock: <span className={`font-semibold ${textMain}`}>{item.fbf_stock}</span></span>
+                          <span className={textMuted}>7D: {item.sales_7d}</span>
+                          <span className={textMuted}>14D: {item.sales_14d}</span>
+                          <span className={textMuted}>Vel: {(Number(item.daily_sales) || 0).toFixed(1)}</span>
+                          <span className={textMuted}>Cover: {item.days_cover_after}d</span>
+                        </div>
+                        <div className='mt-1.5'>
+                          <span className='text-sm font-black text-[#7367f0]'>{item.qty_to_send} to send</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table */}
+                <div className='hidden md:block overflow-x-auto'>
+                  <table className='w-full text-left border-collapse text-sm'>
+                    <thead>
+                      <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${tableHead}`}>
+                        <th className='py-2.5 px-4 w-10'>
+                          <input type='checkbox' className='rounded' checked={allWhSelected}
+                            onChange={e => toggleWarehouseAll(wh, e.target.checked)} />
+                        </th>
+                        <th className='py-2.5 px-4'>Product / SKU</th>
+                        <th className='py-2.5 px-4'>Account</th>
+                        <th className='py-2.5 px-4 text-right'>FBF Stock</th>
+                        <th className='py-2.5 px-4 text-right'>7D</th>
+                        <th className='py-2.5 px-4 text-right'>14D</th>
+                        <th className='py-2.5 px-4 text-right'>Vel.</th>
+                        <th className='py-2.5 px-4 text-right'>Qty to Send</th>
+                        <th className='py-2.5 px-4 text-right'>Cover</th>
+                        <th className='py-2.5 px-4 text-center'>Urgency</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className={`divide-y ${tableDivide}`}>
+                      {whItems.map(item => (
+                        <tr key={item.id} className={`transition-colors ${rowHover} ${item.selected ? 'bg-[#7367f0]/5' : ''}`}>
+                          <td className='py-2.5 px-4'>
+                            <input type='checkbox' className='rounded' checked={item.selected} onChange={() => toggleItem(item.id)} />
+                          </td>
+                          <td className='py-2.5 px-4'>
+                            <div className={`font-semibold text-xs ${textMain}`}>{Array.isArray(item.product_id) ? item.product_id[1] : '--'}</div>
+                            <div className={`text-[10px] mt-0.5 font-mono ${textMuted}`}>{item.sku}{item.fsn ? ` · ${item.fsn}` : ''}</div>
+                          </td>
+                          <td className={`py-2.5 px-4 text-xs ${textMuted}`}>{Array.isArray(item.account_id) ? item.account_id[1] : '--'}</td>
+                          <td className={`py-2.5 px-4 text-right font-medium text-xs ${textMain}`}>{item.fbf_stock}</td>
+                          <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.sales_7d}</td>
+                          <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.sales_14d}</td>
+                          <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{(Number(item.daily_sales) || 0).toFixed(1)}</td>
+                          <td className='py-2.5 px-4 text-right font-black text-[#7367f0] text-xs'>{item.qty_to_send}</td>
+                          <td className={`py-2.5 px-4 text-right text-xs ${textMuted}`}>{item.days_cover_after}d</td>
+                          <td className='py-2.5 px-4 text-center'>
+                            {item.urgency === 'critical' && <span className='badge badge-red'>Critical</span>}
+                            {item.urgency === 'moderate' && <span className='badge badge-amber'>Moderate</span>}
+                            {item.urgency === 'healthy' && <span className='badge badge-green'>Healthy</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         );
