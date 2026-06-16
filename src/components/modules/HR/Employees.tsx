@@ -105,7 +105,7 @@ export default function Employees() {
     setLoading(true);
     try {
       const r = await searchRead<any>('hr.employee', {
-        fields: ['id', 'name', 'job_title', 'department_id', 'work_email', 'work_phone', 'active', 'remaining_leaves', 'coach_id'],
+        fields: ['id', 'name', 'job_title', 'department_id', 'work_email', 'work_phone', 'active', 'coach_id'],
         limit: 0,
         order: 'id asc',
       });
@@ -120,17 +120,15 @@ export default function Employees() {
           phone: item.work_phone || '',
           date_joined: '',
           manager: Array.isArray(item.coach_id) ? item.coach_id[1] : '',
-          leave_balance: item.remaining_leaves || 0,
+          leave_balance: 0,
           state: item.active ? 'active' : 'suspended' as const,
         }));
         setEmployees(mapped);
         localStorage.setItem('portal_employees', JSON.stringify(mapped));
-        // Backfill the workspace login map from existing employees (best-effort),
-        // so staff created before this feature can still resolve their workspace.
         registerWorkspaceLogins(mapped.map(m => m.email));
       }
-    } catch {
-      console.warn('Odoo offline, using cache');
+    } catch (e: any) {
+      showToast('Sync failed: ' + (e?.message || 'Could not reach Odoo'));
     } finally {
       setLoading(false);
     }
