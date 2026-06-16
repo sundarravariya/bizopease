@@ -173,22 +173,22 @@ export default function Attendance() {
             const r = recOf(emp.id, today);
             const st = r?.status ?? '';
             return (
-              <div key={emp.id} className={`card border ${card} p-3`}>
+              <div key={emp.id} className={`card border ${card} p-3 space-y-2`}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#7367f0] to-[#3d5af1] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">{emp.name?.[0]?.toUpperCase()}</div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <p className={`text-sm font-semibold truncate ${txt}`}>{emp.name}</p>
                     <p className={`text-[11px] ${sub} truncate`}>{emp.job_title || '—'}</p>
                   </div>
-                  <div className="flex flex-wrap gap-1 justify-end">
-                    {STATUSES.map(s => (
-                      <button key={s.key} disabled={busy === `${emp.id}-${today}`}
-                        onClick={() => mark(emp.id, today, s.key)}
-                        className={`w-9 h-8 rounded-lg text-[11px] font-black transition-all ${st === s.key ? s.cls : isDark ? 'bg-[#1e2440] text-[#5a6a8a] hover:bg-[#252b4a]' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                        {s.short}
-                      </button>
-                    ))}
-                  </div>
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {STATUSES.map(s => (
+                    <button key={s.key} disabled={busy === `${emp.id}-${today}`}
+                      onClick={() => mark(emp.id, today, s.key)}
+                      className={`flex-1 min-w-[2.5rem] h-8 rounded-lg text-[11px] font-black transition-all ${st === s.key ? s.cls : isDark ? 'bg-[#1e2440] text-[#5a6a8a] hover:bg-[#252b4a]' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                      {s.short}
+                    </button>
+                  ))}
                 </div>
               </div>
             );
