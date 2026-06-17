@@ -21,6 +21,10 @@ export function odooReportUrl(reportName: string, id: number): string {
 export async function downloadOdooReport(reportName: string, id: number, filename: string): Promise<void> {
   const res = await fetch(odooReportUrl(reportName, id), { credentials: 'include' });
   if (!res.ok) throw new Error(`Could not generate PDF (HTTP ${res.status})`);
+  const ct = res.headers.get('content-type') ?? '';
+  if (!ct.includes('application/pdf')) {
+    throw new Error('Session expired or report unavailable — please refresh and log in again');
+  }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -14,7 +14,8 @@ class FlipkartSalesDashboard(models.Model):
 
     order_date = fields.Date(string='Order Date', required=True)
     product_id = fields.Many2one('product.product', string='Odoo Product', help='Mapped via SKU or FSN')
-    sku_id = fields.Char(string='SKU ID / FSN')
+    sku_id = fields.Char(string='FSN')          # Flipkart's "Product Id" column (long alphanumeric)
+    seller_sku = fields.Char(string='SKU ID')   # Flipkart's "SKU Id" column (seller-defined code)
 
     category = fields.Char(string='Category')
     brand = fields.Char(string='Brand')
@@ -31,6 +32,13 @@ class FlipkartSalesDashboard(models.Model):
 
     final_sale_units = fields.Integer(string='Final Sale Units')
     final_sale_amount = fields.Float(string='Final Sale Amount', digits=(12, 2))
+
+    # is_fsn_row=True  → kit/product-level row (original FSN, original units)
+    # is_fsn_row=False → BOM-exploded component row (component product, multiplied units)
+    is_fsn_row = fields.Boolean(string='Is FSN Row', default=True, index=True)
+
+    # Convenient read of the Odoo product's internal reference (default_code)
+    sku_code = fields.Char(related='product_id.default_code', string='SKU ID (Internal)', readonly=True)
 
     _sql_constraints = [
         ('date_sku_unique', 'UNIQUE(account_id, order_date, sku_id, location_id, fulfillment_type, sale_order_line_id)',

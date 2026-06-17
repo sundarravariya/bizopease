@@ -76,6 +76,11 @@ export default function FlipkartSetup() {
   // ------ FSNs ------------------------------------------------------------------------------------------------
   const [fsns, setFsns] = useState<FsnBarcode[]>([]);
   const [fsnSearch, setFsnSearch] = useState('');
+  const [showFsnForm, setShowFsnForm] = useState(false);
+  const [fsnForm, setFsnForm] = useState({ barcode: '', product_id: '' as number | '', product_name: '' });
+  const [fsnProducts, setFsnProducts] = useState<{ id: number; name: string }[]>([]);
+  const [showFsnProdDrop, setShowFsnProdDrop] = useState(false);
+  const [savingFsn, setSavingFsn] = useState(false);
 
   // ------ Accounts form ------------------------------------------------------------------------------
   const [newAccName, setNewAccName] = useState('');
@@ -201,6 +206,31 @@ export default function FlipkartSetup() {
       setFsns([]);
     }
     finally { setLoading(false); }
+  };
+
+  const searchFsnProducts = async (q: string) => {
+    if (!q || q.length < 2) { setFsnProducts([]); return; }
+    const r = await searchRead<{ id: number; name: string }>('product.product', {
+      fields: ['id', 'name'],
+      domain: [['active', '=', true], '|', ['name', 'ilike', q], ['default_code', 'ilike', q]],
+      limit: 15,
+    });
+    setFsnProducts(r || []);
+  };
+
+  const saveFsn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fsnForm.barcode.trim() || !fsnForm.product_id) return;
+    setSavingFsn(true);
+    try {
+      await createRecord('sr.multi.barcode', { name: fsnForm.barcode.trim(), product_id: fsnForm.product_id });
+      showMsg(true, `FSN "${fsnForm.barcode}" mapped to ${fsnForm.product_name}.`);
+      setFsnForm({ barcode: '', product_id: '', product_name: '' });
+      setFsnProducts([]);
+      setShowFsnForm(false);
+      await loadFsns();
+    } catch (e: any) { showMsg(false, e.message); }
+    finally { setSavingFsn(false); }
   };
 
   const createAccount = async (e: React.FormEvent) => {
@@ -440,18 +470,57 @@ export default function FlipkartSetup() {
           <div className="flex items-center gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-xs">
               <Search size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-[#4a5580]' : 'text-gray-400'}`} />
-              <input value={fsnSearch} onChange={e => setFsnSearch(e.target.value)} placeholder="Filter by FSN or product--" className={`${inp} pl-8`} />
+              <input value={fsnSearch} onChange={e => setFsnSearch(e.target.value)} placeholder="Filter by FSN or product..." className={`${inp} pl-8`} />
             </div>
             <button onClick={loadFsns} disabled={loading} className="btn-secondary text-xs px-3 py-2">
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
+            <button onClick={() => setShowFsnForm(v => !v)} className="btn-primary text-xs px-3 py-2">
+              <Plus size={13} /> Add FSN
+            </button>
           </div>
+
+          {showFsnForm && (
+            <form onSubmit={saveFsn} className={`card p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-[#1a2035] border-[#2a3250]' : 'bg-gray-50 border-gray-200'}`}>
+              <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-700'}`}>New FSN Mapping</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-[10px] font-semibold block mb-1 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-500'}`}>FSN / Barcode *</label>
+                  <input value={fsnForm.barcode} onChange={e => setFsnForm(f => ({ ...f, barcode: e.target.value }))} required
+                    placeholder="e.g. ACCZD7G6JMHHNNNN" className={`${inp} w-full font-mono`} />
+                </div>
+                <div className="relative">
+                  <label className={`text-[10px] font-semibold block mb-1 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-500'}`}>Linked Product *</label>
+                  <input value={fsnForm.product_name}
+                    onChange={e => { setFsnForm(f => ({ ...f, product_name: e.target.value, product_id: '' })); searchFsnProducts(e.target.value); setShowFsnProdDrop(true); }}
+                    placeholder="Search product name..." className={`${inp} w-full`} />
+                  {showFsnProdDrop && fsnProducts.length > 0 && (
+                    <div className={`absolute z-30 top-full mt-1 w-full rounded-xl border shadow-xl max-h-44 overflow-y-auto ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`}>
+                      {fsnProducts.map(p => (
+                        <div key={p.id} onClick={() => { setFsnForm(f => ({ ...f, product_id: p.id, product_name: p.name })); setShowFsnProdDrop(false); setFsnProducts([]); }}
+                          className={`px-3 py-2 text-xs cursor-pointer ${isDark ? 'hover:bg-white/5 text-white' : 'hover:bg-gray-50 text-gray-800'}`}>
+                          {p.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" disabled={savingFsn || !fsnForm.barcode || !fsnForm.product_id} className="btn-primary text-xs px-4 py-2">
+                  {savingFsn ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />} Save
+                </button>
+                <button type="button" onClick={() => { setShowFsnForm(false); setFsnForm({ barcode: '', product_id: '', product_name: '' }); }} className="btn-secondary text-xs px-4 py-2">Cancel</button>
+              </div>
+            </form>
+          )}
+
           <div className={`${cardBg} rounded-2xl overflow-hidden`}>
             {loading ? (
               <div className="h-32 flex items-center justify-center"><RefreshCw size={18} className="animate-spin text-[#7367f0]" /></div>
             ) : filteredFsns.length === 0 ? (
               <div className={`py-12 text-center text-sm ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>
-                No FSN barcode mappings found. Upload a Master Listings XLS from the Upload Center to populate these.
+                No FSN mappings found. Use "+ Add FSN" to create one, or upload a Master Listings XLS from the Upload Center.
               </div>
             ) : (
               <div className="overflow-x-auto">

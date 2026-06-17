@@ -62,6 +62,7 @@ const DeadStock         = lazy(() => import('./components/modules/FlipkartOS/Dea
 const ConsignmentManager = lazy(() => import('./components/modules/FlipkartOS/ConsignmentManager'));
 const ReturnsManagement = lazy(() => import('./components/modules/FlipkartOS/ReturnsManagement'));
 const SalesDashboard    = lazy(() => import('./components/modules/FlipkartOS/SalesDashboard'));
+const SalesReports      = lazy(() => import('./components/modules/FlipkartOS/SalesReports'));
 const StockValuation    = lazy(() => import('./components/modules/FlipkartOS/StockValuation'));
 const Listings          = lazy(() => import('./components/modules/FlipkartOS/Listings'));
 const UploadCenter      = lazy(() => import('./components/modules/FlipkartOS/UploadCenter'));
@@ -213,6 +214,7 @@ function InnerApp() {
           <Route path="flipkart/consignments"   element={<Suspense fallback={<PageLoader />}><ConsignmentManager /></Suspense>} />
           <Route path="flipkart/returns"        element={<Suspense fallback={<PageLoader />}><ReturnsManagement /></Suspense>} />
           <Route path="flipkart/sales-dashboard" element={<Suspense fallback={<PageLoader />}><SalesDashboard /></Suspense>} />
+          <Route path="flipkart/sales-reports"  element={<Suspense fallback={<PageLoader />}><SalesReports /></Suspense>} />
           <Route path="flipkart/valuation"      element={<Suspense fallback={<PageLoader />}><StockValuation /></Suspense>} />
           <Route path="flipkart/listings"       element={<Suspense fallback={<PageLoader />}><Listings /></Suspense>} />
           <Route path="flipkart/upload"         element={<Suspense fallback={<PageLoader />}><UploadCenter /></Suspense>} />

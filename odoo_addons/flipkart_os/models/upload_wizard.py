@@ -176,31 +176,79 @@ class FlipkartUploadWizard(models.TransientModel):
             return_amount = self._safe_float(row.get('Return Amount'))
             final_sale_amount = self._safe_float(row.get('Final Sale Amount'))
 
+            seller_sku_str = str(
+                row.get('SKU Id') or row.get('SKU ID') or row.get('Seller SKU') or ''
+            ).strip()
             base_vals = {
                 'account_id': self.account_id.id,
-                'order_date': order_date, 'sku_id': product_id_str, 'location_id': str(row.get('Location Id') or '').strip(),
-                'fulfillment_type': str(row.get('Fulfillment Type') or '').strip(), 'category': str(row.get('Category') or '').strip(),
-                'brand': str(row.get('Brand') or '').strip(), 'vertical': str(row.get('Vertical') or '').strip(),
+                'order_date': order_date,
+                'sku_id': product_id_str,
+                'seller_sku': seller_sku_str,
+                'location_id': str(row.get('Location Id') or '').strip(),
+                'fulfillment_type': str(row.get('Fulfillment Type') or '').strip(),
+                'category': str(row.get('Category') or '').strip(),
+                'brand': str(row.get('Brand') or '').strip(),
+                'vertical': str(row.get('Vertical') or '').strip(),
             }
             
             main_product = MultiBarcode.search([('name', '=', product_id_str)], limit=1).product_id
             if not main_product:
-                base_vals.update({'product_id': False, 'gross_units': gross_units, 'gmv': gmv, 'cancellation_units': cancellation_units, 'cancel_amount': cancel_amount, 'return_units': return_units, 'return_amount': return_amount, 'final_sale_units': final_sale_units, 'final_sale_amount': final_sale_amount})
+                # No barcode mapping — store as unmapped FSN row
+                base_vals.update({
+                    'product_id': False, 'is_fsn_row': True,
+                    'gross_units': gross_units, 'gmv': gmv,
+                    'cancellation_units': cancellation_units, 'cancel_amount': cancel_amount,
+                    'return_units': return_units, 'return_amount': return_amount,
+                    'final_sale_units': final_sale_units, 'final_sale_amount': final_sale_amount,
+                })
                 Sales.create(base_vals); created += 1
                 continue
 
+            # ── FSN header row: kit product, original (non-multiplied) units ──
+            fsn_vals = base_vals.copy()
+            fsn_vals.update({
+                'product_id': main_product.id, 'is_fsn_row': True,
+                'gross_units': gross_units, 'gmv': gmv,
+                'cancellation_units': cancellation_units, 'cancel_amount': cancel_amount,
+                'return_units': return_units, 'return_amount': return_amount,
+                'final_sale_units': final_sale_units, 'final_sale_amount': final_sale_amount,
+            })
+            Sales.create(fsn_vals); created += 1
+
+            # ── BOM-exploded component rows (is_fsn_row=False) ──
+            # Only create these if the product has a phantom BOM.
             results_map = {}
             self._recursive_explode(main_product.id, 1.0, results_map)
-            for i, (comp_id, qty_mult) in enumerate(results_map.items()):
-                has_rev = (i == 0)
-                comp_vals = base_vals.copy()
-                comp_vals.update({
-                    'product_id': comp_id, 'gross_units': int(gross_units * qty_mult), 'gmv': gmv if has_rev else 0.0,
-                    'cancellation_units': int(cancellation_units * qty_mult), 'cancel_amount': cancel_amount if has_rev else 0.0,
-                    'return_units': int(return_units * qty_mult), 'return_amount': return_amount if has_rev else 0.0,
-                    'final_sale_units': int(final_sale_units * qty_mult), 'final_sale_amount': final_sale_amount if has_rev else 0.0,
-                })
-                Sales.create(comp_vals); created += 1
+            # If only one entry and it's the product itself (no BOM), skip component rows.
+            if not (len(results_map) == 1 and main_product.id in results_map and results_map[main_product.id] == 1.0):
+                for comp_id, qty_mult in results_map.items():
+                    comp_vals = base_vals.copy()
+                    comp_vals.update({
+                        'product_id': comp_id, 'is_fsn_row': False,
+                        'gross_units': int(gross_units * qty_mult),
+                        'gmv': 0.0, 'cancellation_units': int(cancellation_units * qty_mult),
+                        'cancel_amount': 0.0, 'return_units': int(return_units * qty_mult),
+                        'return_amount': 0.0,
+                        'final_sale_units': int(final_sale_units * qty_mult), 'final_sale_amount': 0.0,
+                    })
+                    Sales.create(comp_vals); created += 1
+
+        # Auto-push the just-uploaded sales into native Odoo sale orders so they
+        # appear in the standard Sales dashboard immediately. resync=True so a
+        # re-upload (e.g. month-end re-evaluation) replaces existing orders for
+        # this exact range. The daily cron remains a catch-all. Never blocks the
+        # upload if the sync hits a problem.
+        if self.account_id and self.account_id.name != 'Odoo Store':
+            try:
+                self.env['flipkart.odoo.sales.sync'].create({
+                    'account_ids': [(6, 0, [self.account_id.id])],
+                    'date_from': self.sales_start_date,
+                    'date_to': self.sales_end_date,
+                    'resync': True,
+                }).action_sync()
+            except Exception:
+                _logger.exception("Auto-sync to Odoo sales failed after sales upload")
+
         return self._notification("Sales Upload", _("Processed %d records.") % created)
 
     def _parse_date_value(self, val):

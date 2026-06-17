@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ═══ Actions (defined first so views can reference them) ═══ -->
+    <record id="action_flipkart_fbf_replenishment" model="ir.actions.act_window">
+        <field name="name">FBF Replenishment</field>
+        <field name="res_model">flipkart.fbf.replenishment</field>
+        <field name="view_mode">list</field>
+        <field name="context">{"search_default_filter_needs_action": 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No recommendations. Click "Generate FBF Recs" to calculate.</p>
+        </field>
+    </record>
+
+    <record id="action_flipkart_fbf_replenishment_generate" model="ir.actions.act_window">
+        <field name="name">Generate FBF Recommendations</field>
+        <field name="res_model">flipkart.fbf.replenishment.generate</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
     <!-- ═══ FBF Replenishment — Editable List ═══ -->
     <record id="view_flipkart_fbf_replenishment_list" model="ir.ui.view">
         <field name="name">flipkart.fbf.replenishment.list</field>
@@ -71,25 +89,6 @@
                 </footer>
             </form>
         </field>
-    </record>
-
-    <!-- ═══ Actions ═══ -->
-    <record id="action_flipkart_fbf_replenishment" model="ir.actions.act_window">
-        <field name="name">FBF Replenishment</field>
-        <field name="res_model">flipkart.fbf.replenishment</field>
-        <field name="view_mode">list</field>
-        <field name="search_view_id" ref="view_flipkart_fbf_replenishment_search"/>
-        <field name="context">{'search_default_filter_needs_action': 1}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">No recommendations. Click "Generate FBF Recs" to calculate.</p>
-        </field>
-    </record>
-
-    <record id="action_flipkart_fbf_replenishment_generate" model="ir.actions.act_window">
-        <field name="name">Generate FBF Recommendations</field>
-        <field name="res_model">flipkart.fbf.replenishment.generate</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
     </record>
 
 </odoo>

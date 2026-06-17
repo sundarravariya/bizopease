@@ -1,7 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ═══ Sales — Graph ═══ -->
+    <!-- ═══ FSN-Wise List (one row per Flipkart FSN, original kit units) ═══ -->
+    <record id="view_flipkart_sales_fsn_list" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.fsn.list</field>
+        <field name="model">flipkart.sales.dashboard</field>
+        <field name="arch" type="xml">
+            <list string="Sales by FSN" create="0" decoration-muted="final_sale_units == 0">
+                <field name="order_date"/>
+                <field name="account_id" optional="show"/>
+                <field name="sku_id" string="FSN"/>
+                <field name="seller_sku" string="SKU ID"/>
+                <field name="fulfillment_type" optional="show"/>
+                <field name="category" optional="hide"/>
+                <field name="gross_units" sum="Total Gross"/>
+                <field name="cancellation_units" sum="Total Cancelled" optional="hide"/>
+                <field name="return_units" sum="Total Returns" optional="hide"/>
+                <field name="final_sale_units" sum="Total Final Units"/>
+                <field name="gmv" sum="GMV" optional="hide"/>
+                <field name="return_amount" sum="Return Amount" optional="hide"/>
+                <field name="cancel_amount" sum="Cancel Amount" optional="hide"/>
+                <field name="final_sale_amount" sum="Total Amount"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Product / BOM-Exploded Component List ═══ -->
+    <record id="view_flipkart_sales_product_list" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.product.list</field>
+        <field name="model">flipkart.sales.dashboard</field>
+        <field name="arch" type="xml">
+            <list string="Sales by Component (BOM Exploded)" create="0"
+                  decoration-muted="final_sale_units == 0">
+                <field name="order_date" optional="show"/>
+                <field name="account_id" optional="show"/>
+                <field name="sku_id" string="FSN" optional="show"/>
+                <field name="product_id" string="Component / Product"/>
+                <field name="fulfillment_type" optional="hide"/>
+                <field name="gross_units" sum="Total Gross"/>
+                <field name="final_sale_units" sum="Total Units"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Graph ═══ -->
     <record id="view_flipkart_sales_graph" model="ir.ui.view">
         <field name="name">flipkart.sales.dashboard.graph</field>
         <field name="model">flipkart.sales.dashboard</field>
@@ -9,38 +51,35 @@
             <graph string="Sales Trends" type="line">
                 <field name="order_date" type="row" interval="day"/>
                 <field name="final_sale_units" type="measure"/>
+                <field name="final_sale_amount" type="measure"/>
             </graph>
         </field>
     </record>
 
-    <!-- ═══ Sales — List ═══ -->
-    <record id="view_flipkart_sales_list" model="ir.ui.view">
-        <field name="name">flipkart.sales.dashboard.list</field>
+    <!-- ═══ Pivot ═══ -->
+    <record id="view_flipkart_sales_pivot" model="ir.ui.view">
+        <field name="name">flipkart.sales.dashboard.pivot</field>
         <field name="model">flipkart.sales.dashboard</field>
         <field name="arch" type="xml">
-            <list string="Sales Data" create="0" decoration-muted="final_sale_units == 0">
-                <field name="order_date"/>
-                <field name="partner_id" optional="show"/>
-                <field name="order_number" optional="show"/>
-                <field name="product_id"/>
-                <field name="sku_id"/>
-                <field name="fulfillment_type"/>
-                <field name="gross_units" sum="Total"/>
-                <field name="final_sale_units" sum="Total Units"/>
-                <field name="final_sale_amount" sum="Total Amount"/>
-            </list>
+            <pivot string="Sales Pivot" disable_linking="True">
+                <field name="account_id" type="row"/>
+                <field name="product_id" type="row"/>
+                <field name="final_sale_units" type="measure"/>
+                <field name="final_sale_amount" type="measure"/>
+            </pivot>
         </field>
     </record>
 
-    <!-- ═══ Sales — Search ═══ -->
+    <!-- ═══ Search ═══ -->
     <record id="view_flipkart_sales_search" model="ir.ui.view">
         <field name="name">flipkart.sales.dashboard.search</field>
         <field name="model">flipkart.sales.dashboard</field>
         <field name="arch" type="xml">
             <search string="Search Sales">
-                    <field name="account_id"/>
+                <field name="account_id"/>
                 <field name="product_id"/>
-                <field name="sku_id"/>
+                <field name="sku_id" string="SKU ID (Flipkart)"/>
+                <field name="sku_code" string="Internal Code"/>
                 <field name="brand"/>
                 <field name="category"/>
                 <filter string="Last 7 Days" name="last_7_days"
@@ -50,24 +89,62 @@
                 <filter string="Current Month" name="current_month"
                         domain="[('order_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
                 <separator/>
+                <filter string="FSN Rows Only" name="filter_fsn"
+                        domain="[('is_fsn_row', '=', True)]"/>
+                <filter string="BOM Components Only" name="filter_component"
+                        domain="[('is_fsn_row', '=', False)]"/>
+                <separator/>
                 <group expand="0" string="Group By">
                     <filter name="group_account" string="Account" context="{'group_by':'account_id'}"/>
-                    <filter name="group_customer" string="Customer" context="{'group_by':'partner_id'}"/>
-                    <filter name="group_product" string="Product" context="{'group_by':'product_id'}"/>
+                    <filter name="group_product" string="Product / Component" context="{'group_by':'product_id'}"/>
+                    <filter name="group_sku" string="FSN" context="{'group_by':'sku_id'}"/>
                     <filter name="group_date" string="Date" context="{'group_by':'order_date:day'}"/>
+                    <filter name="group_week" string="Week" context="{'group_by':'order_date:week'}"/>
                     <filter name="group_fulfillment" string="Fulfillment" context="{'group_by':'fulfillment_type'}"/>
+                    <filter name="group_category" string="Category" context="{'group_by':'category'}"/>
                 </group>
             </search>
         </field>
     </record>
 
-    <!-- ═══ Sales Performance — Action ═══ -->
+    <!-- ═══ Action: Sales by FSN ═══ -->
+    <record id="action_flipkart_sales_by_fsn" model="ir.actions.act_window">
+        <field name="name">Sales by FSN</field>
+        <field name="res_model">flipkart.sales.dashboard</field>
+        <field name="view_mode">list,graph,pivot</field>
+        <field name="views" eval="[
+            (ref('view_flipkart_sales_fsn_list'), 'list'),
+            (ref('view_flipkart_sales_graph'), 'graph'),
+            (ref('view_flipkart_sales_pivot'), 'pivot'),
+        ]"/>
+        <field name="search_view_id" ref="view_flipkart_sales_search"/>
+        <field name="domain">[('is_fsn_row', '=', True)]</field>
+        <field name="context">{'search_default_last_30_days': 1}</field>
+    </record>
+
+    <!-- ═══ Action: Sales by Product / BOM Component ═══ -->
+    <record id="action_flipkart_sales_by_product" model="ir.actions.act_window">
+        <field name="name">Sales by Product (BOM Exploded)</field>
+        <field name="res_model">flipkart.sales.dashboard</field>
+        <field name="view_mode">list,graph,pivot</field>
+        <field name="views" eval="[
+            (ref('view_flipkart_sales_product_list'), 'list'),
+            (ref('view_flipkart_sales_graph'), 'graph'),
+            (ref('view_flipkart_sales_pivot'), 'pivot'),
+        ]"/>
+        <field name="search_view_id" ref="view_flipkart_sales_search"/>
+        <field name="domain">[('is_fsn_row', '=', False)]</field>
+        <field name="context">{'search_default_last_30_days': 1, 'search_default_group_product': 1}</field>
+    </record>
+
+    <!-- Legacy action kept for backwards compatibility with existing menu refs -->
     <record id="action_flipkart_sales_dashboard" model="ir.actions.act_window">
         <field name="name">Sales Performance</field>
         <field name="res_model">flipkart.sales.dashboard</field>
         <field name="view_mode">list,graph</field>
         <field name="search_view_id" ref="view_flipkart_sales_search"/>
-        <field name="context">{'search_default_last_30_days': 1, 'search_default_group_product': 1}</field>
+        <field name="domain">[('is_fsn_row', '=', True)]</field>
+        <field name="context">{'search_default_last_30_days': 1, 'search_default_group_sku': 1}</field>
     </record>
 
 </odoo>

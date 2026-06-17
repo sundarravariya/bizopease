@@ -46,8 +46,7 @@ export default function SupplierReorders() {
   const [actionRequiredOnly, setActionRequiredOnly] = useState(false);
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'critical' | 'moderate' | 'healthy'>('all');
 
-  useEffect(() => { fetchWarehouses(); }, []);
-  useEffect(() => { if (selectedWhId) fetchRecommendations(); else setItems([]); }, [selectedWhId]);
+  useEffect(() => { fetchWarehouses(); fetchRecommendations(); }, []);
 
   const fetchWarehouses = async () => {
     try {
@@ -190,13 +189,6 @@ export default function SupplierReorders() {
           <p className={`text-xs mt-1 ${st}`}>Cash-efficient purchasing recommendations to maintain 30-day stock cover.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={selectedWhId}
-            onChange={e => setSelectedWhId(Number(e.target.value))}
-            className={`input text-xs py-1.5 px-3 ${isDark ? 'bg-[#0f1420] border-[#2a3250] text-white' : ''}`}
-          >
-            {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-          </select>
           <button onClick={fetchRecommendations} disabled={loading} className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Sync
           </button>

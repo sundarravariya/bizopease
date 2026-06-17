@@ -94,6 +94,7 @@ export default function ConsignmentManager() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ account: 'robifel', warehouse_id: 0, pickup_date: new Date().toISOString().slice(0, 10), name: '' });
+  const [createCsvFile, setCreateCsvFile] = useState<File | null>(null);
   // New inline box editor state
   const [showBoxEditor, setShowBoxEditor] = useState(false);
   const [boxEditorForm, setBoxEditorForm] = useState({ name: 'Box 1', length: '', breadth: '', height: '', weight: '' });
@@ -261,11 +262,10 @@ export default function ConsignmentManager() {
       limit: 1,
     });
     if (!records.length || !records[0].datas) throw new Error('Print data not found on server');
-    const tsplContent = atob(records[0].datas);
     await connectQz();
     const qz = getQz();
     const config = qz.configs.create(qzPrinter);
-    await qz.print(config, [{ type: 'raw', format: 'plain', data: tsplContent }]);
+    await qz.print(config, [{ type: 'raw', format: 'base64', data: records[0].datas }]);
   };
 
   const handleGenerateBarcodes = async (id: number) => {
@@ -500,14 +500,31 @@ export default function ConsignmentManager() {
     }
     setCreating(true);
     try {
-      await createRecord('flipkart.consignment', {
+      const newId = await createRecord('flipkart.consignment', {
         name: form.name,
         account: form.account,
         warehouse_id: form.warehouse_id,
         pickup_date: form.pickup_date,
       });
-      showMsg(true, 'Consignment created — packing tasks assigned');
+      if (createCsvFile && newId) {
+        await new Promise<void>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const b64 = (reader.result as string).split(',')[1];
+            try {
+              await writeRecord('flipkart.consignment', [newId as number], { csv_file: b64, csv_file_name: createCsvFile.name });
+              await odooCall('flipkart.consignment', 'action_parse_csv', [[newId as number]], {});
+              resolve();
+            } catch (err) { reject(err); }
+          };
+          reader.readAsDataURL(createCsvFile);
+        });
+        showMsg(true, 'Consignment created with CSV lines loaded');
+      } else {
+        showMsg(true, 'Consignment created — packing tasks assigned');
+      }
       setShowCreate(false);
+      setCreateCsvFile(null);
       autoCreatePackingTasks(form.name, form.account, form.pickup_date);
       await sync();
     } catch (e: any) {
@@ -1212,9 +1229,16 @@ export default function ConsignmentManager() {
                 <input type="date" className={`input ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`}
                   value={form.pickup_date} onChange={e => setForm(f => ({ ...f, pickup_date: e.target.value }))} />
               </div>
+              <div>
+                <label className="label">Upload CSV (optional)</label>
+                <input type="file" accept=".csv"
+                  className={`input text-xs py-1.5 cursor-pointer ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`}
+                  onChange={e => setCreateCsvFile(e.target.files?.[0] ?? null)} />
+                {createCsvFile && <p className={`text-[10px] mt-1 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{createCsvFile.name}</p>}
+              </div>
             </div>
             <div className={`flex justify-end gap-2 px-5 pb-5`}>
-              <button onClick={() => setShowCreate(false)} className="btn-secondary text-xs px-4 py-2">Cancel</button>
+              <button onClick={() => { setShowCreate(false); setCreateCsvFile(null); }} className="btn-secondary text-xs px-4 py-2">Cancel</button>
               <button onClick={doCreate} disabled={creating} className="btn-primary text-xs px-4 py-2">
                 {creating ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
                 Create

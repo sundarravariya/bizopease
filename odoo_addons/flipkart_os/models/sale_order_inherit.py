@@ -5,9 +5,18 @@ from odoo import models, fields
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
+    # Marks orders created by the Flipkart → Odoo sales sync. These are pure
+    # reporting mirrors of Flipkart sales: NO stock moves, NO invoices, and they
+    # must NOT be re-pushed back into the Flipkart dashboard (would double-count).
+    is_flipkart_sync = fields.Boolean(string='Flipkart Synced Order', default=False, index=True)
+
     def action_confirm(self):
         res = super(SaleOrder, self).action_confirm()
         for order in self:
+            # Flipkart-synced orders are reporting-only: skip delivery validation,
+            # invoicing, and the reverse dashboard push entirely.
+            if order.is_flipkart_sync:
+                continue
             # 1. Force MAIN warehouse on all stock moves
             main_wh = self.env['stock.warehouse'].search([('code', '=', 'MAIN')], limit=1)
             if main_wh:
@@ -66,6 +75,10 @@ class SaleOrder(models.Model):
             pass  # Don't block confirmation if invoice auto-creation fails
 
     def _sync_to_flipkart_dashboard(self):
+        # Never mirror a Flipkart-synced order back into the dashboard — its sales
+        # are already represented there (this would create "Odoo Store" duplicates).
+        if self.is_flipkart_sync:
+            return
         Dashboard = self.env['flipkart.sales.dashboard']
         Account = self.env['flipkart.account']
 

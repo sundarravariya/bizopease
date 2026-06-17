@@ -22,6 +22,7 @@ access_flipkart_daily_order,flipkart.daily.order,model_flipkart_daily_order,base
 access_flipkart_daily_order_upload,flipkart.daily.order.upload,model_flipkart_daily_order_upload,base.group_user,1,1,1,1
 access_flipkart_return_management,flipkart.return.management,model_flipkart_return_management,base.group_user,1,1,1,1
 access_flipkart_return_scan_wizard,flipkart.return.scan.wizard,model_flipkart_return_scan_wizard,base.group_user,1,1,1,1
+access_flipkart_return_scan_line,flipkart.return.scan.line,model_flipkart_return_scan_line,base.group_user,1,1,1,1
 access_flipkart_return_upload,flipkart.return.upload,model_flipkart_return_upload,base.group_user,1,1,1,1
 access_flipkart_carrying_agent,flipkart.carrying.agent,model_flipkart_carrying_agent,base.group_user,1,1,1,1
 access_flipkart_agent_ledger,flipkart.agent.ledger,model_flipkart_agent_ledger,base.group_user,1,1,1,1
@@ -47,3 +48,5 @@ access_flipkart_ai_proposed_action,flipkart.ai.proposed.action,model_flipkart_ai
 access_robifel_task,robifel.task,model_robifel_task,base.group_user,1,1,1,1
 access_flipkart_expense,flipkart.expense,model_flipkart_expense,base.group_user,1,1,1,1
 access_flipkart_owner,flipkart.owner,model_flipkart_owner,base.group_user,1,1,1,1
+access_flipkart_odoo_sales_sync,flipkart.odoo.sales.sync,model_flipkart_odoo_sales_sync,base.group_user,1,1,1,1
+access_flipkart_sales_period_report,flipkart.sales.period.report,model_flipkart_sales_period_report,base.group_user,1,1,1,1

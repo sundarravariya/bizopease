@@ -6,7 +6,7 @@ import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import { downloadOdooReport, REPORTS } from '../../../utils/odooReports';
 import {
   Plus, RefreshCw, Search, Eye, CheckCircle2, Clock,
-  AlertCircle, X, FileText, FileDown, DollarSign, TrendingUp, Send, Trash2
+  AlertCircle, X, FileText, FileDown, DollarSign, TrendingUp, Send, Trash2, RotateCcw
 } from 'lucide-react';
 
 interface Invoice {
@@ -85,11 +85,25 @@ export default function Invoices() {
   const [prodSearch, setProdSearch] = useState('');
   const [activeProdLine, setActiveProdLine] = useState<number | null>(null);
 
+  // Detail modal lines
+  const [detailLines, setDetailLines] = useState<{ product_id: [number, string] | false; name: string; quantity: number; price_unit: number; price_subtotal: number }[]>([]);
+  const [loadingLines, setLoadingLines] = useState(false);
+
   // Payment form
   const [payForm, setPayForm] = useState({ amount: '', payment_date: new Date().toISOString().slice(0, 10), journal_id: '' as number | '' });
   const [payJournals, setPayJournals] = useState<Journal[]>([]);
 
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 5000); };
+
+  useEffect(() => {
+    if (!selectedInv) { setDetailLines([]); return; }
+    setLoadingLines(true);
+    searchRead<any>('account.move.line', {
+      domain: [['move_id', '=', selectedInv.id], ['display_type', '=', 'product']],
+      fields: ['product_id', 'name', 'quantity', 'price_unit', 'price_subtotal'],
+      limit: 0,
+    }).then(r => setDetailLines(Array.isArray(r) ? r : [])).catch(() => {}).finally(() => setLoadingLines(false));
+  }, [selectedInv]);
 
   const syncData = async () => {
     setLoading(true);
@@ -351,6 +365,12 @@ export default function Invoices() {
                             <Send size={13} />
                           </button>
                         )}
+                        {inv.state === 'posted' && (
+                          <button onClick={async () => { try { await odooCall('account.move', 'button_draft', [[inv.id]], {}); syncData(); showMsg(true, 'Reset to draft.'); } catch (e: any) { showMsg(false, e.message); } }}
+                            className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-amber-500/10 text-amber-400' : 'hover:bg-amber-50 text-amber-600'}`} title="Reset to Draft">
+                            <RotateCcw size={13} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -366,6 +386,22 @@ export default function Invoices() {
           </div>
         )}
       </div>
+
+      {selIds.size > 0 && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border bg-amber-500/10 border-amber-500/20 backdrop-blur-sm">
+          <RotateCcw size={14} className="text-amber-400" />
+          <span className="text-sm font-semibold text-amber-400">{selIds.size} selected</span>
+          <button
+            className="btn-primary text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-400 border-0"
+            onClick={async () => {
+              try {
+                await odooCall('account.move', 'button_draft', [Array.from(selIds)], {});
+                setSelIds(new Set()); syncData(); showMsg(true, 'Reset to draft.');
+              } catch (e: any) { showMsg(false, e.message); }
+            }}
+          >Reset to Draft</button>
+        </div>
+      )}
 
       <BulkDeleteBar model="account.move" label="invoice" ids={Array.from(selIds)}
         onClear={() => setSelIds(new Set())} onDeleted={() => { setSelIds(new Set()); syncData(); }} />
@@ -400,6 +436,40 @@ export default function Invoices() {
               <div className="flex items-center gap-3">
                 <span className={PAY_CFG[selectedInv.payment_state]?.badge || 'badge-gray'}>{PAY_CFG[selectedInv.payment_state]?.label}</span>
               </div>
+
+              {/* Invoice Lines */}
+              <div>
+                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${st}`}>Products</p>
+                {loadingLines ? (
+                  <div className="flex items-center gap-2 py-3"><RefreshCw size={14} className="animate-spin text-violet-400" /><span className={`text-xs ${st}`}>Loading…</span></div>
+                ) : detailLines.length === 0 ? (
+                  <p className={`text-xs ${st}`}>No line items.</p>
+                ) : (
+                  <div className={`rounded-xl border overflow-hidden ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+                    <table className="w-full text-xs">
+                      <thead className={`${isDark ? 'bg-[#1e2440] text-[#5a6a8a]' : 'bg-gray-50 text-gray-500'}`}>
+                        <tr>
+                          <th className="text-left px-3 py-2">Product</th>
+                          <th className="text-right px-3 py-2">Qty</th>
+                          <th className="text-right px-3 py-2">Unit Price</th>
+                          <th className="text-right px-3 py-2">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailLines.map((ln, i) => (
+                          <tr key={i} className={`border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+                            <td className={`px-3 py-2 ${pt}`}>{Array.isArray(ln.product_id) ? ln.product_id[1] : ln.name}</td>
+                            <td className={`px-3 py-2 text-right ${st}`}>{ln.quantity}</td>
+                            <td className={`px-3 py-2 text-right ${st}`}>₹{ln.price_unit.toLocaleString('en-IN')}</td>
+                            <td className={`px-3 py-2 text-right font-semibold ${pt}`}>₹{ln.price_subtotal.toLocaleString('en-IN')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
               {selectedInv.narration && <p className={`text-xs ${st}`}>{selectedInv.narration}</p>}
               {selectedInv.payment_state !== 'paid' && selectedInv.state === 'posted' && (
                 <button onClick={() => { setPayModal(selectedInv); setPayForm(f => ({ ...f, amount: selectedInv.amount_residual.toString() })); setSelectedInv(null); }} className="w-full btn-primary justify-center py-2.5">

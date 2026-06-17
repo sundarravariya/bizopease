@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react';
-import { searchRead, odooCall, createRecord } from '../../../services/odoo';
+import { searchRead, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import {
@@ -34,6 +34,14 @@ interface ReturnRecord {
   selected: boolean;
 }
 
+interface WizComponent {
+  product_id: number;
+  name: string;
+  default_code: string;
+  qty: number;
+  selected: boolean;
+}
+
 interface Account { id: number; name: string; }
 
 const STATE_META: Record<string, { label: string; cls: string }> = {
@@ -63,6 +71,7 @@ export default function ReturnsManagement() {
   const [wizOpen, setWizOpen] = useState(false);
   const [wizTracking, setWizTracking] = useState('');
   const [wizMatch, setWizMatch] = useState<ScanMatch | null | undefined>(undefined); // undefined=idle, null=not found
+  const [wizComponents, setWizComponents] = useState<WizComponent[]>([]); // exploded leaves w/ checkboxes
   const [wizBusy, setWizBusy] = useState(false);
   const [wizStats, setWizStats] = useState({ inwarded: 0, rejected: 0 });
   const wizInputRef = useRef<HTMLInputElement>(null);
@@ -127,12 +136,12 @@ export default function ReturnsManagement() {
 
   // ── Scan wizard ─────────────────────────────────────────────────────────────
   const openWizard = () => {
-    setWizOpen(true); setWizTracking(''); setWizMatch(undefined); setWizStats({ inwarded: 0, rejected: 0 });
+    setWizOpen(true); setWizTracking(''); setWizMatch(undefined); setWizComponents([]); setWizStats({ inwarded: 0, rejected: 0 });
     setTimeout(() => wizInputRef.current?.focus(), 80);
   };
 
   const resetScan = () => {
-    setWizTracking(''); setWizMatch(undefined);
+    setWizTracking(''); setWizMatch(undefined); setWizComponents([]);
     setTimeout(() => wizInputRef.current?.focus(), 50);
   };
 
@@ -140,7 +149,7 @@ export default function ReturnsManagement() {
     e?.preventDefault();
     const tid = wizTracking.trim();
     if (!tid) return;
-    setWizBusy(true); setWizMatch(undefined);
+    setWizBusy(true); setWizMatch(undefined); setWizComponents([]);
     try {
       const [rec] = await searchRead<ScanMatch>('flipkart.return.management', {
         domain: [['tracking_id', '=', tid], ['state', '=', 'draft']],
@@ -148,18 +157,44 @@ export default function ReturnsManagement() {
         limit: 1,
       });
       setWizMatch(rec || null);
+      if (rec) {
+        // Explode kit/BOM (incl. nested) into leaf components, all checked by default.
+        try {
+          const comps = await odooCall<WizComponent[]>('flipkart.return.management', 'get_inward_components', [[rec.id]], {});
+          setWizComponents(Array.isArray(comps) ? comps.map(c => ({ ...c, selected: true })) : []);
+        } catch { setWizComponents([]); }
+      }
     } catch (err: any) { showMsg(false, err?.message || 'Lookup failed'); setWizMatch(null); }
     finally { setWizBusy(false); }
   };
 
-  // Uses the real flipkart.return.scan.wizard so backend logic stays identical.
-  const wizAct = async (method: 'action_confirm_and_next' | 'action_reject_and_next') => {
+  const toggleComponent = (pid: number) =>
+    setWizComponents(prev => prev.map(c => c.product_id === pid ? { ...c, selected: !c.selected } : c));
+
+  // Multi-component kit → partial inward of the checked leaves. Otherwise full inward.
+  const isKit = wizComponents.length > 1;
+  const selectedComponents = wizComponents.filter(c => c.selected);
+
+  const wizConfirm = async () => {
+    if (!wizMatch) return;
+    if (isKit && selectedComponents.length === 0) { showMsg(false, 'Select at least one component to inward.'); return; }
+    setWizBusy(true);
+    try {
+      await odooCall('flipkart.return.management', 'action_inward_components',
+        [[wizMatch.id], selectedComponents.map(c => ({ product_id: c.product_id, qty: c.qty }))], {});
+      setWizStats(s => ({ ...s, inwarded: s.inwarded + 1 }));
+      resetScan();
+      sync();
+    } catch (err: any) { showMsg(false, err?.message || 'Inward failed'); }
+    finally { setWizBusy(false); }
+  };
+
+  const wizReject = async () => {
     if (!wizMatch) return;
     setWizBusy(true);
     try {
-      const wid = await createRecord('flipkart.return.scan.wizard', { tracking_id: wizMatch.tracking_id });
-      await odooCall('flipkart.return.scan.wizard', method, [[wid]], {});
-      setWizStats(s => method === 'action_confirm_and_next' ? { ...s, inwarded: s.inwarded + 1 } : { ...s, rejected: s.rejected + 1 });
+      await odooCall('flipkart.return.management', 'action_reject', [[wizMatch.id]], {});
+      setWizStats(s => ({ ...s, rejected: s.rejected + 1 }));
       resetScan();
       sync();
     } catch (err: any) { showMsg(false, err?.message || 'Action failed'); }
@@ -459,11 +494,41 @@ export default function ReturnsManagement() {
                     <div><span className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}>SKU:</span> {wizMatch.sku || '--'}</div>
                     {wizMatch.return_reason && <div className="col-span-2"><span className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}>Reason:</span> {wizMatch.return_reason}</div>}
                   </div>
+
+                  {/* Kit components — tick the ones to inward (partial inward) */}
+                  {isKit && (
+                    <div className={`mt-3 rounded-xl border ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
+                      <div className={`px-3 py-2 flex items-center justify-between border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+                        <span className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-[#8897b5]' : 'text-gray-500'}`}>
+                          Kit Components ({selectedComponents.length}/{wizComponents.length})
+                        </span>
+                        <button type="button"
+                          onClick={() => { const all = wizComponents.every(c => c.selected); setWizComponents(prev => prev.map(c => ({ ...c, selected: !all }))); }}
+                          className="text-[11px] font-semibold text-[#7367f0]">
+                          {wizComponents.every(c => c.selected) ? 'Clear all' : 'Select all'}
+                        </button>
+                      </div>
+                      <div className="max-h-44 overflow-y-auto divide-y divide-[#2a3250]/40">
+                        {wizComponents.map(c => (
+                          <label key={c.product_id}
+                            className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${c.selected ? '' : 'opacity-50'} ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                            <input type="checkbox" checked={c.selected} onChange={() => toggleComponent(c.product_id)}
+                              className="rounded border-[#2a3250] accent-[#7367f0]" />
+                            <span className={`flex-1 text-xs truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={c.name}>
+                              {c.default_code ? <span className="font-mono text-[#7367f0]">[{c.default_code}] </span> : null}{c.name}
+                            </span>
+                            <span className={`text-[11px] font-semibold ${isDark ? 'text-[#8897b5]' : 'text-gray-500'}`}>×{c.qty}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2 mt-3">
-                    <button onClick={() => wizAct('action_confirm_and_next')} disabled={wizBusy} className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                      {wizBusy ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={15} />} Confirm Inward
+                    <button onClick={wizConfirm} disabled={wizBusy || (isKit && selectedComponents.length === 0)} className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                      {wizBusy ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={15} />} {isKit ? `Inward ${selectedComponents.length} item${selectedComponents.length === 1 ? '' : 's'}` : 'Confirm Inward'}
                     </button>
-                    <button onClick={() => wizAct('action_reject_and_next')} disabled={wizBusy} className="flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 border border-rose-500/40 text-rose-400 disabled:opacity-50">
+                    <button onClick={wizReject} disabled={wizBusy} className="flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 border border-rose-500/40 text-rose-400 disabled:opacity-50">
                       <Ban size={15} /> Reject
                     </button>
                   </div>

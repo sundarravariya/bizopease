@@ -18,7 +18,7 @@ const MODULE_BY_ID: Record<string, string> = {
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse,
   DollarSign, Users, Settings, ChevronDown, ChevronRight,
-  Zap, BarChart2, TrendingUp, AlertTriangle, Truck,
+  Zap, BarChart2, TrendingUp, TrendingDown, AlertTriangle, Truck,
   FileText, UserCheck, Brain, Globe, PieChart,
   RefreshCcw, ScanLine, PackageSearch, CreditCard,
   Building2, Receipt, ClipboardList, Contact2,
@@ -104,6 +104,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'deadstock', label: 'Dead Stock', icon: AlertTriangle, path: '/flipkart/deadstock' },
       { id: 'supplier-reorder', label: 'Supplier Reorders', icon: RefreshCcw, path: '/flipkart/supplier' },
       { id: 'sales-dash', label: 'Sales Dashboard', icon: BarChart2, path: '/flipkart/sales-dashboard' },
+      { id: 'sales-reports', label: 'Sales Reports', icon: TrendingDown, path: '/flipkart/sales-reports' },
       { id: 'valuation', label: 'Stock Valuation', icon: DollarSign, path: '/flipkart/valuation' },
       { id: 'listings', label: 'Listings Master', icon: Layers, path: '/flipkart/listings' },
       { id: 'ledger', label: 'Unified Ledger', icon: BookOpen, path: '/flipkart/ledger' },

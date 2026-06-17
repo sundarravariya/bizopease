@@ -39,6 +39,8 @@
         'views/partner_ledger_views.xml',
         'views/bill_payment_views.xml',
         'views/unified_ledger_views.xml',
+        'views/flipkart_odoo_sync_views.xml',
+        'views/sales_report_views.xml',
         'views/menus.xml',
     ],
     'assets': {

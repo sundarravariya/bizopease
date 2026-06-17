@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { searchRead, searchCount, readGroup, getSum } from '../../services/odoo';
@@ -61,6 +62,9 @@ const STATE_MAP: Record<string, { label: string; cls: string }> = {
 export default function Dashboard() {
   const { isDark } = useTheme();
   const { user } = useAuth();
+  // App routes are nested under /:workspace — prefix quick-action links so they resolve.
+  const { workspace } = useParams();
+  const ws = workspace || user?.db || 'robifel';
 
   const [kpis, setKpis] = useState({ sales: 0, purchase: 0, invoices: 0, products: 0, revenue: 0, receivable: 0 });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -390,16 +394,16 @@ export default function Dashboard() {
             <h3 className={`font-bold text-sm mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Quick Actions</h3>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: 'New Order', icon: ShoppingCart, color: '#7367f0', href: '/sales/orders' },
-                { label: 'FBF Report', icon: Zap, color: '#06b6d4', href: '/flipkart/fbf' },
-                { label: 'New Invoice', icon: FileText, color: '#f59e0b', href: '/accounting/invoices' },
-                { label: 'Dead Stock', icon: TrendingUp, color: '#10b981', href: '/flipkart/deadstock' },
+                { label: 'New Order', icon: ShoppingCart, color: '#7367f0', path: '/sales/orders' },
+                { label: 'FBF Report', icon: Zap, color: '#06b6d4', path: '/flipkart/fbf' },
+                { label: 'New Invoice', icon: FileText, color: '#f59e0b', path: '/accounting/invoices' },
+                { label: 'Dead Stock', icon: TrendingUp, color: '#10b981', path: '/flipkart/deadstock' },
               ].map(a => (
-                <a key={a.label} href={a.href}
+                <Link key={a.label} to={`/${ws}${a.path}`}
                   className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border text-xs font-medium transition-all hover:scale-[1.02] ${isDark ? 'border-[#2a3250] hover:border-[#7367f0]/50 hover:bg-[#7367f0]/5 text-gray-300' : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50 text-gray-600'}`}>
                   <a.icon size={18} style={{ color: a.color }} />
                   {a.label}
-                </a>
+                </Link>
               ))}
             </div>
           </div>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Wizard Form View -->
+    <record id="view_flipkart_odoo_sales_sync_form" model="ir.ui.view">
+        <field name="name">flipkart.odoo.sales.sync.form</field>
+        <field name="model">flipkart.odoo.sales.sync</field>
+        <field name="arch" type="xml">
+            <form string="Sync Flipkart Sales to Odoo">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>Sync Flipkart Sales to Native Odoo Sales Orders</h2>
+                        <p class="text-muted">
+                            Consolidates Flipkart sales into daily Sales Orders per account, making Flipkart performance visible in standard Odoo sales dashboards and reports.
+                        </p>
+                    </div>
+                    <group string="Date Range Selection">
+                        <label for="date_from" string="Period"/>
+                        <div class="o_row">
+                            <field name="date_from" class="oe_inline"/>
+                            <span class="o_side_by_side_text">to</span>
+                            <field name="date_to" class="oe_inline"/>
+                        </div>
+                    </group>
+                    <group string="Configuration">
+                        <field name="resync" string="Re-sync Existing Orders"/>
+                        <field name="account_ids" widget="many2many_tags"
+                               placeholder="Leave empty to sync all accounts"/>
+                    </group>
+                    <div class="alert alert-info" role="alert" style="margin-top: 15px;">
+                        <i class="fa fa-info-circle"/> Consolidation compiles all customer transactions for a day into a single consolidated Sales Order per account. This ensures extremely fast performance and keeps the main Odoo Sales dashboard clean.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_sync" type="object"
+                            string="Sync Sales Data" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action definition -->
+    <record id="action_flipkart_odoo_sync" model="ir.actions.act_window">
+        <field name="name">Push Sales → Odoo</field>
+        <field name="res_model">flipkart.odoo.sales.sync</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Scheduled Action (Cron) to auto-sync sales -->
+    <record id="ir_cron_flipkart_sales_sync" model="ir.cron">
+        <field name="name">Business OS: Auto-Sync Flipkart Sales to Odoo</field>
+        <field name="model_id" ref="model_flipkart_odoo_sales_sync"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_sync_sales()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="nextcall" eval="(datetime.now() + timedelta(days=1)).replace(hour=2, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+    </record>
+</odoo>

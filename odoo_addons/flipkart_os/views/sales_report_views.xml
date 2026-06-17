@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══ Period Comparison List ═══ -->
+    <record id="view_flipkart_sales_period_report_list" model="ir.ui.view">
+        <field name="name">flipkart.sales.period.report.list</field>
+        <field name="model">flipkart.sales.period.report</field>
+        <field name="arch" type="xml">
+            <list string="Sales Comparison" create="0" delete="0"
+                  decoration-danger="status == 'down' or status == 'stopped'"
+                  decoration-success="status == 'up' or status == 'new'"
+                  decoration-muted="status == 'flat'">
+                <field name="impact_score" string="Impact"/>
+                <field name="fsn"/>
+                <field name="seller_sku" string="SKU ID"/>
+                <field name="prev_units" sum="Last Period"/>
+                <field name="cur_units" sum="This Period"/>
+                <field name="delta_units" sum="Δ Units"/>
+                <field name="delta_amount" sum="Δ Amount" optional="show"/>
+                <field name="pct_change" string="% Change" widget="percentage" optional="show"/>
+                <field name="status" widget="badge"
+                       decoration-danger="status == 'down' or status == 'stopped'"
+                       decoration-success="status == 'up' or status == 'new'"
+                       decoration-muted="status == 'flat'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══ Graph ═══ -->
+    <record id="view_flipkart_sales_period_report_graph" model="ir.ui.view">
+        <field name="name">flipkart.sales.period.report.graph</field>
+        <field name="model">flipkart.sales.period.report</field>
+        <field name="arch" type="xml">
+            <graph string="Sales Comparison" type="bar">
+                <field name="fsn"/>
+                <field name="delta_units" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ═══ Search ═══ -->
+    <record id="view_flipkart_sales_period_report_search" model="ir.ui.view">
+        <field name="name">flipkart.sales.period.report.search</field>
+        <field name="model">flipkart.sales.period.report</field>
+        <field name="arch" type="xml">
+            <search string="Search Comparison">
+                <field name="fsn"/>
+                <field name="seller_sku" string="SKU ID"/>
+                <filter string="Needs Attention" name="filter_down" domain="[('status', 'in', ['down', 'stopped'])]"/>
+                <filter string="Performing Well" name="filter_up" domain="[('status', 'in', ['up', 'new'])]"/>
+                <separator/>
+                <group expand="1" string="Group By">
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══ Server actions: build + open weekly / monthly ═══ -->
+    <record id="action_flipkart_weekly_report" model="ir.actions.server">
+        <field name="name">Weekly Sales Report</field>
+        <field name="model_id" ref="model_flipkart_sales_period_report"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_weekly()</field>
+    </record>
+
+    <record id="action_flipkart_monthly_report" model="ir.actions.server">
+        <field name="name">Monthly Sales Report</field>
+        <field name="model_id" ref="model_flipkart_sales_period_report"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_monthly()</field>
+    </record>
+
+</odoo>

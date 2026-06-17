@@ -157,7 +157,7 @@ export default function DailyOrderScanner() {
   };
 
   const selected = () => items.filter(i => i.selected).map(i => i.id);
-  const handleSelectAll = (checked: boolean) => setItems(prev => prev.map(i => ({ ...i, selected: checked })));
+  const handleSelectAll = (checked: boolean) => setItems(prev => prev.map(i => i.state === tab ? { ...i, selected: checked } : i));
   const handleToggle = (id: number) => setItems(prev => prev.map(i => i.id === id ? { ...i, selected: !i.selected } : i));
 
   const pendingCount = items.filter(i => i.state === 'draft').length;

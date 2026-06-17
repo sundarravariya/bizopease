@@ -14,17 +14,47 @@
     <!-- 1. SALES ANALYTICS -->
     <menuitem id="menu_business_sales_analytics" name="Sales Analytics" parent="menu_flipkart_os_root" sequence="10"/>
     
+    <menuitem id="menu_business_sales_by_fsn"
+              name="Sales by FSN"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_sales_by_fsn"
+              sequence="10"/>
+
+    <menuitem id="menu_business_sales_by_product"
+              name="Sales by Product (BOM)"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_sales_by_product"
+              sequence="11"/>
+
     <menuitem id="menu_business_sales_performance"
-              name="Sales Performance"
+              name="Sales Performance (Legacy)"
               parent="menu_business_sales_analytics"
               action="action_flipkart_sales_dashboard"
-              sequence="10"/>
+              sequence="12"/>
+
+    <menuitem id="menu_business_weekly_report"
+              name="Weekly Sales Report"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_weekly_report"
+              sequence="13"/>
+
+    <menuitem id="menu_business_monthly_report"
+              name="Monthly Sales Report"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_monthly_report"
+              sequence="14"/>
 
     <menuitem id="menu_business_dead_stock"
               name="Dead Stock Analysis"
               parent="menu_business_sales_analytics"
               action="action_flipkart_dead_stock_generate"
               sequence="20"/>
+
+    <menuitem id="menu_business_odoo_sync"
+              name="Sync Flipkart → Odoo Sales"
+              parent="menu_business_sales_analytics"
+              action="action_flipkart_odoo_sync"
+              sequence="30"/>
 
     
 

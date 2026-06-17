@@ -15,7 +15,6 @@ interface ReorderRule {
   product_max_qty: number;
   qty_on_hand: number;
   qty_to_order: number;
-  lead_days: number;
 }
 
 interface Product { id: number; name: string; default_code: string; }
@@ -64,7 +63,7 @@ export default function Reordering() {
     try {
       const r = await searchRead<ReorderRule>('stock.warehouse.orderpoint', {
         domain: [],
-        fields: ['id', 'product_id', 'warehouse_id', 'location_id', 'product_min_qty', 'product_max_qty', 'qty_on_hand', 'qty_to_order', 'lead_days'],
+        fields: ['id', 'product_id', 'warehouse_id', 'location_id', 'product_min_qty', 'product_max_qty', 'qty_on_hand', 'qty_to_order'],
         limit: 0, order: 'id desc',
       });
       if (Array.isArray(r)) setRules(r);
@@ -267,7 +266,7 @@ export default function Reordering() {
                 <tr>
                   <th>Product</th><th>Warehouse</th>
                   <th className="text-right">On Hand</th><th className="text-right">Min Qty</th><th className="text-right">Max Qty</th>
-                  <th className="text-right">To Order</th><th className="text-right">Lead</th>
+                  <th className="text-right">To Order</th>
                   <th className="text-center">Urgency</th><th className="text-center">Actions</th>
                 </tr>
               </thead>
@@ -295,8 +294,7 @@ export default function Reordering() {
                       <td className={`text-right text-xs font-bold ${r.qty_to_order > 0 ? 'text-red-400' : 'text-green-400'}`}>
                         {r.qty_to_order > 0 ? r.qty_to_order : '--'}
                       </td>
-                      <td className={`text-right text-xs ${st}`}>{r.lead_days ? `${r.lead_days}d` : '--'}</td>
-                      <td className="text-center">
+<td className="text-center">
                         <span className={`badge ${URGENCY_BADGE[urgency]}`}>{URGENCY_LABEL[urgency]}</span>
                       </td>
                       <td className="text-center">

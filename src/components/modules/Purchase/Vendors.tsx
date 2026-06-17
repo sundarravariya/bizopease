@@ -3,7 +3,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord } from '../../../services/odoo';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
-import { Plus, Search, RefreshCw, X, Mail, Phone, MapPin, Building2, ExternalLink, CreditCard } from 'lucide-react';
+import { Plus, Search, RefreshCw, X, Mail, Phone, MapPin, Building2, ExternalLink } from 'lucide-react';
 
 interface Vendor {
   id: number;
@@ -13,9 +13,7 @@ interface Vendor {
   city: string;
   category: string;
   total_payable: number;
-  total_purchases: number;
   active: boolean;
-  on_time_delivery: number;
 }
 
 const AVATAR_COLORS = [
@@ -31,16 +29,6 @@ const AVATAR_COLORS = [
 
 const CATEGORIES = ['Raw Materials', 'Packaging', 'Logistics', 'Electronics'];
 
-const BANK_DETAILS: Record<number, { bank: string; account: string; ifsc: string }> = {
-  1: { bank: 'HDFC Bank', account: 'XXXX XXXX 4421', ifsc: 'HDFC0001234' },
-  2: { bank: 'ICICI Bank', account: 'XXXX XXXX 8832', ifsc: 'ICIC0005678' },
-  3: { bank: 'SBI', account: 'XXXX XXXX 2210', ifsc: 'SBIN0009012' },
-  4: { bank: 'Axis Bank', account: 'XXXX XXXX 5543', ifsc: 'UTIB0003456' },
-  5: { bank: 'Kotak Bank', account: 'XXXX XXXX 9921', ifsc: 'KKBK0007890' },
-  6: { bank: 'Yes Bank', account: 'XXXX XXXX 3310', ifsc: 'YESB0001234' },
-  7: { bank: 'PNB', account: 'XXXX XXXX 7765', ifsc: 'PUNB0005678' },
-  8: { bank: 'Bank of Baroda', account: 'XXXX XXXX 6634', ifsc: 'BARB0009012' },
-};
 
 export default function Vendors() {
   const { isDark } = useTheme();
@@ -88,9 +76,7 @@ export default function Vendors() {
           city: rec.city || '',
           category: CATEGORIES[idx % CATEGORIES.length],
           total_payable: rec.debit || 0,
-          total_purchases: (rec.debit || 0) * 4,
           active: true,
-          on_time_delivery: 75 + Math.floor(Math.random() * 20),
         }));
         setVendors(mapped);
       }
@@ -112,9 +98,7 @@ export default function Vendors() {
       city: city || 'India',
       category,
       total_payable: 0,
-      total_purchases: 0,
       active: true,
-      on_time_delivery: 90,
     };
 
     setVendors(prev => [newVendor, ...prev]);
@@ -141,9 +125,7 @@ export default function Vendors() {
   });
 
   const totalPayable = vendors.reduce((sum, v) => sum + v.total_payable, 0);
-  const avgOnTime = vendors.length > 0
-    ? Math.round(vendors.reduce((sum, v) => sum + v.on_time_delivery, 0) / vendors.length)
-    : 0;
+  const withOutstanding = vendors.filter(v => v.total_payable > 0).length;
 
   const glassClass = isDark ? 'glass' : 'glass-light bg-white/80';
   const borderCls = isDark ? 'border-white/5' : 'border-gray-200';
@@ -197,11 +179,9 @@ export default function Vendors() {
           <p className="text-xs text-gray-500 mt-1">Outstanding vendor payments</p>
         </div>
         <div className={`card p-4 rounded-2xl ${glassClass}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-[#5a6a8a]' : 'text-gray-500'}`}>Avg On-Time Delivery</p>
-          <p className="text-3xl font-black mt-1 text-green-400">{avgOnTime}%</p>
-          <div className="mt-2 h-1.5 rounded-full bg-white/5 overflow-hidden">
-            <div className="h-full rounded-full bg-green-400" style={{ width: `${avgOnTime}%` }} />
-          </div>
+          <p className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-[#5a6a8a]' : 'text-gray-500'}`}>With Outstanding</p>
+          <p className="text-3xl font-black mt-1 text-amber-400">{withOutstanding}</p>
+          <p className="text-xs text-gray-500 mt-1">vendors with unpaid balance</p>
         </div>
       </div>
 
@@ -263,22 +243,6 @@ export default function Vendors() {
               <p className={`text-lg font-black mt-0.5 ${v.total_payable > 0 ? 'text-red-400' : 'text-green-400'}`}>
                 ₹ {v.total_payable.toLocaleString('en-IN')}
               </p>
-            </div>
-
-            {/* On-Time Delivery Bar */}
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>On-Time Delivery</span>
-                <span className={`font-bold ${v.on_time_delivery >= 90 ? 'text-green-400' : v.on_time_delivery >= 75 ? 'text-amber-400' : 'text-red-400'}`}>
-                  {v.on_time_delivery}%
-                </span>
-              </div>
-              <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/5' : 'bg-gray-200'}`}>
-                <div
-                  className={`h-full rounded-full transition-all ${v.on_time_delivery >= 90 ? 'bg-green-400' : v.on_time_delivery >= 75 ? 'bg-amber-400' : 'bg-red-400'}`}
-                  style={{ width: `${v.on_time_delivery}%` }}
-                />
-              </div>
             </div>
 
             {/* Action Buttons */}
@@ -365,73 +329,14 @@ export default function Vendors() {
                 </div>
               </div>
 
-              {/* Purchase History Summary */}
+              {/* Outstanding Payable */}
               <div>
-                <p className="label text-[#5a6a8a] mb-3">Purchase Summary</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className={`p-3 rounded-xl border ${isDark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Total Spend</p>
-                    <p className="text-base font-black mt-1 text-violet-400">
-                      ₹{selectedVendor.total_purchases >= 100000
-                        ? `${(selectedVendor.total_purchases / 100000).toFixed(1)}L`
-                        : selectedVendor.total_purchases.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div className={`p-3 rounded-xl border ${isDark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Outstanding</p>
-                    <p className={`text-base font-black mt-1 ${selectedVendor.total_payable > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      ₹{selectedVendor.total_payable.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* On-Time Delivery */}
-              <div>
-                <p className="label text-[#5a6a8a] mb-2">On-Time Delivery Performance</p>
+                <p className="label text-[#5a6a8a] mb-3">Financials</p>
                 <div className={`p-3 rounded-xl border ${isDark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Score</span>
-                    <span className={`font-bold ${selectedVendor.on_time_delivery >= 90 ? 'text-green-400' : selectedVendor.on_time_delivery >= 75 ? 'text-amber-400' : 'text-red-400'}`}>
-                      {selectedVendor.on_time_delivery}%
-                    </span>
-                  </div>
-                  <div className={`h-2 rounded-full overflow-hidden ${isDark ? 'bg-white/5' : 'bg-gray-200'}`}>
-                    <div
-                      className={`h-full rounded-full ${selectedVendor.on_time_delivery >= 90 ? 'bg-green-400' : selectedVendor.on_time_delivery >= 75 ? 'bg-amber-400' : 'bg-red-400'}`}
-                      style={{ width: `${selectedVendor.on_time_delivery}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-500 mt-1.5">
-                    Based on last 12 months of orders
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Outstanding Payable</p>
+                  <p className={`text-xl font-black mt-1 ${selectedVendor.total_payable > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    ₹{selectedVendor.total_payable.toLocaleString('en-IN')}
                   </p>
-                </div>
-              </div>
-
-              {/* Banking Details */}
-              <div>
-                <p className="label text-[#5a6a8a] mb-3">Banking Details</p>
-                <div className={`p-4 rounded-xl border ${isDark ? 'border-white/5 bg-white/3' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <CreditCard size={14} className="text-violet-400" />
-                    <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {BANK_DETAILS[selectedVendor.id]?.bank || 'HDFC Bank'}
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Account No.</span>
-                      <span className={`font-mono font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {BANK_DETAILS[selectedVendor.id]?.account || 'XXXX XXXX 0000'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">IFSC Code</span>
-                      <span className={`font-mono font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {BANK_DETAILS[selectedVendor.id]?.ifsc || 'HDFC0000000'}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
 

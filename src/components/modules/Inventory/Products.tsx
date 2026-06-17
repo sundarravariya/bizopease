@@ -148,8 +148,13 @@ export default function Products() {
       if (quantId) {
         await writeRecord('stock.quant', quantId, { inventory_quantity: qty });
       } else {
-        const locs = await searchRead<{ id: number }>('stock.location', {
-          domain: [['usage', '=', 'internal'], ['active', '=', true]], fields: ['id'], limit: 1,
+        // Prefer the MAIN warehouse stock location; fall back to any internal location
+        const mainWh = await searchRead<{ lot_stock_id: [number, string] | false }>('stock.warehouse', {
+          domain: [['code', '=', 'MAIN']], fields: ['lot_stock_id'], limit: 1,
+        });
+        const mainLocId = mainWh?.[0]?.lot_stock_id ? (mainWh[0].lot_stock_id as [number, string])[0] : null;
+        const locs = mainLocId ? [{ id: mainLocId }] : await searchRead<{ id: number }>('stock.location', {
+          domain: [['usage', '=', 'internal'], ['active', '=', true], ['complete_name', 'ilike', 'MAIN']], fields: ['id'], limit: 1,
         });
         if (!locs.length) throw new Error('No internal location found.');
         quantId = await createRecord('stock.quant', { product_id: stockModal.variantId, location_id: locs[0].id, inventory_quantity: qty });

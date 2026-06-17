@@ -84,15 +84,23 @@ export default function FbfStock() {
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const PAGE = 150;
 
+  useEffect(() => { loadAccounts(); }, []);
+
   useEffect(() => {
-    loadAccounts();
-    loadWarehouses();
-  }, []);
+    if (accountId !== '') {
+      setWarehouseId('');
+      loadWarehouses(accountId as number);
+      load(0);
+    } else {
+      setItems([]);
+      setWarehouses([]);
+    }
+  }, [accountId]);
 
   useEffect(() => {
     if (accountId !== '') load(0);
     else setItems([]);
-  }, [accountId, tab]);
+  }, [tab]);
 
   const showMsg = (ok: boolean, msg: string) => {
     setToast({ ok, msg });
@@ -111,9 +119,11 @@ export default function FbfStock() {
     }
   };
 
-  const loadWarehouses = async () => {
+  const loadWarehouses = async (accId: number) => {
     try {
-      const r = await searchRead<WarehouseConfig>('flipkart.warehouse.config', { fields: ['id', 'name'], limit: 0 });
+      const r = await searchRead<WarehouseConfig>('flipkart.warehouse.config', {
+        fields: ['id', 'name'], domain: [['account_id', '=', accId]], limit: 0,
+      });
       if (Array.isArray(r)) setWarehouses(r);
     } catch {
       // non-fatal -- warehouse filter simply stays empty
