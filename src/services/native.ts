@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 
 interface ScreenSecurityPlugin { setSecure(opts: { enabled: boolean }): Promise<void>; }
 const ScreenSecurity = registerPlugin<ScreenSecurityPlugin>('ScreenSecurity');
@@ -71,6 +72,66 @@ export async function getPosition(): Promise<Position | null> {
       navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 }));
     return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
   } catch { return null; }
+}
+
+export type LocationStatus = 'ok' | 'permission_denied' | 'gps_off';
+
+/**
+ * Check whether location services are available and permitted.
+ * Returns 'ok' if a position can be obtained, 'permission_denied' if the user
+ * has blocked the app, or 'gps_off' if the device GPS/location is disabled.
+ */
+export async function checkLocationEnabled(): Promise<LocationStatus> {
+  try {
+    if (isNative()) {
+      let perm = await Geolocation.checkPermissions();
+      if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') {
+        perm = await Geolocation.requestPermissions({ permissions: ['location'] });
+        if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') return 'permission_denied';
+      }
+      // Permission granted — check if GPS hardware/service is actually on.
+      try {
+        await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 6000 });
+        return 'ok';
+      } catch {
+        // Permission granted but can't get a fix → GPS service is disabled on device.
+        return 'gps_off';
+      }
+    }
+    // Web browser path.
+    await new Promise<GeolocationPosition>((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 6000 }));
+    return 'ok';
+  } catch (e: any) {
+    // GeolocationPositionError.PERMISSION_DENIED = 1
+    return e?.code === 1 ? 'permission_denied' : 'gps_off';
+  }
+}
+
+/**
+ * Scan a QR code using ML Kit native camera (no app popup). Returns the raw
+ * text value. On web/non-native, falls back to browser-based input prompt so
+ * admins can test by pasting the URL.
+ */
+export async function scanQr(): Promise<string> {
+  if (!isNative()) {
+    // Non-native fallback: paste the QR URL manually (admin test mode).
+    const val = prompt('Paste QR URL (development mode):');
+    if (!val) throw new Error('QR scan cancelled.');
+    return val;
+  }
+  // Request camera permission first.
+  const perm = await BarcodeScanner.checkPermissions();
+  if (perm.camera !== 'granted') {
+    const req = await BarcodeScanner.requestPermissions();
+    if (req.camera !== 'granted') throw new Error('Camera permission is required for QR scanning.');
+  }
+  const result = await BarcodeScanner.scan({
+    formats: [BarcodeFormat.QrCode],
+  });
+  const barcode = result.barcodes?.[0];
+  if (!barcode?.rawValue) throw new Error('No QR code found. Please try again.');
+  return barcode.rawValue;
 }
 
 /** Capture a front-camera selfie as base64 (no data: prefix). Best-effort. */

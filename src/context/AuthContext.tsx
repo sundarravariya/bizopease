@@ -12,6 +12,7 @@ interface User {
   company_name: string;
   is_admin: boolean;
   session_id: string;
+  is_queen_tenant?: boolean;
 }
 
 interface AuthContextType {
@@ -20,9 +21,12 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (username: string, password: string, db?: string) => Promise<void>;
+  setAuthUser: (user: User) => void;
   logout: () => Promise<void>;
   clearError: () => void;
 }
+
+export type { User };
 
 const PORTAL_CACHE_KEYS = [
   'portal_invoices', 'portal_bills', 'portal_journal_entries',
@@ -61,6 +65,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: false,
   error: null,
   login: async () => {},
+  setAuthUser: () => {},
   logout: async () => {},
   clearError: () => {},
 });
@@ -126,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: result.username || username,
         db: result.db || db,
         company_id: Array.isArray(result.company_id) ? result.company_id : [1],
-        company_name: result.company_name || (Array.isArray(result.company_id) ? result.company_id[1] : 'Robifel'),
+        company_name: result.company_name || (Array.isArray(result.company_id) ? result.company_id[1] : ''),
         is_admin: result.is_system || result.is_admin || false,
         session_id: `odoo-${result.uid}-${Date.now()}`,
       };
@@ -160,6 +165,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('robifel-user');
   }, []);
 
+  const setAuthUser = useCallback((u: User) => {
+    flushCache();
+    setUser(u);
+    localStorage.setItem('robifel-user', JSON.stringify(u));
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
@@ -169,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       error,
       login,
+      setAuthUser,
       logout,
       clearError,
     }}>

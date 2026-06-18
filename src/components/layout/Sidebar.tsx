@@ -24,7 +24,7 @@ import {
   Building2, Receipt, ClipboardList, Contact2,
   CalendarDays, Briefcase, GitPullRequest, Layers,
   BookOpen, Wrench, ShieldCheck, Bell, X,
-  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy
+  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy, Package
 } from 'lucide-react';
 
 interface NavItem {
@@ -188,8 +188,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: Globe,
     groupLabel: 'PARTNERS & FINANCE',
     children: [
-      { id: 'b2b-orders', label: 'B2B Orders', icon: ClipboardList, path: '/b2b/orders' },
-      { id: 'b2b-ledger', label: 'Partner Ledger', icon: BookOpen, path: '/b2b/ledger' },
+      { id: 'b2b-orders',    label: 'B2B Orders',       icon: ClipboardList, path: '/b2b/orders' },
+      { id: 'b2b-customers', label: 'Customers',         icon: Users,         path: '/b2b/customers' },
+      { id: 'b2b-invoices',  label: 'Invoices',          icon: Receipt,       path: '/b2b/invoices' },
+      { id: 'b2b-stock',     label: 'Stock Availability',icon: Package,       path: '/b2b/stock' },
+      { id: 'b2b-ledger',    label: 'Partner Ledger',    icon: BookOpen,      path: '/b2b/ledger' },
     ],
   },
   {

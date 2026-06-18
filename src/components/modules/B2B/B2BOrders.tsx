@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import {
   FileText, CheckCircle2, AlertCircle, RefreshCw,
   DollarSign, Truck, ShieldCheck, X, PlusCircle,
-  Search, UserCheck, ReceiptText
+  Search, UserCheck, ReceiptText, Trash2, RotateCcw, Ban, Square, CheckSquare
 } from 'lucide-react';
 
 interface B2BOrder {
@@ -34,7 +35,9 @@ interface Partner { id: number; name: string; }
 interface Product { id: number; name: string; list_price: number; default_code: string; }
 
 export default function B2BOrders() {
+  const { user } = useAuth();
   const { isDark } = useTheme();
+  if (!user?.is_admin) return <div className="flex items-center justify-center h-64 text-[#8897b5]">Access restricted to administrators.</div>;
 
   const [orders, setOrders] = useState<B2BOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,9 @@ export default function B2BOrders() {
   // Filters
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // Create modal
   const [createModal, setCreateModal] = useState(false);
@@ -227,6 +233,47 @@ export default function B2BOrders() {
     }
   };
 
+  const handleBulkCancel = async () => {
+    if (!selectedIds.size) return;
+    if (!confirm(`Cancel ${selectedIds.size} selected order(s)?`)) return;
+    setLoading(true);
+    try {
+      await odooCall('sale.order', 'action_cancel', [[...selectedIds]]);
+      showMsg(true, `${selectedIds.size} order(s) cancelled.`);
+      setSelectedIds(new Set());
+      await fetchOrders();
+    } catch (err: any) { showMsg(false, err?.message || 'Bulk cancel failed'); }
+    finally { setLoading(false); }
+  };
+
+  const handleBulkDraft = async () => {
+    if (!selectedIds.size) return;
+    if (!confirm(`Reset ${selectedIds.size} order(s) to draft?`)) return;
+    setLoading(true);
+    try {
+      await odooCall('sale.order', 'action_draft', [[...selectedIds]]);
+      showMsg(true, `${selectedIds.size} order(s) reset to draft.`);
+      setSelectedIds(new Set());
+      await fetchOrders();
+    } catch (err: any) { showMsg(false, err?.message || 'Bulk reset failed'); }
+    finally { setLoading(false); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    const draftIds = filteredOrders.filter(o => selectedIds.has(o.id) && o.state === 'draft').map(o => o.id);
+    if (!draftIds.length) { showMsg(false, 'Only draft orders can be deleted.'); return; }
+    if (!confirm(`Permanently delete ${draftIds.length} draft order(s)? This cannot be undone.`)) return;
+    setLoading(true);
+    try {
+      await odooCall('sale.order', 'unlink', [draftIds]);
+      showMsg(true, `${draftIds.length} draft order(s) deleted.`);
+      setSelectedIds(new Set());
+      await fetchOrders();
+    } catch (err: any) { showMsg(false, err?.message || 'Bulk delete failed'); }
+    finally { setLoading(false); }
+  };
+
   const handleOpenCreate = async () => {
     setCreateModal(true);
     if (partners.length === 0) fetchPartners();
@@ -377,11 +424,43 @@ export default function B2BOrders() {
         </span>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl border border-[#7367f0]/30 bg-[#161b2e]/95 backdrop-blur-sm animate-fade-in">
+          <span className="text-xs font-bold text-violet-400 mr-1">{selectedIds.size} selected</span>
+          <button onClick={handleBulkCancel} className="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-bold rounded-lg hover:bg-red-500/20 transition-all flex items-center gap-1">
+            <Ban size={11} /> Cancel
+          </button>
+          <button onClick={handleBulkDraft} className="px-3 py-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold rounded-lg hover:bg-amber-500/20 transition-all flex items-center gap-1">
+            <RotateCcw size={11} /> Reset to Draft
+          </button>
+          <button onClick={handleBulkDelete} className="px-3 py-1.5 bg-red-600/10 text-red-500 border border-red-600/20 text-xs font-bold rounded-lg hover:bg-red-600/20 transition-all flex items-center gap-1">
+            <Trash2 size={11} /> Delete Drafts
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="ml-1 p-1.5 text-gray-500 hover:text-white transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Orders Table */}
       <div className={`card overflow-x-auto rounded-2xl ${glassClass}`}>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${isDark ? 'border-white/5 bg-[#111827]/40 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+              <th className="py-4 pl-5 pr-2 w-8">
+                <button onClick={() => {
+                  if (selectedIds.size === filteredOrders.length && filteredOrders.length > 0) {
+                    setSelectedIds(new Set());
+                  } else {
+                    setSelectedIds(new Set(filteredOrders.map(o => o.id)));
+                  }
+                }} className="text-gray-400 hover:text-violet-400 transition-colors">
+                  {selectedIds.size === filteredOrders.length && filteredOrders.length > 0
+                    ? <CheckSquare size={14} className="text-violet-400" />
+                    : <Square size={14} />}
+                </button>
+              </th>
               <th className="py-4 px-5">Order</th>
               <th className="py-4 px-5">Partner</th>
               <th className="py-4 px-5">Date</th>
@@ -394,17 +473,27 @@ export default function B2BOrders() {
           </thead>
           <tbody className={`divide-y text-sm ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
             {loading && filteredOrders.length === 0 ? (
-              <tr><td colSpan={8} className="py-12 text-center">
+              <tr><td colSpan={9} className="py-12 text-center">
                 <RefreshCw className="w-5 h-5 animate-spin mx-auto text-violet-400" />
               </td></tr>
             ) : filteredOrders.length === 0 ? (
-              <tr><td colSpan={8} className={`py-12 text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <tr><td colSpan={9} className={`py-12 text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                 No B2B order requests found.
               </td></tr>
             ) : filteredOrders.map(order => {
               const partnerName = Array.isArray(order.partner_id) ? order.partner_id[1] : '--';
+              const isSelected = selectedIds.has(order.id);
               return (
-                <tr key={order.id} className={`transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                <tr key={order.id} className={`transition-colors ${isSelected ? (isDark ? 'bg-violet-500/5' : 'bg-violet-50') : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                  <td className="py-3.5 pl-5 pr-2">
+                    <button onClick={() => {
+                      const next = new Set(selectedIds);
+                      if (isSelected) next.delete(order.id); else next.add(order.id);
+                      setSelectedIds(next);
+                    }} className="text-gray-500 hover:text-violet-400 transition-colors">
+                      {isSelected ? <CheckSquare size={14} className="text-violet-400" /> : <Square size={14} />}
+                    </button>
+                  </td>
                   <td className={`py-3.5 px-5 font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{order.name}</td>
                   <td className={`py-3.5 px-5 font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{partnerName}</td>
                   <td className={`py-3.5 px-5 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{order.date_order?.split(' ')[0] || '--'}</td>
@@ -482,6 +571,56 @@ export default function B2BOrders() {
                           className="px-2 py-1 bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-bold rounded-lg hover:bg-green-500/20 transition-all flex items-center gap-1"
                         >
                           <Truck size={11} /> 1-Click
+                        </button>
+                      )}
+
+                      {/* Cancel (draft/sent/sale → cancel) */}
+                      {(order.state === 'draft' || order.state === 'sent' || order.state === 'sale') && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Cancel this order?')) return;
+                            setLoading(true);
+                            try { await odooCall('sale.order', 'action_cancel', [[order.id]]); showMsg(true, 'Order cancelled.'); await fetchOrders(); }
+                            catch (e: any) { showMsg(false, e?.message || 'Cancel failed'); }
+                            finally { setLoading(false); }
+                          }}
+                          title="Cancel Order"
+                          className="px-2 py-1 bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-bold rounded-lg hover:bg-red-500/20 transition-all flex items-center gap-1"
+                        >
+                          <Ban size={11} /> Cancel
+                        </button>
+                      )}
+
+                      {/* Reset to Draft (cancel → draft) */}
+                      {order.state === 'cancel' && (
+                        <button
+                          onClick={async () => {
+                            setLoading(true);
+                            try { await odooCall('sale.order', 'action_draft', [[order.id]]); showMsg(true, 'Reset to draft.'); await fetchOrders(); }
+                            catch (e: any) { showMsg(false, e?.message || 'Reset failed'); }
+                            finally { setLoading(false); }
+                          }}
+                          title="Reset to Draft"
+                          className="px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold rounded-lg hover:bg-amber-500/20 transition-all flex items-center gap-1"
+                        >
+                          <RotateCcw size={11} /> Draft
+                        </button>
+                      )}
+
+                      {/* Delete (draft only) */}
+                      {order.state === 'draft' && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Permanently delete this draft order?')) return;
+                            setLoading(true);
+                            try { await odooCall('sale.order', 'unlink', [[order.id]]); showMsg(true, 'Draft order deleted.'); await fetchOrders(); }
+                            catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
+                            finally { setLoading(false); }
+                          }}
+                          title="Delete Draft"
+                          className="px-2 py-1 bg-red-600/10 text-red-500 border border-red-600/20 text-xs font-bold rounded-lg hover:bg-red-600/20 transition-all flex items-center gap-1"
+                        >
+                          <Trash2 size={11} /> Delete
                         </button>
                       )}
                     </div>
