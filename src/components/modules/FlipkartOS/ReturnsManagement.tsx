@@ -1,10 +1,11 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { searchRead, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
+import { scanBarcode, isNative } from '../../../services/native';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import {
   RefreshCw, Scan, CheckCircle2, AlertCircle,
-  Upload, RotateCcw, PackageSearch, X, Search, ScanLine, Package, Ban,
+  Upload, RotateCcw, PackageSearch, X, Search, ScanLine, Package, Ban, Camera,
 } from 'lucide-react';
 
 interface ScanMatch {
@@ -59,6 +60,7 @@ export default function ReturnsManagement() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [uploadAccountId, setUploadAccountId] = useState<number | ''>('');
+  const [filterAccountId, setFilterAccountId] = useState<number | ''>('');
   const [items, setItems] = useState<ReturnRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -245,7 +247,9 @@ export default function ReturnsManagement() {
       r.tracking_id?.toLowerCase().includes(q) ||
       r.fsn?.toLowerCase().includes(q) ||
       r.sku?.toLowerCase().includes(q);
-    return matchTab && matchSearch;
+    const matchAccount = !filterAccountId ||
+      (Array.isArray(r.account_id) && r.account_id[0] === filterAccountId);
+    return matchTab && matchSearch && matchAccount;
   });
 
   const tabCounts = TABS.reduce((acc, t) => {
@@ -322,11 +326,19 @@ export default function ReturnsManagement() {
           <input value={scanInput} onChange={e => setScanInput(e.target.value)}
             placeholder="Scan or type Tracking ID / Return ID to inward..."
             className={`input flex-1 text-xs py-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
+          {isNative() && (
+            <button type="button" onClick={async () => {
+              try { const v = await scanBarcode(); setScanInput(v); }
+              catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
+            }} className="btn-secondary text-xs px-3 py-2">
+              <Camera size={14} />
+            </button>
+          )}
           <button type="submit" disabled={!scanInput} className="btn-primary text-xs px-4 py-2">Inward</button>
         </form>
       </div>
 
-      {/* Tabs + Search */}
+      {/* Tabs + Search + Account filter */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className={`flex gap-1 border-b flex-1 ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
           {TABS.map(t => (
@@ -338,11 +350,20 @@ export default function ReturnsManagement() {
             </button>
           ))}
         </div>
-        <div className="relative">
-          <Search size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-[#4a5580]' : 'text-gray-400'}`} />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search FSN / SKU / ID..."
-            className={`input pl-9 text-xs py-2 w-64 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
+        <div className="flex gap-2">
+          {accounts.length > 0 && (
+            <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value ? Number(e.target.value) : '')}
+              className={`input text-xs py-1.5 px-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`}>
+              <option value="">All Accounts</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          )}
+          <div className="relative">
+            <Search size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-[#4a5580]' : 'text-gray-400'}`} />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search FSN / SKU / ID..."
+              className={`input pl-9 text-xs py-2 w-56 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
+          </div>
         </div>
       </div>
 
@@ -469,6 +490,33 @@ export default function ReturnsManagement() {
                   <input ref={wizInputRef} value={wizTracking} onChange={e => setWizTracking(e.target.value)} autoFocus
                     placeholder="Scan / type Tracking ID..." className={`bg-transparent outline-none text-sm flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`} />
                 </div>
+                {isNative() && (
+                  <button type="button" onClick={async () => {
+                    try {
+                      const v = await scanBarcode();
+                      setWizTracking(v);
+                      // auto-identify after scan
+                      setWizBusy(true); setWizMatch(undefined); setWizComponents([]);
+                      try {
+                        const [rec] = await searchRead<ScanMatch>('flipkart.return.management', {
+                          domain: [['tracking_id', '=', v.trim()], ['state', '=', 'draft']],
+                          fields: ['id', 'return_id', 'tracking_id', 'fsn', 'sku', 'product_id', 'quantity', 'return_reason'],
+                          limit: 1,
+                        });
+                        setWizMatch(rec || null);
+                        if (rec) {
+                          try {
+                            const comps = await odooCall<WizComponent[]>('flipkart.return.management', 'get_inward_components', [[rec.id]], {});
+                            setWizComponents(Array.isArray(comps) ? comps.map(c => ({ ...c, selected: true })) : []);
+                          } catch { setWizComponents([]); }
+                        }
+                      } catch (err: any) { showMsg(false, err?.message || 'Lookup failed'); setWizMatch(null); }
+                      finally { setWizBusy(false); }
+                    } catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
+                  }} className="btn-secondary text-xs px-3 py-2.5">
+                    <Camera size={16} />
+                  </button>
+                )}
                 <button type="submit" disabled={wizBusy || !wizTracking.trim()} className="btn-secondary text-xs px-4 py-2">
                   {wizBusy && wizMatch === undefined ? <RefreshCw size={14} className="animate-spin" /> : 'Find'}
                 </button>

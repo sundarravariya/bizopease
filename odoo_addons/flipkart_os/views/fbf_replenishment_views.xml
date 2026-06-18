@@ -64,6 +64,7 @@
                 <filter name="filter_needs_action" string="Needs Action" domain="[('qty_to_send', '&gt;', 0)]"/>
                 <filter name="filter_critical" string="Critical" domain="[('urgency', '=', 'critical')]"/>
                 <filter name="filter_selected" string="Selected" domain="[('selected', '=', True)]"/>
+                <filter name="filter_flipkart_fallback" string="Flipkart Velocity (no FBF sales)" domain="[('uses_flipkart_fallback', '=', True)]"/>
                 <separator/>
                 <group expand="0" string="Group By">
                     <filter name="group_warehouse" string="Warehouse" context="{'group_by': 'warehouse_config_id'}"/>

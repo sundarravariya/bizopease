@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import secrets
+from datetime import datetime
 from math import radians, sin, cos, asin, sqrt
 
 from odoo import models, fields, api, _
@@ -25,7 +27,14 @@ class RobifelHrSettings(models.Model):
     attendance_mode = fields.Selection([
         ('gps_selfie', 'GPS + Selfie'),
         ('nfc', 'NFC Tag Scan'),
+        ('qr', 'QR Code'),
     ], string='Attendance Method', default='gps_selfie')
+
+    # QR attendance — 2-minute rotating token
+    qr_daily_token = fields.Char(string='QR Token (current)', readonly=True)
+    qr_token_date = fields.Date(string='QR Token Date', readonly=True)
+    qr_token_at = fields.Datetime(string='QR Token Generated At', readonly=True)
+    qr_token_prev = fields.Char(string='QR Token (previous)', readonly=True)
     # Registered workplace NFC tag UIDs (comma-separated hex).
     nfc_tag_ids = fields.Char(string='Registered NFC Tags', default='')
     # Kiosk fallback: admin device scans an employee's personal NFC badge.
@@ -70,6 +79,9 @@ class RobifelHrSettings(models.Model):
             # Server-authoritative date (respects the user's timezone), so the
             # gate doesn't mis-match on a device with a skewed clock/timezone.
             'today': fields.Date.to_string(fields.Date.context_today(self)),
+            # Server wall-clock in minutes from midnight so the portal can
+            # detect a manipulated device clock.
+            'server_now_minutes': datetime.now().hour * 60 + datetime.now().minute,
         }
 
     @api.model
@@ -143,3 +155,45 @@ class RobifelHrSettings(models.Model):
     def is_valid_tag(self, uid):
         """True if the scanned UID matches a registered workplace tag."""
         return (uid or '').strip().upper() in self._tag_set()
+
+    @api.model
+    def get_daily_qr(self):
+        """Admin-only. Returns the current QR URL; token rotates every 2 minutes."""
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError(_("Only administrators can view the daily QR code."))
+        from datetime import timedelta
+        rec = self._singleton()
+        now = datetime.now()
+        today = fields.Date.context_today(self)
+        needs_rotate = (
+            not rec.qr_daily_token
+            or not rec.qr_token_at
+            or rec.qr_token_date != today
+            or (now - rec.qr_token_at).total_seconds() >= 120
+        )
+        if needs_rotate:
+            rec.write({
+                'qr_token_prev': rec.qr_daily_token,
+                'qr_daily_token': secrets.token_urlsafe(24),
+                'qr_token_date': today,
+                'qr_token_at': fields.Datetime.now(),
+            })
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '')
+        today_str = fields.Date.to_string(today)
+        url = f"{base_url}/qr?t={rec.qr_daily_token}&d={today_str}"
+        return {'token': rec.qr_daily_token, 'date': today_str, 'url': url}
+
+    @api.model
+    def punch_by_qr(self, token, date_str, lat=False, lng=False, selfie=False):
+        """Any employee. Validates the QR token (current or previous window) then punches."""
+        rec = self._singleton()
+        today_str = fields.Date.to_string(fields.Date.context_today(self))
+        if rec.qr_token_date != fields.Date.from_string(today_str) or date_str != today_str:
+            raise UserError(_("This QR code has expired. Ask your manager to refresh it."))
+        valid_tokens = {t for t in (rec.qr_daily_token, rec.qr_token_prev) if t}
+        if token not in valid_tokens:
+            raise UserError(_("Invalid QR code."))
+        emp = self.env['hr.employee'].search([('user_id', '=', self.env.user.id)], limit=1)
+        if not emp:
+            raise UserError(_("No employee record is linked to your account."))
+        return self.env['robifel.attendance.day'].punch(emp.id, 'auto', lat, lng, selfie)

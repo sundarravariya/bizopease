@@ -32,9 +32,9 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
     },
     Keyboard: {
-      resize: 'native' as any,
+      resize: 'body' as any,
       style: 'DARK',
-      resizeOnFullScreen: false,
+      resizeOnFullScreen: true,
     },
   },
   ios: {
@@ -45,7 +45,7 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#0f1422',
     allowMixedContent: false,
-    captureInput: true,
+    captureInput: false,
     webContentsDebuggingEnabled: false,
   },
 };

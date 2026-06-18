@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord, odooCall } from '../../../services/odoo';
@@ -409,7 +409,7 @@ export default function Invoices() {
       {/* Detail Modal */}
       {selectedInv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedInv(null)}>
-          <div className={`${modalBg} max-w-lg`} onClick={e => e.stopPropagation()}>
+          <div className={`${modalBg} max-w-lg max-h-[90vh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
             <div className={`flex justify-between items-center px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
               <div>
                 <p className="font-black text-violet-400 font-mono">{selectedInv.name}</p>
@@ -441,7 +441,7 @@ export default function Invoices() {
               <div>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${st}`}>Products</p>
                 {loadingLines ? (
-                  <div className="flex items-center gap-2 py-3"><RefreshCw size={14} className="animate-spin text-violet-400" /><span className={`text-xs ${st}`}>Loading…</span></div>
+                  <div className="flex items-center gap-2 py-3"><RefreshCw size={14} className="animate-spin text-violet-400" /><span className={`text-xs ${st}`}>Loadingâ€¦</span></div>
                 ) : detailLines.length === 0 ? (
                   <p className={`text-xs ${st}`}>No line items.</p>
                 ) : (
@@ -460,8 +460,8 @@ export default function Invoices() {
                           <tr key={i} className={`border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
                             <td className={`px-3 py-2 ${pt}`}>{Array.isArray(ln.product_id) ? ln.product_id[1] : ln.name}</td>
                             <td className={`px-3 py-2 text-right ${st}`}>{ln.quantity}</td>
-                            <td className={`px-3 py-2 text-right ${st}`}>₹{ln.price_unit.toLocaleString('en-IN')}</td>
-                            <td className={`px-3 py-2 text-right font-semibold ${pt}`}>₹{ln.price_subtotal.toLocaleString('en-IN')}</td>
+                            <td className={`px-3 py-2 text-right ${st}`}>â‚¹{ln.price_unit.toLocaleString('en-IN')}</td>
+                            <td className={`px-3 py-2 text-right font-semibold ${pt}`}>â‚¹{ln.price_subtotal.toLocaleString('en-IN')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -484,7 +484,7 @@ export default function Invoices() {
       {/* Register Payment Modal */}
       {payModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setPayModal(null)}>
-          <div className={`${modalBg} max-w-sm`} onClick={e => e.stopPropagation()}>
+          <div className={`${modalBg} max-w-sm max-h-[90vh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
             <div className={`flex justify-between items-center px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
               <div>
                 <p className="font-bold text-sm">Register Payment</p>
@@ -694,3 +694,4 @@ export default function Invoices() {
     </div>
   );
 }
+

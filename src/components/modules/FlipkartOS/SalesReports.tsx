@@ -294,7 +294,7 @@ export default function SalesReports() {
           <span className={`text-sm ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Comparing periods…</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="flex flex-col gap-5">
           <Table title="Needs Attention" data={needsAttention} tone="red" />
           <Table title="Performing Well" data={performing} tone="green" />
         </div>

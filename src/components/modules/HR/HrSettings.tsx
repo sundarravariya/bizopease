@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { odooCall, listStaffEmployees } from '../../../services/odoo';
 import { scanNfc, nfcStatus, cancelNfc, getPosition } from '../../../services/native';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Clock, CheckCircle2, RefreshCw, Nfc, MapPin, Trash2, AlertCircle, CalendarOff,
-  CreditCard, Users, Check, LocateFixed,
+  CreditCard, Users, Check, LocateFixed, QrCode,
 } from 'lucide-react';
 
 interface Emp { id: number; name: string; robifel_nfc_badge?: string | false; }
@@ -17,7 +18,9 @@ export default function HrSettings() {
   const [end, setEnd] = useState('19:00');
   const [enforce, setEnforce] = useState(true);
   const [weeklyOff, setWeeklyOff] = useState('6');
-  const [mode, setMode] = useState<'gps_selfie' | 'nfc'>('gps_selfie');
+  const [mode, setMode] = useState<'gps_selfie' | 'nfc' | 'qr'>('gps_selfie');
+  const [qrData, setQrData] = useState<{ url: string; date: string } | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [nfcMsg, setNfcMsg] = useState<string | null>(null);
@@ -34,6 +37,7 @@ export default function HrSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const txt = isDark ? 'text-white' : 'text-gray-900';
   const sub = isDark ? 'text-[#5a6a8a]' : 'text-gray-500';
@@ -43,20 +47,56 @@ export default function HrSettings() {
 
   const loadEmps = () => listStaffEmployees<Emp>(['id', 'name', 'robifel_nfc_badge']).then(setEmps).catch(() => {});
 
+  const loadQr = async () => {
+    setQrLoading(true);
+    try { setQrData(await odooCall('robifel.hr.settings', 'get_daily_qr', [], {})); }
+    catch { /* not available or QR not enabled */ }
+    finally { setQrLoading(false); }
+  };
+
   useEffect(() => {
     odooCall<any>('robifel.hr.settings', 'get_settings', [], {})
-      .then(s => { if (s) { setStart(s.work_start || '10:00'); setEnd(s.work_end || '19:00'); setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6'); setMode(s.attendance_mode || 'gps_selfie'); setTags(parseTags(s.nfc_tag_ids)); setKioskEnabled(s.kiosk_enabled !== false); setGeoEnabled(!!s.geofence_enabled); setGeoLat(s.geofence_lat ? String(s.geofence_lat) : ''); setGeoLng(s.geofence_lng ? String(s.geofence_lng) : ''); setGeoRadius(String(s.geofence_radius || 150)); } })
+      .then(s => {
+        if (s) {
+          setStart(s.work_start || '10:00'); setEnd(s.work_end || '19:00');
+          setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6');
+          const m = s.attendance_mode || 'gps_selfie';
+          setMode(m); setTags(parseTags(s.nfc_tag_ids));
+          setKioskEnabled(s.kiosk_enabled !== false); setGeoEnabled(!!s.geofence_enabled);
+          setGeoLat(s.geofence_lat ? String(s.geofence_lat) : '');
+          setGeoLng(s.geofence_lng ? String(s.geofence_lng) : '');
+          setGeoRadius(String(s.geofence_radius || 150));
+          if (m === 'qr') loadQr();
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
     loadEmps();
   }, []);
 
   const save = async () => {
-    setSaving(true); setSaved(false);
+    setSaving(true); setSaved(false); setSaveError(null);
     try {
-      await odooCall('robifel.hr.settings', 'save_settings', [{ work_start: start, work_end: end, enforce_work_hours: enforce, weekly_off: weeklyOff, attendance_mode: mode, nfc_tag_ids: tags.join(','), kiosk_enabled: kioskEnabled, geofence_enabled: geoEnabled, geofence_lat: parseFloat(geoLat) || 0, geofence_lng: parseFloat(geoLng) || 0, geofence_radius: parseInt(geoRadius, 10) || 150 }], {});
-      setSaved(true); setTimeout(() => setSaved(false), 2500);
-    } catch { /* ignore */ } finally { setSaving(false); }
+      await odooCall('robifel.hr.settings', 'save_settings', [{
+        work_start: start,
+        work_end: end,
+        enforce_work_hours: enforce,
+        weekly_off: weeklyOff,
+        attendance_mode: mode,
+        nfc_tag_ids: tags.join(','),
+        kiosk_enabled: kioskEnabled,
+        geofence_enabled: geoEnabled,
+        geofence_lat: parseFloat(geoLat) || 0,
+        geofence_lng: parseFloat(geoLng) || 0,
+        geofence_radius: parseInt(geoRadius, 10) || 150,
+      }], {});
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Save failed. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const captureLoc = async () => {
@@ -148,14 +188,37 @@ export default function HrSettings() {
             {/* Attendance method */}
             <div className={`border-t pt-4 space-y-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
               <h3 className={`font-bold text-sm flex items-center gap-2 ${txt}`}><MapPin size={15} className="text-[#7367f0]" /> Attendance Method</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {([['gps_selfie', 'GPS + Selfie', MapPin], ['nfc', 'NFC Tag Scan', Nfc]] as const).map(([val, lbl, Icon]) => (
-                  <button key={val} type="button" onClick={() => setMode(val)}
-                    className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-xs font-bold transition-all ${mode === val ? 'border-[#7367f0] bg-[#7367f0]/10 text-[#7367f0]' : isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
-                    <Icon size={16} /> {lbl}
+              <p className={`text-xs ${sub}`}>Only one method can be active at a time.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([['gps_selfie', 'GPS + Selfie', MapPin], ['nfc', 'NFC Tag Scan', Nfc], ['qr', 'QR Code', QrCode]] as const).map(([val, lbl, Icon]) => (
+                  <button key={val} type="button" onClick={() => { setMode(val); if (val === 'qr' && !qrData) loadQr(); }}
+                    className={`flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border text-xs font-bold transition-all ${mode === val ? 'border-[#7367f0] bg-[#7367f0]/10 text-[#7367f0]' : isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                    <Icon size={18} /> {lbl}
                   </button>
                 ))}
               </div>
+
+              {mode === 'qr' && (
+                <div className={`rounded-xl p-4 space-y-3 ${isDark ? 'bg-[#111827]' : 'bg-gray-50'}`}>
+                  <p className={`text-[11px] ${sub}`}>A new QR code is generated every day at midnight. Employees scan it to mark their attendance (in or out).</p>
+                  {qrLoading ? (
+                    <div className="flex justify-center py-4"><RefreshCw size={18} className="animate-spin text-[#7367f0]" /></div>
+                  ) : qrData ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="rounded-xl bg-white p-3">
+                        <QRCodeSVG value={qrData.url} size={180} />
+                      </div>
+                      <p className={`text-[11px] ${sub}`}>Valid: {qrData.date} · Rotates at midnight</p>
+                      <button type="button" onClick={loadQr} disabled={qrLoading}
+                        className="text-xs text-[#7367f0] flex items-center gap-1.5">
+                        <RefreshCw size={12} className={qrLoading ? 'animate-spin' : ''} /> Refresh QR
+                      </button>
+                    </div>
+                  ) : (
+                    <p className={`text-[11px] text-amber-500 flex items-center gap-1.5`}><AlertCircle size={12} /> QR not available — save QR mode first, then refresh.</p>
+                  )}
+                </div>
+              )}
 
               {mode === 'nfc' && (
                 <div className={`rounded-xl p-3 space-y-2.5 ${isDark ? 'bg-[#111827]' : 'bg-gray-50'}`}>
@@ -247,11 +310,19 @@ export default function HrSettings() {
               )}
             </div>
 
-            <div className={`border-t pt-4 flex justify-end items-center gap-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
-              {saved && <span className="text-xs text-emerald-500 flex items-center gap-1"><CheckCircle2 size={13} /> Saved</span>}
-              <button onClick={save} disabled={saving} className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2">
-                {saving ? <RefreshCw size={14} className="animate-spin" /> : null} Save Settings
-              </button>
+            <div className={`border-t pt-4 space-y-2 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+              {saveError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2">
+                  <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+              <div className="flex justify-end items-center gap-3">
+                {saved && <span className="text-xs text-emerald-500 flex items-center gap-1"><CheckCircle2 size={13} /> Saved</span>}
+                <button onClick={save} disabled={saving} className="btn-primary text-sm px-5 py-2.5 flex items-center gap-2">
+                  {saving ? <RefreshCw size={14} className="animate-spin" /> : null} Save Settings
+                </button>
+              </div>
             </div>
           </>
         )}

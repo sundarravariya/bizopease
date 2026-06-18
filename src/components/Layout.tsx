@@ -54,7 +54,7 @@ export default function Layout({ children, activeTab, setActiveTab, user, onLogo
               R
             </div>
             <div>
-              <span className="font-bold text-white tracking-wide block">Robifel</span>
+              <span className="font-bold text-white tracking-wide block">{user?.company_name || 'BizOpease'}</span>
               <span className="text-xs text-brand-blue font-semibold tracking-wider uppercase">Flipkart OS</span>
             </div>
           </div>
@@ -134,7 +134,7 @@ export default function Layout({ children, activeTab, setActiveTab, user, onLogo
             >
               <Menu className="w-6 h-6" />
             </button>
-            <span className="font-bold text-white tracking-wide">Robifel Flipkart OS</span>
+            <span className="font-bold text-white tracking-wide">{user?.company_name || 'BizOpease'} — Flipkart OS</span>
           </div>
           <button 
             onClick={onOpenAi}

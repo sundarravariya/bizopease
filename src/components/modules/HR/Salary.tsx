@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { searchRead, createRecord, writeRecord, odooCall, readRecord, listStaffEmployees } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import {
   RefreshCw, ChevronLeft, ChevronRight, Wallet, IndianRupee,
   CheckCircle2, AlertCircle, Calculator, BadgeCheck, Settings2,
@@ -23,6 +24,14 @@ const PERIOD_FIELDS = ['id', 'monthly_wage', 'per_day_rate', 'days_in_month', 'p
 
 export default function Salary() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  if (!user?.is_admin) {
+    return (
+      <div className="flex items-center justify-center h-64 text-[#8897b5]">
+        Access restricted to administrators.
+      </div>
+    );
+  }
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [configs, setConfigs] = useState<Cfg[]>([]);

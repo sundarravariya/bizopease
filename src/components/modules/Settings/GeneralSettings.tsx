@@ -3,8 +3,8 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { odooCall } from '../../../services/odoo';
 import {
-  Settings, User, ShieldCheck, Database, Wrench,
-  CheckCircle2, RefreshCw, KeyRound, Monitor
+  Settings, ShieldCheck, Database, Wrench,
+  CheckCircle2, RefreshCw, KeyRound, PackagePlus, Trash2, Search, Package
 } from 'lucide-react';
 
 interface OdooUser {
@@ -15,11 +15,20 @@ interface OdooUser {
   lang?: string;
 }
 
+interface OdooModule {
+  id: number;
+  name: string;
+  shortdesc: string;
+  summary: string;
+  state: 'installed' | 'uninstalled' | 'to_install' | 'to_remove' | string;
+  author: string;
+}
+
 export default function GeneralSettings() {
   const { isDark, toggleTheme } = useTheme();
   const { user } = useAuth();
   
-  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'technical'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'technical' | 'addons'>('general');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -31,11 +40,20 @@ export default function GeneralSettings() {
   // Users List
   const [users, setUsers] = useState<OdooUser[]>([]);
 
+  // Addons
+  const [modules, setModules] = useState<OdooModule[]>([]);
+  const [moduleSearch, setModuleSearch] = useState('');
+  const [moduleFilter, setModuleFilter] = useState<'all' | 'installed' | 'uninstalled'>('all');
+  const [moduleAction, setModuleAction] = useState<number | null>(null);
+
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
     }
-  }, [activeTab]);
+    if (activeTab === 'addons' && modules.length === 0) {
+      fetchModules();
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load persisted preferences from Odoo (ir.config_parameter) so saved values
   // survive a refresh / other devices.
@@ -99,6 +117,52 @@ export default function GeneralSettings() {
     }
   };
 
+  const fetchModules = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      // Use searchRead helper so domain goes in args[0] and limit/fields go in kwargs
+      const { searchRead: sr } = await import('../../../services/odoo');
+      const res = await sr<OdooModule>('ir.module.module', {
+        domain: [['state', 'in', ['installed', 'uninstalled', 'to install', 'to remove', 'to upgrade']]],
+        fields: ['id', 'name', 'shortdesc', 'summary', 'state', 'author'],
+        order: 'shortdesc asc',
+        limit: 500,
+      });
+      setModules(Array.isArray(res) ? res : []);
+      if (!res || res.length === 0) setMessage({ type: 'error', text: 'No modules returned. Verify your Odoo admin session has system-level access.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to load modules' });
+      setModules([]);
+    }
+    finally { setLoading(false); }
+  };
+
+  const handleInstall = async (mod: OdooModule) => {
+    setModuleAction(mod.id);
+    setMessage(null);
+    try {
+      await odooCall('ir.module.module', 'button_immediate_install', [[mod.id]]);
+      setMessage({ type: 'success', text: `${mod.shortdesc || mod.name} installed. Page reload may be needed.` });
+      await fetchModules();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.message || 'Install failed' });
+    } finally { setModuleAction(null); }
+  };
+
+  const handleUninstall = async (mod: OdooModule) => {
+    if (!confirm(`Uninstall ${mod.shortdesc || mod.name}? This may affect related features.`)) return;
+    setModuleAction(mod.id);
+    setMessage(null);
+    try {
+      await odooCall('ir.module.module', 'button_immediate_uninstall', [[mod.id]]);
+      setMessage({ type: 'success', text: `${mod.shortdesc || mod.name} uninstalled.` });
+      await fetchModules();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.message || 'Uninstall failed' });
+    } finally { setModuleAction(null); }
+  };
+
   const glassClass = isDark ? 'glass' : 'glass-light bg-white/80';
   const sidebarTabClass = (tabId: string) => `
     w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold text-left transition-all
@@ -142,6 +206,10 @@ export default function GeneralSettings() {
           <button onClick={() => { setActiveTab('technical'); setMessage(null); }} className={sidebarTabClass('technical')}>
             <Wrench size={15} />
             Technical Audit
+          </button>
+          <button onClick={() => { setActiveTab('addons'); setMessage(null); }} className={sidebarTabClass('addons')}>
+            <PackagePlus size={15} />
+            Addons Manager
           </button>
         </div>
 
@@ -226,6 +294,117 @@ export default function GeneralSettings() {
                     ))}
                   </tbody>
                 </table>
+              )}
+            </div>
+          )}
+
+          {/* ADDONS TAB */}
+          {activeTab === 'addons' && (
+            <div className={`card rounded-2xl overflow-hidden ${glassClass}`}>
+              {/* toolbar */}
+              <div className={`p-4 border-b flex flex-col sm:flex-row items-center gap-3 ${isDark ? 'border-[#2a3250] bg-[#111827]/20' : 'border-gray-100 bg-gray-50'}`}>
+                <div className="relative flex-1 w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search addons…"
+                    value={moduleSearch}
+                    onChange={e => setModuleSearch(e.target.value)}
+                    className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border outline-none ${isDark ? 'bg-[#1f2937] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-800'}`}
+                  />
+                </div>
+                <select
+                  value={moduleFilter}
+                  onChange={e => setModuleFilter(e.target.value as any)}
+                  className={`px-3 py-1.5 text-xs rounded-lg border outline-none ${isDark ? 'bg-[#1f2937] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-800'}`}
+                >
+                  <option value="all">All</option>
+                  <option value="installed">Installed</option>
+                  <option value="uninstalled">Not Installed</option>
+                </select>
+                <button onClick={fetchModules} className="text-[#7367f0] hover:text-[#8b7cf8]">
+                  <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+
+              {loading && modules.length === 0 ? (
+                <div className="h-48 flex items-center justify-center">
+                  <RefreshCw className="w-5 h-5 animate-spin text-[#7367f0]" />
+                </div>
+              ) : (
+                <div className="overflow-y-auto max-h-[60vh]">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className={`sticky top-0 text-xs font-semibold uppercase tracking-wider border-b ${isDark ? 'bg-[#111827] border-white/5 text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                        <th className="py-2.5 px-4">Module</th>
+                        <th className="py-2.5 px-4 hidden sm:table-cell">Author</th>
+                        <th className="py-2.5 px-4 text-center">Status</th>
+                        <th className="py-2.5 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y text-xs ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
+                      {modules
+                        .filter(m => {
+                          const q = moduleSearch.toLowerCase();
+                          const matchSearch = !q || m.name.toLowerCase().includes(q) || (m.shortdesc || '').toLowerCase().includes(q);
+                          const matchFilter = moduleFilter === 'all' || m.state === moduleFilter || (moduleFilter === 'installed' && m.state === 'to_remove');
+                          return matchSearch && matchFilter;
+                        })
+                        .map(mod => (
+                          <tr key={mod.id} className={`transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2.5">
+                                <Package size={14} className={mod.state === 'installed' ? 'text-emerald-400' : 'text-gray-500'} />
+                                <div>
+                                  <p className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{mod.shortdesc || mod.name}</p>
+                                  <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{mod.name}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className={`py-3 px-4 hidden sm:table-cell text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{mod.author || '—'}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                mod.state === 'installed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                mod.state === 'to_install' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                mod.state === 'to_remove' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                              }`}>
+                                {mod.state === 'installed' ? 'Installed' : mod.state === 'to_install' ? 'Pending Install' : mod.state === 'to_remove' ? 'Pending Removal' : 'Not Installed'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {mod.state === 'installed' ? (
+                                <button
+                                  onClick={() => handleUninstall(mod)}
+                                  disabled={moduleAction === mod.id}
+                                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 flex items-center gap-1 mx-auto"
+                                >
+                                  {moduleAction === mod.id ? <RefreshCw size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                                  Uninstall
+                                </button>
+                              ) : (mod.state === 'uninstalled' || mod.state === 'to_remove') ? (
+                                <button
+                                  onClick={() => handleInstall(mod)}
+                                  disabled={moduleAction === mod.id}
+                                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-[#7367f0]/10 text-[#7367f0] border border-[#7367f0]/20 hover:bg-[#7367f0]/20 flex items-center gap-1 mx-auto"
+                                >
+                                  {moduleAction === mod.id ? <RefreshCw size={10} className="animate-spin" /> : <PackagePlus size={10} />}
+                                  Install
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  {modules.filter(m => {
+                    const q = moduleSearch.toLowerCase();
+                    return (!q || m.name.toLowerCase().includes(q) || (m.shortdesc || '').toLowerCase().includes(q)) &&
+                      (moduleFilter === 'all' || m.state === moduleFilter);
+                  }).length === 0 && (
+                    <p className={`py-12 text-center text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No addons match your filter.</p>
+                  )}
+                </div>
               )}
             </div>
           )}

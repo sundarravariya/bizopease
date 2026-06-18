@@ -200,7 +200,7 @@ export default function Dashboard() {
             {greeting}, {user?.name?.split(' ')[0] || 'Admin'} 👋
           </h1>
           <p className={`text-sm mt-1 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-500'}`}>
-            Here's what's happening with your Robifel business today
+            Here's what's happening with your business today
           </p>
         </div>
         <div className="flex items-center gap-2">

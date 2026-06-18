@@ -128,7 +128,7 @@ export default function Stock() {
     av < 5 ? 'text-red-400 font-bold' : av < 10 ? 'text-amber-400 font-semibold' : 'text-green-400';
 
   const ic = `input text-xs py-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
-  const modalBg = `w-full max-w-lg rounded-2xl shadow-2xl border ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`;
+  const modalBg = `w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`;
   const modalHeader = `flex items-center justify-between p-5 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`;
   const modalFooter = `flex justify-end gap-3 p-5 border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`;
 
@@ -325,5 +325,6 @@ export default function Stock() {
     </div>
   );
 }
+
 
 

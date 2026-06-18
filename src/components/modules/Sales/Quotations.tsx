@@ -356,7 +356,7 @@ export default function Quotations() {
           onClick={() => setDetailItem(null)}
         >
           <div
-            className={`w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden ${modalBg}`}
+            className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${modalBg}`}
             onClick={e => e.stopPropagation()}
           >
             <div className={`flex justify-between items-center px-5 py-4 border-b ${divider}`}>
@@ -454,7 +454,7 @@ export default function Quotations() {
           onClick={() => setCreateOpen(false)}
         >
           <div
-            className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${modalBg}`}
+            className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${modalBg}`}
             onClick={e => e.stopPropagation()}
           >
             <div className={`flex justify-between items-center px-5 py-4 border-b ${divider}`}>

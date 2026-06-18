@@ -349,7 +349,7 @@ export default function Bills() {
       {/* Detail Modal */}
       {detailBill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`${modalBg} max-w-xl`}>
+          <div className={`${modalBg} max-w-xl max-h-[90vh] overflow-y-auto`}>
             <div className={mh}>
               <div>
                 <h2 className={`text-base font-black ${pt}`}>{detailBill.name}</h2>
@@ -391,7 +391,7 @@ export default function Bills() {
       {/* Register Payment Modal */}
       {payBill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`${modalBg} max-w-md`}>
+          <div className={`${modalBg} max-w-md max-h-[90vh] overflow-y-auto`}>
             <div className={mh}>
               <div>
                 <h2 className={`text-base font-black ${pt}`}>Register Payment</h2>
@@ -570,4 +570,5 @@ export default function Bills() {
     </div>
   );
 }
+
 

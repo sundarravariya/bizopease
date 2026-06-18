@@ -25,6 +25,11 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         WebSettings settings = webView.getSettings();
 
+        // Required for third-party keyboards (SwiftKey, Gboard, etc.) to receive
+        // proper InputConnection callbacks from the WebView.
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+
         // Force GPU-composited rendering — eliminates software-draw stalls on keystrokes
         webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null);
 

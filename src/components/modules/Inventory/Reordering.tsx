@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { searchRead, createRecord, writeRecord, odooCall } from '../../../services/odoo';
 import {
@@ -180,7 +180,7 @@ export default function Reordering() {
 
   const ic = `input text-xs py-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
   const qtyInp = `input text-xs py-1 text-right w-20 ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
-  const modalBg = `w-full max-w-lg rounded-2xl shadow-2xl border ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`;
+  const modalBg = `w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`;
   const modalHeader = `flex items-center justify-between p-5 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`;
   const modalFooter = `flex justify-end gap-3 p-5 border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`;
   const st = isDark ? 'text-[#5a6a8a]' : 'text-gray-400';
@@ -382,3 +382,4 @@ export default function Reordering() {
     </div>
   );
 }
+

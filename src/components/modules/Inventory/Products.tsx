@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useOdooModel } from '../../../hooks/useOdooModel';
@@ -609,7 +609,7 @@ export default function Products() {
                       <div className="truncate">{product.name}</div>
                       {product.default_code && <div className="font-mono text-[10px] text-[#7367f0]">{product.default_code}</div>}
                     </td>
-                    <td className={`text-right text-xs ${st}`}>₹{(product.standard_price || 0).toLocaleString('en-IN')}</td>
+                    <td className={`text-right text-xs ${st}`}>â‚¹{(product.standard_price || 0).toLocaleString('en-IN')}</td>
                     <td className={`text-right text-xs ${product.qty_available < 10 ? 'text-amber-400 font-bold' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>{product.qty_available || 0}</td>
                     <td className={`text-right text-xs ${st}`}>{product.virtual_available || 0}</td>
                     <td className="text-center"><StockBadge qty={product.qty_available || 0} /></td>
@@ -659,7 +659,7 @@ export default function Products() {
       {/* View Modal */}
       {viewProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`${modalBg} max-w-lg`}>
+          <div className={`${modalBg} max-w-lg max-h-[90vh] overflow-y-auto`}>
             <div className={mh}>
               <div>
                 <h2 className={`text-base font-black ${pt}`}>{viewProduct.name}</h2>
@@ -786,3 +786,4 @@ export default function Products() {
     </div>
   );
 }
+

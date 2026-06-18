@@ -24,7 +24,7 @@ import {
   Building2, Receipt, ClipboardList, Contact2,
   CalendarDays, Briefcase, GitPullRequest, Layers,
   BookOpen, Wrench, ShieldCheck, Bell, X,
-  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy, Package
+  Upload, Settings2, Activity, PlusCircle, ListChecks, Trophy, LogOut
 } from 'lucide-react';
 
 interface NavItem {
@@ -241,7 +241,7 @@ const EMPLOYEE_NAV: NavItem[] = [
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark } = useTheme();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
 
   // Tenant module-awareness: hide menus whose Odoo module isn't installed in
@@ -473,9 +473,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           })}
         </nav>
 
-        {/* Bottom: version */}
-        <div className={`px-5 py-3 border-t text-[10px] ${isDark ? 'border-[#2a3250] text-[#3a4a6a]' : 'border-gray-100 text-gray-400'}`}>
-          {BRAND} {/* v */}· Odoo 18 CE
+        {/* Bottom: user info + logout */}
+        <div className={`px-4 py-3 border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0 ${isDark ? 'bg-[#7367f0]/20 text-[#7367f0]' : 'bg-violet-100 text-violet-600'}`}>
+              {(user?.name || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-xs font-semibold truncate ${isDark ? 'text-white' : 'text-gray-800'}`}>{user?.name || '—'}</p>
+              <p className={`text-[10px] truncate ${isDark ? 'text-[#4a5a7a]' : 'text-gray-400'}`}>{user?.is_admin ? 'Administrator' : 'Employee'}</p>
+            </div>
+          </div>
+          <button
+            onClick={async () => { if (onClose) onClose(); await logout(); }}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+              isDark
+                ? 'text-rose-400 hover:bg-rose-500/10 hover:text-rose-300'
+                : 'text-rose-600 hover:bg-rose-50 hover:text-rose-700'
+            }`}
+          >
+            <LogOut size={14} /> Sign Out
+          </button>
+          <p className={`text-[10px] text-center mt-1 ${isDark ? 'text-[#3a4a6a]' : 'text-gray-300'}`}>{BRAND} · Odoo 18 CE</p>
         </div>
       </aside>
     </>

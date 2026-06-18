@@ -368,7 +368,7 @@ export default function Journal() {
       {/* Detail Modal */}
       {detailEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`${modalBg} max-w-2xl`}>
+          <div className={`${modalBg} max-w-2xl max-h-[90vh] overflow-y-auto`}>
             <div className={mh}>
               <div>
                 <h2 className={`text-base font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{detailEntry.name}</h2>
@@ -450,7 +450,7 @@ export default function Journal() {
       {/* Create Entry Modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className={`${modalBg} max-w-2xl`}>
+          <div className={`${modalBg} max-w-2xl max-h-[90vh] overflow-y-auto`}>
             <div className={mh}>
               <h2 className={`text-base font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>New Journal Entry</h2>
               <button onClick={() => setShowCreate(false)} className={`p-2 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}>
@@ -579,5 +579,6 @@ export default function Journal() {
     </div>
   );
 }
+
 
 

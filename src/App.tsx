@@ -72,6 +72,9 @@ const QuickSaleOrder    = lazy(() => import('./components/modules/FlipkartOS/Qui
 const CreateEntry       = lazy(() => import('./components/modules/FlipkartOS/CreateEntry'));
 const B2BOrders         = lazy(() => import('./components/modules/B2B/B2BOrders'));
 const B2BLedger         = lazy(() => import('./components/modules/B2B/B2BLedger'));
+const B2BCustomers      = lazy(() => import('./components/modules/B2B/B2BCustomers'));
+const B2BStockAvailability = lazy(() => import('./components/modules/B2B/B2BStockAvailability'));
+const B2BInvoices       = lazy(() => import('./components/modules/B2B/B2BInvoices'));
 const SettlementsConsole = lazy(() => import('./components/modules/Settlements/SettlementsConsole'));
 const SettlementStudio  = lazy(() => import('./components/modules/Settlements/SettlementStudio'));
 const ExpenseManager    = lazy(() => import('./components/modules/Settlements/ExpenseManager'));
@@ -93,6 +96,7 @@ const GeneralSettings   = lazy(() => import('./components/modules/Settings/Gener
 const Profile           = lazy(() => import('./components/modules/Settings/Profile'));
 const ComingSoon        = lazy(() => import('./components/ui/ComingSoon'));
 const SuperAdminApp     = lazy(() => import('./superadmin/SuperAdminApp'));
+const QrPunchHandler    = lazy(() => import('./components/QrPunchHandler'));
 
 // ─── Loading fallback ───────────────────────────────────────────────────────
 function PageLoader() {
@@ -146,6 +150,9 @@ function InnerApp() {
         <Route path="/login" element={isAuthenticated ? <RoleLanding /> : <Login />} />
         <Route path="/signup" element={isAuthenticated ? <RoleLanding /> : <Signup />} />
 
+        {/* QR attendance punch — accessible without the app shell (scan from outside) */}
+        <Route path="/qr" element={<Suspense fallback={null}><QrPunchHandler /></Suspense>} />
+
         {/* Superadmin platform console (own JWT auth, before the /:workspace shell) */}
         <Route path="/superadmin/*" element={<Suspense fallback={<PageLoader />}><SuperAdminApp /></Suspense>} />
 
@@ -162,6 +169,9 @@ function InnerApp() {
           }
         >
           <Route index element={<RoleLanding />} />
+
+          {/* ─── QR attendance punch (workspace-scoped) ─── */}
+          <Route path="qr" element={<Suspense fallback={null}><QrPunchHandler /></Suspense>} />
 
           {/* ─── Dashboard ─── */}
           <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
@@ -224,8 +234,11 @@ function InnerApp() {
           <Route path="flipkart/create-entry"   element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
 
           {/* ─── B2B ─── */}
-          <Route path="b2b/orders" element={<Suspense fallback={<PageLoader />}><B2BOrders /></Suspense>} />
-          <Route path="b2b/ledger" element={<Suspense fallback={<PageLoader />}><B2BLedger /></Suspense>} />
+          <Route path="b2b/orders"    element={<Suspense fallback={<PageLoader />}><B2BOrders /></Suspense>} />
+          <Route path="b2b/ledger"    element={<Suspense fallback={<PageLoader />}><B2BLedger /></Suspense>} />
+          <Route path="b2b/customers" element={<Suspense fallback={<PageLoader />}><B2BCustomers /></Suspense>} />
+          <Route path="b2b/stock"     element={<Suspense fallback={<PageLoader />}><B2BStockAvailability /></Suspense>} />
+          <Route path="b2b/invoices"  element={<Suspense fallback={<PageLoader />}><B2BInvoices /></Suspense>} />
 
           {/* ─── Settlements ─── */}
           <Route path="settlements/studio"     element={<Suspense fallback={<PageLoader />}><SettlementStudio /></Suspense>} />

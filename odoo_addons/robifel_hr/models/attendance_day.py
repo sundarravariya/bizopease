@@ -1,6 +1,16 @@
 # -*- coding: utf-8 -*-
+from datetime import timezone, timedelta
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, AccessError
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+def _ist_minutes(dt_utc):
+    """Return minutes since midnight IST for a UTC-naive datetime."""
+    if not dt_utc:
+        return 0
+    dt_ist = dt_utc.replace(tzinfo=timezone.utc).astimezone(_IST)
+    return dt_ist.hour * 60 + dt_ist.minute
 
 
 class RobifelAttendanceDay(models.Model):
@@ -79,7 +89,10 @@ class RobifelAttendanceDay(models.Model):
         self.env['robifel.hr.settings'].assert_within_geofence(lat, lng)
         ts = when or fields.Datetime.now()
         if kind == 'in':
-            vals = {'status': 'present', 'check_in': ts, 'method': 'self',
+            # Late arrival: check-in after 14:00 IST → half day
+            ist_min = _ist_minutes(ts)
+            status = 'half' if ist_min > 14 * 60 else 'present'
+            vals = {'status': status, 'check_in': ts, 'method': 'self',
                     'geo_lat_in': lat or 0.0, 'geo_lng_in': lng or 0.0}
             if selfie:
                 vals['selfie_in'] = selfie
@@ -87,6 +100,9 @@ class RobifelAttendanceDay(models.Model):
             vals = {'check_out': ts, 'geo_lat_out': lat or 0.0, 'geo_lng_out': lng or 0.0}
             if selfie:
                 vals['selfie_out'] = selfie
+            # Early departure: check-out before 17:00 IST → half day
+            if _ist_minutes(ts) < 17 * 60:
+                vals['status'] = 'half'
         if rec:
             rec.write(vals)
         else:

@@ -134,6 +134,33 @@ export async function scanQr(): Promise<string> {
   return barcode.rawValue;
 }
 
+/**
+ * Scan any barcode (Code128, Code39, EAN, QR, etc.) using ML Kit native camera.
+ * Returns the raw text value. On web/non-native, falls back to a prompt for dev testing.
+ */
+export async function scanBarcode(): Promise<string> {
+  if (!isNative()) {
+    const val = prompt('Enter barcode value (development mode):');
+    if (!val) throw new Error('Scan cancelled.');
+    return val;
+  }
+  const perm = await BarcodeScanner.checkPermissions();
+  if (perm.camera !== 'granted') {
+    const req = await BarcodeScanner.requestPermissions();
+    if (req.camera !== 'granted') throw new Error('Camera permission is required for barcode scanning.');
+  }
+  const result = await BarcodeScanner.scan({
+    formats: [
+      BarcodeFormat.Code128, BarcodeFormat.Code39, BarcodeFormat.Code93,
+      BarcodeFormat.Ean13, BarcodeFormat.Ean8, BarcodeFormat.UpcA, BarcodeFormat.UpcE,
+      BarcodeFormat.QrCode, BarcodeFormat.DataMatrix, BarcodeFormat.Pdf417,
+    ],
+  });
+  const barcode = result.barcodes?.[0];
+  if (!barcode?.rawValue) throw new Error('No barcode found. Please try again.');
+  return barcode.rawValue;
+}
+
 /** Capture a front-camera selfie as base64 (no data: prefix). Best-effort. */
 export async function captureSelfie(): Promise<string | false> {
   if (!isNative()) return false;

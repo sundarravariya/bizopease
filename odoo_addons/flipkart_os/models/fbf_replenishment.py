@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from datetime import date, timedelta
 from odoo import models, fields, api
 
 
@@ -42,20 +43,49 @@ class FlipkartFbfReplenishment(models.Model):
         ('healthy', 'Healthy'),
     ], string='Urgency', compute='_compute_replenishment', store=True)
     urgency_sequence = fields.Integer(compute='_compute_replenishment', store=True)
+    uses_flipkart_fallback = fields.Boolean(
+        string='Using Flipkart Velocity (no FBF sales)', compute='_compute_replenishment', store=True)
 
     @api.depends('fbf_stock', 'sales_7d', 'sales_14d', 'in_transit', 'transit_days',
-                 'target_cover_days', 'critical_days', 'moderate_days')
+                 'target_cover_days', 'critical_days', 'moderate_days', 'fsn', 'account_id')
     def _compute_replenishment(self):
+        cutoff_str = fields.Date.to_string(date.today() - timedelta(days=14))
         for rec in self:
-            # Use 14-day sales for more stable velocity
+            # FBF velocity from the FBF warehouse sales
             ws = rec.sales_14d or rec.sales_7d or 0
-            rec.daily_sales = ws / 14.0 if rec.sales_14d else (ws / 7.0 if rec.sales_7d else 0)
+            fbf_daily = ws / 14.0 if rec.sales_14d else (ws / 7.0 if rec.sales_7d else 0)
+
+            # When FBF sales are zero, fall back to Flipkart platform sales
+            rec.uses_flipkart_fallback = False
+            flipkart_daily = 0.0
+            if fbf_daily == 0 and rec.fsn and rec.account_id:
+                groups = rec.env['flipkart.sales.dashboard'].read_group(
+                    domain=[
+                        ('account_id', '=', rec.account_id.id),
+                        ('sku_id', '=', rec.fsn),
+                        ('is_fsn_row', '=', True),
+                        ('order_date', '>=', cutoff_str),
+                    ],
+                    fields=['final_sale_units:sum'],
+                    groupby=[],
+                )
+                total_units = (groups[0].get('final_sale_units', 0.0) or 0.0) if groups else 0.0
+                if total_units > 0:
+                    # Divide by number of FBF warehouses carrying this FSN so per-warehouse velocity is accurate
+                    wh_count = max(1, rec.search_count([
+                        ('account_id', '=', rec.account_id.id),
+                        ('fsn', '=', rec.fsn),
+                    ]))
+                    flipkart_daily = (total_units / 14.0) / wh_count
+                    rec.uses_flipkart_fallback = True
+
+            rec.daily_sales = fbf_daily if fbf_daily > 0 else flipkart_daily
 
             if rec.daily_sales > 0:
                 transit_buffer = rec.daily_sales * rec.transit_days
                 target = (rec.daily_sales * rec.target_cover_days) + transit_buffer
                 rec.qty_to_send = max(0, target - rec.fbf_stock - rec.in_transit)
-                days_now = rec.fbf_stock / rec.daily_sales if rec.daily_sales else 999
+                days_now = rec.fbf_stock / rec.daily_sales
             else:
                 rec.qty_to_send = 0
                 days_now = 999
@@ -124,8 +154,21 @@ class FlipkartFbfReplenishmentGenerate(models.TransientModel):
             ('product_id', '!=', False),
         ])
 
+        # Build set of FSNs with any Flipkart platform sales in last 14 days (for zero-FBF products)
+        cutoff_str = fields.Date.to_string(date.today() - timedelta(days=14))
+        fk_sales_groups = self.env['flipkart.sales.dashboard'].read_group(
+            domain=[
+                ('account_id', '=', self.account_id.id),
+                ('is_fsn_row', '=', True),
+                ('order_date', '>=', cutoff_str),
+            ],
+            fields=['sku_id'],
+            groupby=['sku_id'],
+        )
+        fsn_with_flipkart_sales = {g['sku_id'] for g in fk_sales_groups if g.get('sku_id')}
+
         for s in stocks:
-            if s.sales_14d > 0 or s.sales_7d > 0 or s.qty_live < 5:
+            if s.sales_14d > 0 or s.sales_7d > 0 or s.qty_live < 5 or s.fsn in fsn_with_flipkart_sales:
                 # Add Odoo Transit if warehouse configuration matchesbackend warehouse on consignment
                 odoo_key = (s.fsn, s.warehouse_config_id.backend_warehouse_id.id)
                 odoo_t = odoo_transit_map.get(odoo_key, 0.0)

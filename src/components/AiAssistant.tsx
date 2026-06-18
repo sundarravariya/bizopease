@@ -177,7 +177,7 @@ export default function AiAssistant() {
                 <Bot size={16} className="text-white" />
               </div>
               <div>
-                <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Robifel AI</p>
+                <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Business AI</p>
                 <p className={`text-[10px] flex items-center gap-1 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
                   Live on Odoo
@@ -203,7 +203,7 @@ export default function AiAssistant() {
               <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0" style={{ maxHeight: 360 }}>
                 {messages.length === 0 && !loading && (
                   <div className={`text-xs leading-relaxed rounded-2xl px-3 py-2.5 ${isDark ? 'bg-[#2a3250] text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
-                    Hi! I am your Robifel AI assistant, connected to your live Odoo data. Ask me about stock levels, FBF status, vendor balances, or sales -- and I can draft purchase orders for your approval.
+                    Hi! I am your AI assistant, connected to your live Odoo data. Ask me about stock levels, FBF status, vendor balances, or sales — and I can draft purchase orders for your approval.
                   </div>
                 )}
                 {messages.map(msg => (
