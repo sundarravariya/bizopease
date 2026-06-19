@@ -34,6 +34,7 @@ export const sa = {
   workspaceUsers: (id: string) => call<{ odooDb: string; adminEmail: string; note: string }>(`/workspaces/${id}/users`, 'GET'),
   backups: () => call<any[]>('/backups', 'GET'),
   runBackup: () => call('/backups/run', 'POST', {}),
+  restoreBackup: (date: string, db: string) => call('/backups/restore', 'POST', { date, db }),
   logs: () => call<{ stdout: string; stderr: string }>('/logs', 'GET'),
   getConfig: () => call<Record<string, string>>('/config', 'GET'),
   saveConfig: (updates: Record<string, string>) => call('/config', 'POST', updates),

@@ -32,6 +32,16 @@ let RAZORPAY_PLAN_ID_PRO = '';
 let RAZORPAY_WEBHOOK_SECRET = '';
 let ODOO_URL = 'http://127.0.0.1:8069';
 let ODOO_MASTER_PASSWORD = '';
+let ADMIN_OTP_ENABLED = false;
+let SMTP_HOST = '';
+let SMTP_PORT = 587;
+let SMTP_USER = '';
+let SMTP_PASS = '';
+let SMTP_FROM = '';
+let QUEEN_ADMIN_LOGIN = 'admin';
+let QUEEN_ADMIN_PASSWORD = '';
+let QUEEN_URL = 'http://localhost:8070';
+let QUEEN_DB = '';
 
 function loadSettings(cb) {
   masterDb.all("SELECT key, value FROM system_settings", [], (err, rows) => {
@@ -49,6 +59,16 @@ function loadSettings(cb) {
         if (r.key === 'RAZORPAY_WEBHOOK_SECRET' && r.value) RAZORPAY_WEBHOOK_SECRET = r.value;
         if (r.key === 'ODOO_URL' && r.value) ODOO_URL = r.value;
         if (r.key === 'ODOO_MASTER_PASSWORD' && r.value) ODOO_MASTER_PASSWORD = r.value;
+        if (r.key === 'ADMIN_OTP_ENABLED') ADMIN_OTP_ENABLED = r.value === 'true';
+        if (r.key === 'SMTP_HOST' && r.value) SMTP_HOST = r.value;
+        if (r.key === 'SMTP_PORT' && r.value) SMTP_PORT = parseInt(r.value) || 587;
+        if (r.key === 'SMTP_USER' && r.value) SMTP_USER = r.value;
+        if (r.key === 'SMTP_PASS' && r.value) SMTP_PASS = r.value;
+        if (r.key === 'SMTP_FROM' && r.value) SMTP_FROM = r.value;
+        if (r.key === 'QUEEN_ADMIN_LOGIN' && r.value) QUEEN_ADMIN_LOGIN = r.value;
+        if (r.key === 'QUEEN_ADMIN_PASSWORD' && r.value) QUEEN_ADMIN_PASSWORD = r.value;
+        if (r.key === 'QUEEN_URL' && r.value) QUEEN_URL = r.value;
+        if (r.key === 'QUEEN_DB' && r.value) QUEEN_DB = r.value;
       });
     }
     if (cb) cb();
@@ -275,7 +295,7 @@ app.post('/api/auth/find-workspace', loginLimiter, (req, res) => {
 
   // Look up by admin_email in workspaces registry
   masterDb.get(
-    'SELECT tenant_id, workspace_name, odoo_db_name, subscription_status FROM workspaces WHERE LOWER(admin_email) = ?',
+    'SELECT tenant_id, workspace_name, odoo_db_name, subscription_status, is_queen_tenant FROM workspaces WHERE LOWER(admin_email) = ?',
     [email],
     (err, ws) => {
       if (err) return res.status(500).json({ error: 'Registry lookup failed' });
@@ -283,13 +303,15 @@ app.post('/api/auth/find-workspace', loginLimiter, (req, res) => {
         tenantId: w.tenant_id,
         workspaceName: w.workspace_name,
         odooDb: w.odoo_db_name || ('ws_' + w.tenant_id),
-        status: w.subscription_status
+        status: w.subscription_status,
+        otpEnabled: ADMIN_OTP_ENABLED,
+        isQueenTenant: w.is_queen_tenant === 1,
       });
       if (ws) return reply(ws);
 
       // Not a workspace owner — fall back to the employee/user map.
       masterDb.get(
-        `SELECT w.tenant_id, w.workspace_name, w.odoo_db_name, w.subscription_status
+        `SELECT w.tenant_id, w.workspace_name, w.odoo_db_name, w.subscription_status, w.is_queen_tenant
            FROM workspace_users u JOIN workspaces w ON w.tenant_id = u.tenant_id
           WHERE u.email = ? LIMIT 1`,
         [email],
@@ -301,6 +323,40 @@ app.post('/api/auth/find-workspace', loginLimiter, (req, res) => {
       );
     }
   );
+});
+
+/**
+ * POST /api/queen/authenticate
+ * Authenticates a user directly against the Queenfinger Odoo instance (port 8070).
+ * Used for queen-tenant workspaces — these users have no port-8069 Odoo account.
+ */
+app.post('/api/queen/authenticate', loginLimiter, async (req, res) => {
+  const { login, password } = req.body || {};
+  if (!login || !password) return res.status(400).json({ error: 'login and password required' });
+  if (!QUEEN_DB) return res.status(503).json({ error: 'B2B database not configured. Set QUEEN_DB in settings.' });
+  const queenBase = QUEEN_URL || 'http://localhost:8070';
+  try {
+    const r = await fetch(`${queenBase}/web/session/authenticate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'call',
+        params: { db: QUEEN_DB, login, password } }),
+    });
+    const j = await r.json();
+    if (!j.result?.uid) return res.status(401).json({ error: 'Invalid credentials' });
+    const result = j.result;
+    res.json({
+      uid: result.uid,
+      name: result.name || login,
+      username: result.username || login,
+      company_id: Array.isArray(result.company_id) ? result.company_id : [1, ''],
+      company_name: Array.isArray(result.company_id) ? result.company_id[1] : '',
+      is_admin: !!(result.is_system || result.is_admin),
+      db: QUEEN_DB,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'B2B database unreachable' });
+  }
 });
 
 /**
@@ -769,7 +825,9 @@ app.get('/api/superadmin/backups', requireSuperAdmin, (req, res) => {
       const dirPath = path.join(BACKUP_DIR, date);
       let files = [];
       try {
-        files = fs.readdirSync(dirPath).map(f => {
+        files = fs.readdirSync(dirPath)
+          .filter(f => !f.startsWith('deliveasy'))
+          .map(f => {
           const stat = fs.statSync(path.join(dirPath, f));
           return { name: f, size: stat.size };
         });
@@ -790,6 +848,30 @@ app.get('/api/superadmin/backups/download', requireSuperAdmin, (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${date}_${file}"`);
   res.setHeader('Content-Type', 'application/octet-stream');
   fs.createReadStream(filePath).pipe(res);
+});
+
+app.post('/api/superadmin/backups/restore', requireSuperAdmin, (req, res) => {
+  const { date, db } = req.body || {};
+  if (!date || !db || !/^[\w-]+$/.test(String(date)) || !/^[\w]+$/.test(String(db))) {
+    return res.status(400).json({ error: 'Invalid parameters' });
+  }
+  const dumpPath = path.join(BACKUP_DIR, String(date), `${db}.dump`);
+  const filestorePath = path.join(BACKUP_DIR, String(date), 'filestore.tar.gz');
+  if (!fs.existsSync(dumpPath)) return res.status(404).json({ error: `Dump not found: ${dumpPath}` });
+  res.json({ success: true, message: `Restore of ${db} from ${date} started. This takes ~60 seconds.` });
+  // Restore DB
+  const cmd = `/usr/local/bin/odoo-restore.sh ${dumpPath} ${db} >> /var/log/odoo-backup.log 2>&1`;
+  exec(cmd, (err) => {
+    if (err) { console.error('[Restore] DB restore failed:', err.message); return; }
+    console.log(`[Restore] DB restore of ${db} complete`);
+    // Restore filestore if present
+    if (fs.existsSync(filestorePath)) {
+      exec(`tar -xzf ${filestorePath} -C /var/lib/odoo/.local/share/Odoo/ >> /var/log/odoo-backup.log 2>&1`, (e2) => {
+        if (e2) console.error('[Restore] Filestore restore failed:', e2.message);
+        else console.log('[Restore] Filestore restore complete');
+      });
+    }
+  });
 });
 
 app.post('/api/superadmin/backups/run', requireSuperAdmin, (req, res) => {
@@ -838,6 +920,8 @@ const CONFIG_KEYS = [
   'SUPERADMIN_USERNAME', 'SUPERADMIN_PASSWORD',
   'JWT_SECRET',
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+  'ADMIN_OTP_ENABLED',
+  'QUEEN_ADMIN_LOGIN', 'QUEEN_ADMIN_PASSWORD', 'QUEEN_URL', 'QUEEN_DB',
   'R2_ACCOUNT_ID', 'R2_BUCKET_NAME', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT'
 ];
 
@@ -883,6 +967,118 @@ app.post('/api/superadmin/restart', requireSuperAdmin, (req, res) => {
       console.log('[Admin] PM2 reload:', stdout, err?.message);
     });
   }, 2000);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN EMAIL OTP  (only active when ADMIN_OTP_ENABLED = true)
+// ════════════════════════════════════════════════════════════════════════
+
+const otpStore = new Map(); // email.toLowerCase() → { code, expires }
+
+function getMailer() {
+  const nodemailer = require('nodemailer');
+  return nodemailer.createTransport({
+    host: SMTP_HOST || 'smtp.gmail.com',
+    port: SMTP_PORT || 587,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+}
+
+app.post('/api/auth/send-otp', async (req, res) => {
+  if (!ADMIN_OTP_ENABLED) return res.status(403).json({ error: 'OTP is not enabled.' });
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  if (!SMTP_USER || !SMTP_PASS) return res.status(503).json({ error: 'SMTP not configured. Contact the system administrator.' });
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  otpStore.set(email.toLowerCase(), { code, expires: Date.now() + 10 * 60 * 1000 });
+
+  try {
+    await getMailer().sendMail({
+      from: SMTP_FROM || SMTP_USER,
+      to: email,
+      subject: 'BizOpease Admin Verification Code',
+      text: `Your BizOpease admin verification code is: ${code}\n\nValid for 10 minutes. Do not share this code.`,
+      html: `<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#7367f0">BizOpease Admin Login</h2>
+        <p>Your verification code:</p>
+        <h1 style="letter-spacing:0.3em;color:#1a1a2e;background:#f4f4ff;padding:16px 24px;border-radius:8px;text-align:center">${code}</h1>
+        <p style="color:#888;font-size:13px">Valid for 10 minutes. Do not share this code.</p>
+      </div>`,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    otpStore.delete(email.toLowerCase());
+    res.status(500).json({ error: 'Failed to send email: ' + e.message });
+  }
+});
+
+app.post('/api/auth/verify-otp', (req, res) => {
+  const { email, code } = req.body || {};
+  const rec = otpStore.get((email || '').toLowerCase());
+  if (!rec || Date.now() > rec.expires) {
+    return res.status(401).json({ error: 'OTP expired or not found. Request a new code.' });
+  }
+  if (String(rec.code) !== String(code).trim()) {
+    return res.status(401).json({ error: 'Invalid code. Try again.' });
+  }
+  otpStore.delete((email || '').toLowerCase());
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// QUEENFINGER PROXY  (/api/queen/rpc → localhost:8070)
+// ════════════════════════════════════════════════════════════════════════
+
+let _queenSession = null;
+
+async function getQueenSession() {
+  if (_queenSession) return _queenSession;
+  if (!QUEEN_ADMIN_PASSWORD) throw new Error('QUEEN_ADMIN_PASSWORD not configured in system settings.');
+  if (!QUEEN_DB) throw new Error('QUEEN_DB not configured in system settings.');
+  const queenBase = QUEEN_URL || 'http://localhost:8070';
+  const r = await fetch(`${queenBase}/web/session/authenticate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', method: 'call',
+      params: { db: QUEEN_DB, login: QUEEN_ADMIN_LOGIN || 'admin', password: QUEEN_ADMIN_PASSWORD },
+    }),
+  });
+  const j = await r.json();
+  const sid = (r.headers.get('set-cookie') || '').match(/session_id=([^;]+)/)?.[1];
+  if (j.result?.uid && sid) { _queenSession = sid; return sid; }
+  throw new Error('B2B database auth failed — check QUEEN_ADMIN_PASSWORD and QUEEN_DB in settings.');
+}
+
+app.post('/api/queen/rpc', async (req, res) => {
+  try {
+    const sid = await getQueenSession();
+    const { model, method, args = [], kwargs = {} } = req.body || {};
+    if (!model || !method) return res.status(400).json({ error: 'model and method required' });
+
+    const callQueen = async (sessionId) => {
+      const r = await fetch(`${QUEEN_URL || 'http://localhost:8070'}/web/dataset/call_kw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Cookie': `session_id=${sessionId}` },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model, method, args, kwargs } }),
+      });
+      return r.json();
+    };
+
+    let resp = await callQueen(sid);
+    // Session expired → clear and retry once
+    if (resp.error?.data?.name?.includes('SessionExpiredException') ||
+        resp.error?.data?.name?.includes('SessionExpired')) {
+      _queenSession = null;
+      const sid2 = await getQueenSession();
+      resp = await callQueen(sid2);
+    }
+    res.json(resp);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════

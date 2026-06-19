@@ -4,7 +4,7 @@ import {
   ShieldCheck, LogOut, RefreshCw, Plus, X, Check, AlertCircle, Trash2, Download,
   Play, Power, Users, TrendingUp, IndianRupee, Clock, CheckCircle2,
 } from 'lucide-react';
-import { sa, backupDownloadUrl } from './api';
+import { sa, getToken } from './api';
 
 type Tab = 'overview' | 'workspaces' | 'backups' | 'logs' | 'settings';
 
@@ -323,9 +323,40 @@ function Backups({ notify }: { notify: (ok: boolean, m: string) => void }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
   const load = () => { setLoading(true); sa.backups().then(setRows).catch(e => notify(false, e.message)).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []); // eslint-disable-line
-  const run = async () => { setRunning(true); try { await sa.runBackup(); notify(true, 'Backup triggered -- refresh in ~30s'); } catch (e: any) { notify(false, e.message); } finally { setRunning(false); } };
+
+  const run = async () => { setRunning(true); try { await sa.runBackup(); notify(true, 'Backup triggered — refresh in ~30s'); } catch (e: any) { notify(false, e.message); } finally { setRunning(false); } };
+
+  const download = async (date: string, file: string) => {
+    const key = `${date}/${file}`;
+    setDownloading(key);
+    try {
+      const res = await fetch(`/api/superadmin/backups/download?date=${encodeURIComponent(date)}&file=${encodeURIComponent(file)}`, {
+        headers: { Authorization: 'Bearer ' + getToken() },
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Download failed'); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${date}_${file}`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) { notify(false, e.message); }
+    finally { setDownloading(null); }
+  };
+
+  const restore = async (date: string, db: string) => {
+    if (!confirm(`Restore "${db}" database from backup ${date}?\n\nThis will OVERWRITE the current database and filestore. Odoo will restart. This cannot be undone.`)) return;
+    const key = `${date}/${db}`;
+    setRestoring(key);
+    try {
+      await sa.restoreBackup(date, db);
+      notify(true, `Restore of ${db} started — Odoo will restart in ~60 seconds.`);
+    } catch (e: any) { notify(false, e.message); }
+    finally { setRestoring(null); }
+  };
 
   return (
     <>
@@ -336,28 +367,51 @@ function Backups({ notify }: { notify: (ok: boolean, m: string) => void }) {
           <button onClick={run} disabled={running} className="px-3 py-2 rounded-xl bg-[#7367f0] text-sm font-bold flex items-center gap-1.5 disabled:opacity-60"><Play size={14} /> Run Backup Now</button>
         </div>
       </div>
-      <details className={`${card} p-4 mb-4 text-sm`}>
-        <summary className="cursor-pointer font-bold text-[#9d95f5]">Restore instructions</summary>
-        <div className="mt-3 text-[#8897b5] space-y-2 text-xs leading-relaxed">
-          <p>Each set contains one <span className="font-mono">.dump</span> per database plus <span className="font-mono">filestore.tar.gz</span>. To restore a single tenant on the server:</p>
-          <pre className="bg-[#0b0f1c] rounded-lg p-3 overflow-x-auto text-[#9fb0d0]">sudo /usr/local/bin/odoo-restore.sh /var/backups/odoo/&lt;date&gt;/&lt;db&gt;.dump &lt;db&gt;</pre>
-          <p>This stops Odoo, drops and recreates the database, restores the dump, and starts Odoo. Restore the filestore (attachments) by extracting <span className="font-mono">filestore.tar.gz</span> into <span className="font-mono">/var/lib/odoo/.local/share/Odoo/</span>.</p>
-        </div>
-      </details>
       {loading ? <Loader /> : rows.length === 0 ? <p className="text-[#6a7a9a]">No backups yet. Run one or wait for the daily 2 AM job.</p> : (
         <div className="space-y-3">
-          {rows.map(b => (
-            <div key={b.date} className={`${card} p-4`}>
-              <p className="font-bold text-sm mb-2">{b.date}</p>
-              <div className="flex flex-wrap gap-2">
-                {b.files.map((f: any) => (
-                  <a key={f.name} href={backupDownloadUrl(b.date, f.name)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e2440] text-xs hover:bg-[#252b4a]">
-                    <Download size={12} className="text-[#7367f0]" /> {f.name} <span className="text-[#5a6a8a]">{fmtSize(f.size)}</span>
-                  </a>
-                ))}
+          {rows.map(b => {
+            const dumps = b.files.filter((f: any) => f.name.endsWith('.dump'));
+            const others = b.files.filter((f: any) => !f.name.endsWith('.dump'));
+            return (
+              <div key={b.date} className={`${card} p-4`}>
+                <p className="font-bold text-sm mb-3">{b.date}</p>
+                {/* DB dumps with restore buttons */}
+                <div className="space-y-2 mb-3">
+                  {dumps.map((f: any) => {
+                    const db = f.name.replace('.dump', '');
+                    const dlKey = `${b.date}/${f.name}`;
+                    const restKey = `${b.date}/${db}`;
+                    return (
+                      <div key={f.name} className="flex items-center gap-2">
+                        <button onClick={() => download(b.date, f.name)} disabled={downloading === dlKey}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e2440] text-xs hover:bg-[#252b4a] disabled:opacity-60">
+                          {downloading === dlKey ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} className="text-[#7367f0]" />}
+                          {f.name} <span className="text-[#5a6a8a]">{fmtSize(f.size)}</span>
+                        </button>
+                        <button onClick={() => restore(b.date, db)} disabled={restoring === restKey}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs hover:bg-rose-500/25 disabled:opacity-60">
+                          {restoring === restKey ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />}
+                          Restore {db}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Other files (filestore etc.) */}
+                {others.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {others.map((f: any) => (
+                      <button key={f.name} onClick={() => download(b.date, f.name)} disabled={downloading === `${b.date}/${f.name}`}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1e2440] text-xs hover:bg-[#252b4a] disabled:opacity-60">
+                        {downloading === `${b.date}/${f.name}` ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} className="text-[#7367f0]" />}
+                        {f.name} <span className="text-[#5a6a8a]">{fmtSize(f.size)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
