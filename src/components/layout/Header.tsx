@@ -235,7 +235,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
                 <div className="py-1">
                   {[
                     { icon: User, label: 'My Profile', path: '/settings/profile' },
-                    { icon: Settings, label: 'Settings', path: '/settings/general' },
+                    ...(user?.is_admin ? [{ icon: Settings, label: 'Settings', path: '/settings/general' }] : []),
                     { icon: HelpCircle, label: 'Help & Docs', path: '#' },
                   ].map(item => (
                     <button

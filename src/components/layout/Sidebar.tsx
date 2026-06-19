@@ -237,6 +237,7 @@ const EMPLOYEE_NAV: NavItem[] = [
   { id: 'consignments', label: 'Consignments', icon: PackageSearch, path: '/flipkart/consignments' },
   { id: 'daily-orders', label: 'Daily Orders', icon: ScanLine, path: '/flipkart/scanner' },
   { id: 'returns', label: 'Returns', icon: RefreshCcw, path: '/flipkart/returns' },
+  { id: 'profile', label: 'My Profile', icon: UserCheck, path: '/settings/profile', groupLabel: 'ACCOUNT' },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {

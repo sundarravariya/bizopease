@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Attendance Kiosk</string>
+    <string name="title_activity_main">Attendance Kiosk</string>
+    <string name="package_name">in.robifel.kiosk</string>
+    <string name="custom_url_scheme">in.robifel.kiosk</string>
+</resources>

@@ -10,6 +10,11 @@ const api = axios.create({
   timeout: 30000,
 });
 
+/** Override base URL at runtime (used by the standalone Kiosk APK). */
+export function setOdooBaseUrl(url: string) {
+  api.defaults.baseURL = url;
+}
+
 let _reqId = 1;
 const nextId = () => _reqId++;
 

@@ -10,7 +10,9 @@ import {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-export default function Kiosk() {
+interface KioskProps { onAdminExit?: () => void; }
+
+export default function Kiosk({ onAdminExit }: KioskProps = {}) {
   const { isDark } = useTheme();
 
   // attendance mode loaded from settings
@@ -55,7 +57,18 @@ export default function Kiosk() {
 
   const loadQr = async () => {
     setQrLoading(true);
-    try { setQrData(await odooCall('robifel.hr.settings', 'get_daily_qr', [], {})); }
+    try {
+      const data = await odooCall('robifel.hr.settings', 'get_daily_qr', [], {});
+      setQrData(data);
+      // Update home-screen widget if running in the Kiosk APK
+      if (data?.url) {
+        try {
+          const { registerPlugin } = await import('@capacitor/core');
+          const QrWidget = registerPlugin<{ saveQrUrl: (o: { url: string }) => Promise<void> }>('QrWidget');
+          await QrWidget.saveQrUrl({ url: data.url });
+        } catch { /* plugin not available in portal build */ }
+      }
+    }
     catch { /* not available */ }
     finally { setQrLoading(false); }
   };
@@ -100,7 +113,7 @@ export default function Kiosk() {
     return (
       <div className="max-w-md mx-auto pb-24 animate-fade-in">
         <div className="mb-4 text-center">
-          <h1 className={`text-xl font-black ${txt}`}>QR Attendance</h1>
+          <h1 className={`text-xl font-black ${txt}`} onDoubleClick={onAdminExit}>QR Attendance</h1>
         </div>
 
         <div className={`rounded-3xl border p-8 flex flex-col items-center gap-5 ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`}>
@@ -150,7 +163,7 @@ export default function Kiosk() {
     return (
       <div className="max-w-xl mx-auto pb-24 animate-fade-in">
         <div className="mb-4 text-center">
-          <h1 className={`text-xl font-black ${txt}`}>Attendance Kiosk</h1>
+          <h1 className={`text-xl font-black ${txt}`} onDoubleClick={onAdminExit}>Attendance Kiosk</h1>
           <p className={`text-xs mt-0.5 ${sub}`}>Tap each employee's NFC badge to mark them {kind === 'in' ? 'in' : 'out'}</p>
         </div>
 

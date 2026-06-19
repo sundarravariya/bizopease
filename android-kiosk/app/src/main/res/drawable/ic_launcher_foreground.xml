@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- QR corner squares (top-left) -->
+    <path android:fillColor="#10b981"
+        android:pathData="M18,18 L42,18 L42,42 L18,42 Z" />
+    <path android:fillColor="#0f1422"
+        android:pathData="M23,23 L37,23 L37,37 L23,37 Z" />
+    <path android:fillColor="#10b981"
+        android:pathData="M27,27 L33,27 L33,33 L27,33 Z" />
+
+    <!-- QR corner squares (top-right) -->
+    <path android:fillColor="#10b981"
+        android:pathData="M66,18 L90,18 L90,42 L66,42 Z" />
+    <path android:fillColor="#0f1422"
+        android:pathData="M71,23 L85,23 L85,37 L71,37 Z" />
+    <path android:fillColor="#10b981"
+        android:pathData="M75,27 L81,27 L81,33 L75,33 Z" />
+
+    <!-- QR corner squares (bottom-left) -->
+    <path android:fillColor="#10b981"
+        android:pathData="M18,66 L42,66 L42,90 L18,90 Z" />
+    <path android:fillColor="#0f1422"
+        android:pathData="M23,71 L37,71 L37,85 L23,85 Z" />
+    <path android:fillColor="#10b981"
+        android:pathData="M27,75 L33,75 L33,81 L27,81 Z" />
+
+    <!-- QR data dots (simplified pattern) -->
+    <path android:fillColor="#10b981"
+        android:pathData="M48,18 L54,18 L54,24 L48,24 Z
+                          M56,18 L62,18 L62,24 L56,24 Z
+                          M48,26 L54,26 L54,32 L48,32 Z
+                          M56,34 L62,34 L62,40 L56,40 Z
+                          M48,42 L54,42 L54,48 L48,48 Z" />
+
+    <!-- Clock circle (bottom-right) — overlays to show "time = attendance" -->
+    <path android:fillColor="#059669"
+        android:pathData="M78,58 m-18,0 a18,18 0 1,0 36,0 a18,18 0 1,0 -36,0" />
+    <path android:fillColor="#0f1422"
+        android:pathData="M78,58 m-14,0 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0" />
+    <!-- Clock hands -->
+    <path android:strokeColor="#10b981" android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M78,58 L78,50" />
+    <path android:strokeColor="#10b981" android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M78,58 L84,62" />
+    <!-- Clock center dot -->
+    <path android:fillColor="#10b981"
+        android:pathData="M78,58 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+
+</vector>

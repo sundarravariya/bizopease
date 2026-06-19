@@ -142,8 +142,32 @@ export default function GeneralSettings() {
     setModuleAction(mod.id);
     setMessage(null);
     try {
+      // Fetch this module's declared dependencies via ir.module.module.dependency
+      const { searchRead: sr } = await import('../../../services/odoo');
+      const deps = await sr<{ depend_id: [number, string]; name: string }>('ir.module.module.dependency', {
+        domain: [['module_id', '=', mod.id]],
+        fields: ['name', 'depend_id'],
+        limit: 100,
+      });
+      const depNames = deps.map(d => d.name).filter(n => n !== 'base' && n !== 'web');
+      // Find which deps are not yet installed
+      let uninstalledDeps: OdooModule[] = [];
+      if (depNames.length > 0) {
+        uninstalledDeps = await sr<OdooModule>('ir.module.module', {
+          domain: [['name', 'in', depNames], ['state', 'not in', ['installed', 'to upgrade']]],
+          fields: ['id', 'name', 'shortdesc'],
+          limit: 50,
+        });
+      }
+      if (uninstalledDeps.length > 0) {
+        const depList = uninstalledDeps.map(d => d.shortdesc || d.name).join(', ');
+        const ok = confirm(
+          `Installing "${mod.shortdesc || mod.name}" also requires:\n\n${depList}\n\nOdoo will install all of them automatically. Continue?`
+        );
+        if (!ok) { setModuleAction(null); return; }
+      }
       await odooCall('ir.module.module', 'button_immediate_install', [[mod.id]]);
-      setMessage({ type: 'success', text: `${mod.shortdesc || mod.name} installed. Page reload may be needed.` });
+      setMessage({ type: 'success', text: `${mod.shortdesc || mod.name} installed successfully.` });
       await fetchModules();
     } catch (e: any) {
       setMessage({ type: 'error', text: e?.message || 'Install failed' });
@@ -162,6 +186,14 @@ export default function GeneralSettings() {
       setMessage({ type: 'error', text: e?.message || 'Uninstall failed' });
     } finally { setModuleAction(null); }
   };
+
+  if (!user?.is_admin) {
+    return (
+      <div className="flex items-center justify-center h-64 text-[#8897b5] text-sm">
+        Access restricted to administrators.
+      </div>
+    );
+  }
 
   const glassClass = isDark ? 'glass' : 'glass-light bg-white/80';
   const sidebarTabClass = (tabId: string) => `

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Clock, Lock, MapPin, RefreshCw, AlertCircle, LogOut, CalendarOff, CheckCircle2, Nfc, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { searchRead, odooCall } from '../services/odoo';
@@ -34,6 +35,8 @@ const Shell = ({ children }: { children: ReactNode }) => (
  */
 export default function WorkHoursGate({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const location = useLocation();
+  const isTasksPage = location.pathname.endsWith('/tasks');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [empId, setEmpId] = useState<number | null>(null);
   const [day, setDay] = useState<DayRec | null>(null);
@@ -297,11 +300,13 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <button onClick={() => setConfirmOut(true)}
-        className="fixed right-4 z-[55] px-4 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-colors"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
-        <LogOut size={14} /> Check Out
-      </button>
+      {isTasksPage && (
+        <button onClick={() => setConfirmOut(true)}
+          className="fixed right-4 z-[35] px-4 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition-colors"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+          <LogOut size={14} /> Check Out
+        </button>
+      )}
       {confirmOut && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm" onClick={() => !punching && setConfirmOut(false)}>
           <div className="max-w-sm w-full rounded-3xl p-7 border border-[#2a3250] bg-[#161b2e] text-center" onClick={e => e.stopPropagation()}>
