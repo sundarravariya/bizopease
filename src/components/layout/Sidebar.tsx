@@ -182,9 +182,21 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   // ─── PARTNERS & FINANCE ─────────────────────
-  // NOTE: B2B Portal belongs to the queenfinger database and is shown ONLY to
-  // queen tenants via QUEEN_NAV. It is intentionally absent here so robifel
-  // users never see or reach queenfinger data (DB separation).
+  // B2B Portal is module-gated on b2b_os, which is installed only in the
+  // queenfinger DB — so it appears for queen tenants and is hidden for robifel.
+  {
+    id: 'b2b',
+    label: 'B2B Portal',
+    icon: Globe,
+    groupLabel: 'PARTNERS & FINANCE',
+    children: [
+      { id: 'b2b-orders',    label: 'B2B Orders',       icon: ClipboardList, path: '/b2b/orders' },
+      { id: 'b2b-customers', label: 'Customers',         icon: Users,         path: '/b2b/customers' },
+      { id: 'b2b-invoices',  label: 'Invoices',          icon: Receipt,       path: '/b2b/invoices' },
+      { id: 'b2b-stock',     label: 'Stock Availability',icon: Package,       path: '/b2b/stock' },
+      { id: 'b2b-ledger',    label: 'Partner Ledger',    icon: BookOpen,      path: '/b2b/ledger' },
+    ],
+  },
   {
     id: 'settlements',
     label: 'Settlements',
@@ -230,17 +242,6 @@ const EMPLOYEE_NAV: NavItem[] = [
   { id: 'profile', label: 'My Profile', icon: UserCheck, path: '/settings/profile', groupLabel: 'ACCOUNT' },
 ];
 
-// Queen tenants (queenfinger DB) get a B2B-only workspace. All these screens use
-// queenCall() → /api/queen/rpc, which is bound to the queenfinger database, so a
-// queen tenant can never reach robifel data and vice-versa.
-const QUEEN_NAV: NavItem[] = [
-  { id: 'b2b-orders',    label: 'B2B Orders',        icon: ClipboardList, path: '/b2b/orders', groupLabel: 'B2B PORTAL' },
-  { id: 'b2b-customers', label: 'Customers',         icon: Users,         path: '/b2b/customers' },
-  { id: 'b2b-invoices',  label: 'Invoices',          icon: Receipt,       path: '/b2b/invoices' },
-  { id: 'b2b-stock',     label: 'Stock Availability',icon: Package,       path: '/b2b/stock' },
-  { id: 'b2b-ledger',    label: 'Partner Ledger',    icon: BookOpen,      path: '/b2b/ledger' },
-  { id: 'profile',       label: 'My Profile',        icon: UserCheck,     path: '/settings/profile', groupLabel: 'ACCOUNT' },
-];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { isDark } = useTheme();
@@ -251,12 +252,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   // this workspace's DB. null = not yet loaded -> show everything (no flicker).
   const [installed, setInstalled] = useState<Set<string> | null>(null);
   useEffect(() => {
-    // Queen tenants have no robifel browser session — skip the robifel module probe.
-    if (!user?.is_admin || user?.is_queen_tenant) return;
+    if (!user?.is_admin) return;
+    // For queen tenants this searchRead is auto-routed to the queenfinger DB, so the
+    // menu reflects exactly what is installed there (e.g. sale/purchase/account/b2b_os,
+    // and NOT flipkart_os/robifel_hr).
     searchRead<{ name: string }>('ir.module.module', {
       domain: [['state', '=', 'installed']], fields: ['name'], limit: 0,
     }).then(mods => setInstalled(new Set((mods || []).map(m => m.name)))).catch(() => setInstalled(null));
-  }, [user?.is_admin, user?.is_queen_tenant]);
+  }, [user?.is_admin]);
 
   const hasModule = (id: string) => {
     const mod = MODULE_BY_ID[id];
@@ -270,7 +273,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return `/${db}${path}`;
   };
 
-  const baseItems = user?.is_queen_tenant ? QUEEN_NAV : (user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV);
+  const baseItems = user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV;
   const items = baseItems
     .filter(it => hasModule(it.id))
     .map(it => {

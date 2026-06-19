@@ -1,7 +1,22 @@
 import axios from 'axios';
 import { getOdooDb } from '../config/tenant';
+import { getQueenToken } from './queen';
 
 const BASE_URL = import.meta.env.VITE_ODOO_URL || '';
+
+// Queen tenants have no robifel browser session — every Odoo model call must go
+// through the control-plane queen proxy (bound to the queenfinger DB). We detect
+// a queen session from the persisted user flag PLUS a queen JWT, so a stale token
+// alone can never reroute a robifel user's calls to queenfinger.
+function isQueenSession(): boolean {
+  try {
+    if (!getQueenToken()) return false;
+    const u = JSON.parse(localStorage.getItem('robifel-user') || '{}');
+    return u?.is_queen_tenant === true;
+  } catch {
+    return false;
+  }
+}
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -20,6 +35,32 @@ const nextId = () => _reqId++;
 
 // ---------- Core JSON-RPC ----------
 async function jsonRpc<T>(endpoint: string, params: Record<string, any>): Promise<T> {
+  // Queen tenants: route all model (call_kw) traffic through the secured queen
+  // proxy so every screen reads/writes the queenfinger DB, never robifel.
+  if (endpoint === '/web/dataset/call_kw' && isQueenSession()) {
+    const r = await fetch('/api/queen/rpc', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + getQueenToken(),
+      },
+      body: JSON.stringify({
+        model: params.model,
+        method: params.method,
+        args: params.args || [],
+        kwargs: params.kwargs || {},
+      }),
+    });
+    const j = await r.json();
+    if (j.error) {
+      const msg = typeof j.error === 'string'
+        ? j.error
+        : (j.error.data?.message || j.error.message || 'Odoo error');
+      throw new Error(msg);
+    }
+    return j.result as T;
+  }
+
   const payload = {
     jsonrpc: '2.0',
     method: 'call',
