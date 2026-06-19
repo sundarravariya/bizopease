@@ -130,11 +130,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// ─── Role-based landing: managers → dashboard, employees → their tasks ───────
+// ─── Role-based landing: queen tenants → B2B, managers → dashboard, employees → tasks ───
 function RoleLanding() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   const workspaceSlug = user.db || 'robifel';
+  // Queen tenants get a B2B-only workspace (queenfinger DB via /api/queen/rpc).
+  if (user.is_queen_tenant) return <Navigate to={`/${workspaceSlug}/b2b/orders`} replace />;
   return <Navigate to={`/${workspaceSlug}/${user.is_admin ? 'dashboard' : 'tasks'}`} replace />;
 }
 

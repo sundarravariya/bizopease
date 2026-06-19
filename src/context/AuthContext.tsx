@@ -163,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     flushCache();
     setUser(null);
     localStorage.removeItem('robifel-user');
+    localStorage.removeItem('bizopease_queen_token'); // drop queenfinger JWT
   }, []);
 
   const setAuthUser = useCallback((u: User) => {

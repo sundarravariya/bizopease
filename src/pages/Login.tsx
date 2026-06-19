@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import type { User } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { odooLogin, userIsManager } from '../services/odoo';
+import { setQueenToken } from '../services/queen';
 import { Lock, Mail, Eye, EyeOff, Zap, Sun, Moon, AlertCircle, RefreshCw, ArrowLeft, CheckCircle, Building2, ShieldCheck } from 'lucide-react';
 import { BRAND } from '../config/brand';
 
@@ -85,6 +86,9 @@ export default function Login() {
         });
         const result = await r.json();
         if (!r.ok || result.error) throw new Error(result.error || 'Invalid credentials');
+
+        // Store the queen JWT so queenCall() can authorize against /api/queen/rpc.
+        if (result.token) setQueenToken(result.token);
 
         const userData: User = {
           uid: result.uid,

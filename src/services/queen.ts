@@ -1,4 +1,10 @@
 const QUEEN_RPC = '/api/queen/rpc';
+const QUEEN_TOKEN_KEY = 'bizopease_queen_token';
+
+/** Persist / read / clear the queen JWT issued by /api/queen/authenticate. */
+export const setQueenToken = (t: string) => localStorage.setItem(QUEEN_TOKEN_KEY, t);
+export const getQueenToken = () => localStorage.getItem(QUEEN_TOKEN_KEY) || '';
+export const clearQueenToken = () => localStorage.removeItem(QUEEN_TOKEN_KEY);
 
 export async function queenCall<T = any>(
   model: string,
@@ -6,9 +12,13 @@ export async function queenCall<T = any>(
   args: any[] = [],
   kwargs: Record<string, any> = {}
 ): Promise<T> {
+  const token = getQueenToken();
   const r = await fetch(QUEEN_RPC, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
     body: JSON.stringify({ model, method, args, kwargs }),
   });
   const j = await r.json();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -62,7 +62,7 @@ export default function B2BLedger() {
       const domain: any[] = [['partner_id', '=', detailPartnerId]];
       if (dateFrom) domain.push(['date', '>=', dateFrom]);
       if (dateTo) domain.push(['date', '<=', dateTo]);
-      const res = await odooCall<LedgerLine[]>('b2b.ledger', 'search_read', [domain], {
+      const res = await queenCall<LedgerLine[]>('b2b.ledger', 'search_read', [domain], {
         fields: ['id', 'date', 'name', 'ref', 'debit', 'credit', 'balance'],
         order: 'date asc, id asc',
         limit: 0,
@@ -82,13 +82,13 @@ export default function B2BLedger() {
     setWizardLoading(true);
     setMessage(null);
     try {
-      const wizardId = await odooCall<number>('b2b.manual.entry.wizard', 'create', [{
+      const wizardId = await queenCall<number>('b2b.manual.entry.wizard', 'create', [{
         partner_id: detailPartnerId,
         amount: parseFloat(setoffAmount),
         entry_type: entryType,
         payment_details: setoffNote || 'Contra AR/AP Adjustment',
       }], {});
-      await odooCall('b2b.manual.entry.wizard', 'action_post_entry', [[wizardId]], {});
+      await queenCall('b2b.manual.entry.wizard', 'action_post_entry', [[wizardId]], {});
       setMessage({ type: 'success', text: 'Ledger entry posted. Journal entry created.' });
       fetchLedger();
       setSetoffOpen(false);

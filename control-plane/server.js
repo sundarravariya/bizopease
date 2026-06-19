@@ -104,6 +104,26 @@ function requireSuperAdmin(req, res, next) {
   }
 }
 
+// Gate for the Queenfinger (B2B) RPC proxy. Only a caller who authenticated
+// against the queenfinger Odoo database (and thus holds a 'queen' JWT bound to
+// that db) may reach queenfinger data. This enforces DB-level separation:
+// robifel users (role 'tenant', db robifel) and anonymous callers are rejected,
+// so there is no cross-database data leak through the shared admin proxy.
+function requireQueenAuth(req, res, next) {
+  const token = (req.headers['authorization'] || '').split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'queen' || decoded.db !== QUEEN_DB) {
+      return res.status(403).json({ error: 'Not authorized for this database' });
+    }
+    req.queenUser = decoded;
+    next();
+  } catch {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+}
+
 // ─── STATIC FILES ─────────────────────────────────────────────────────────────
 // SECURITY: do NOT serve __dirname statically -- it would expose master.db, server.js
 // and all secrets over HTTP. The HTML panels are served explicitly by the routes
@@ -338,14 +358,27 @@ app.post('/api/queen/authenticate', loginLimiter, async (req, res) => {
   try {
     const r = await fetch(`${queenBase}/web/session/authenticate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // Odoo dbfilter=^%d$ : first label of X-Forwarded-Host must equal the db
+        'X-Forwarded-Host': `${QUEEN_DB}.local`,
+        'X-Forwarded-Proto': 'https',
+      },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'call',
         params: { db: QUEEN_DB, login, password } }),
     });
     const j = await r.json();
     if (!j.result?.uid) return res.status(401).json({ error: 'Invalid credentials' });
     const result = j.result;
+    // Issue a 'queen' JWT bound to the queenfinger db. The portal sends this as a
+    // Bearer token on /api/queen/rpc; requireQueenAuth verifies it, so only users
+    // who proved queenfinger credentials can reach queenfinger data.
+    const token = jwt.sign(
+      { role: 'queen', db: QUEEN_DB, uid: result.uid, email: login },
+      JWT_SECRET, { expiresIn: '7d' }
+    );
     res.json({
+      token,
       uid: result.uid,
       name: result.name || login,
       username: result.username || login,
@@ -1040,7 +1073,11 @@ async function getQueenSession() {
   const queenBase = QUEEN_URL || 'http://localhost:8070';
   const r = await fetch(`${queenBase}/web/session/authenticate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Forwarded-Host': `${QUEEN_DB}.local`,
+      'X-Forwarded-Proto': 'https',
+    },
     body: JSON.stringify({
       jsonrpc: '2.0', method: 'call',
       params: { db: QUEEN_DB, login: QUEEN_ADMIN_LOGIN || 'admin', password: QUEEN_ADMIN_PASSWORD },
@@ -1052,7 +1089,7 @@ async function getQueenSession() {
   throw new Error('B2B database auth failed — check QUEEN_ADMIN_PASSWORD and QUEEN_DB in settings.');
 }
 
-app.post('/api/queen/rpc', async (req, res) => {
+app.post('/api/queen/rpc', requireQueenAuth, async (req, res) => {
   try {
     const sid = await getQueenSession();
     const { model, method, args = [], kwargs = {} } = req.body || {};
@@ -1061,7 +1098,12 @@ app.post('/api/queen/rpc', async (req, res) => {
     const callQueen = async (sessionId) => {
       const r = await fetch(`${QUEEN_URL || 'http://localhost:8070'}/web/dataset/call_kw`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Cookie': `session_id=${sessionId}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': `session_id=${sessionId}`,
+          'X-Forwarded-Host': `${QUEEN_DB}.local`,
+          'X-Forwarded-Proto': 'https',
+        },
         body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { model, method, args, kwargs } }),
       });
       return r.json();

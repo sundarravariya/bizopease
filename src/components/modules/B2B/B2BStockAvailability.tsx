@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { RefreshCw, CheckCircle2, AlertCircle, Search, Package, Square, CheckSquare, Eye, EyeOff, Tag, TagIcon, X } from 'lucide-react';
@@ -34,7 +34,7 @@ export default function B2BStockAvailability() {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await odooCall<B2BProduct[]>('product.template', 'search_read', [
+      const res = await queenCall<B2BProduct[]>('product.template', 'search_read', [
         [['sale_ok', '=', true]]
       ], {
         fields: ['id', 'name', 'default_code', 'list_price', 'b2b_stock_clearance', 'website_published'],
@@ -55,7 +55,7 @@ export default function B2BStockAvailability() {
     if (!selectedIds.size) return;
     setLoading(true);
     try {
-      await odooCall('product.template', 'write', [[...selectedIds], { [field]: value }]);
+      await queenCall('product.template', 'write', [[...selectedIds], { [field]: value }]);
       setProducts(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, [field]: value } : p));
       showMsg(true, `${selectedIds.size} product(s): ${label}.`);
       setSelectedIds(new Set());
@@ -66,7 +66,7 @@ export default function B2BStockAvailability() {
   const toggleField = async (id: number, field: 'b2b_stock_clearance' | 'website_published', current: boolean) => {
     setSaving(s => ({ ...s, [id]: true }));
     try {
-      await odooCall('product.template', 'write', [[id], { [field]: !current }]);
+      await queenCall('product.template', 'write', [[id], { [field]: !current }]);
       setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: !current } : p));
     } catch (err: any) {
       showMsg(false, err?.message || 'Update failed');

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { RefreshCw, CheckCircle2, AlertCircle, Search, ReceiptText, Square, CheckSquare, Ban, RotateCcw, X } from 'lucide-react';
@@ -37,7 +37,7 @@ export default function B2BInvoices() {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await odooCall<B2BInvoice[]>('account.move', 'search_read', [
+      const res = await queenCall<B2BInvoice[]>('account.move', 'search_read', [
         [['move_type', 'in', ['out_invoice', 'out_refund']], ['partner_id.customer_rank', '>', 0]]
       ], {
         fields: ['id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due',
@@ -60,7 +60,7 @@ export default function B2BInvoices() {
     if (!confirm(`Cancel ${selectedIds.size} selected invoice(s)?`)) return;
     setLoading(true);
     try {
-      await odooCall('account.move', 'button_cancel', [[...selectedIds]]);
+      await queenCall('account.move', 'button_cancel', [[...selectedIds]]);
       showMsg(true, `${selectedIds.size} invoice(s) cancelled.`);
       setSelectedIds(new Set());
       await fetchInvoices();
@@ -73,7 +73,7 @@ export default function B2BInvoices() {
     if (!confirm(`Reset ${selectedIds.size} invoice(s) to draft?`)) return;
     setLoading(true);
     try {
-      await odooCall('account.move', 'button_draft', [[...selectedIds]]);
+      await queenCall('account.move', 'button_draft', [[...selectedIds]]);
       showMsg(true, `${selectedIds.size} invoice(s) reset to draft.`);
       setSelectedIds(new Set());
       await fetchInvoices();
@@ -262,7 +262,7 @@ export default function B2BInvoices() {
                             onClick={async () => {
                               if (!confirm('Cancel this invoice?')) return;
                               setLoading(true);
-                              try { await odooCall('account.move', 'button_cancel', [[inv.id]]); showMsg(true, 'Invoice cancelled.'); await fetchInvoices(); }
+                              try { await queenCall('account.move', 'button_cancel', [[inv.id]]); showMsg(true, 'Invoice cancelled.'); await fetchInvoices(); }
                               catch (e: any) { showMsg(false, e?.message || 'Cancel failed'); }
                               finally { setLoading(false); }
                             }}
@@ -275,7 +275,7 @@ export default function B2BInvoices() {
                           <button
                             onClick={async () => {
                               setLoading(true);
-                              try { await odooCall('account.move', 'button_draft', [[inv.id]]); showMsg(true, 'Reset to draft.'); await fetchInvoices(); }
+                              try { await queenCall('account.move', 'button_draft', [[inv.id]]); showMsg(true, 'Reset to draft.'); await fetchInvoices(); }
                               catch (e: any) { showMsg(false, e?.message || 'Reset failed'); }
                               finally { setLoading(false); }
                             }}

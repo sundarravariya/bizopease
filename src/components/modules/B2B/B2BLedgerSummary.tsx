@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { RefreshCw, Search, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -29,7 +29,7 @@ export default function B2BLedgerSummary({ onDrillDown }: Props) {
   const fetchSummary = async () => {
     setLoading(true);
     try {
-      const res = await odooCall<LedgerSummary[]>('b2b.ledger.summary', 'search_read', [[]], {
+      const res = await queenCall<LedgerSummary[]>('b2b.ledger.summary', 'search_read', [[]], {
         fields: ['id', 'partner_id', 'debit', 'credit', 'balance'],
         order: 'partner_id asc',
         limit: 0,

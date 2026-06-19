@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -50,7 +50,7 @@ export default function B2BCustomers() {
       const domain = tab === 'pending'
         ? [['b2b_pending', '=', true], ['b2b_approved', '=', false]]
         : [['b2b_approved', '=', true]];
-      const res = await odooCall<B2BPartner[]>('res.partner', 'search_read', [domain], {
+      const res = await queenCall<B2BPartner[]>('res.partner', 'search_read', [domain], {
         fields: ['id', 'name', 'email', 'phone', 'b2b_business_name', 'b2b_business_photo',
                  'b2b_approved', 'b2b_pending', 'b2b_website_price_mode',
                  'b2b_website_discount_percent', 'create_date'],
@@ -72,7 +72,7 @@ export default function B2BCustomers() {
     if (!confirm(`Approve ${selectedIds.size} selected customer(s)?`)) return;
     setLoading(true);
     try {
-      await odooCall('res.partner', 'write', [[...selectedIds], { b2b_approved: true, b2b_pending: false }]);
+      await queenCall('res.partner', 'write', [[...selectedIds], { b2b_approved: true, b2b_pending: false }]);
       showMsg(true, `${selectedIds.size} customer(s) approved.`);
       setSelectedIds(new Set());
       fetchPartners();
@@ -85,7 +85,7 @@ export default function B2BCustomers() {
     if (!confirm(`Reject ${selectedIds.size} selected application(s)?`)) return;
     setLoading(true);
     try {
-      await odooCall('res.partner', 'write', [[...selectedIds], { b2b_approved: false, b2b_pending: false }]);
+      await queenCall('res.partner', 'write', [[...selectedIds], { b2b_approved: false, b2b_pending: false }]);
       showMsg(true, `${selectedIds.size} application(s) rejected.`);
       setSelectedIds(new Set());
       fetchPartners();
@@ -98,7 +98,7 @@ export default function B2BCustomers() {
     if (!confirm(`Permanently delete ${selectedIds.size} partner record(s)? This cannot be undone.`)) return;
     setLoading(true);
     try {
-      await odooCall('res.partner', 'unlink', [[...selectedIds]]);
+      await queenCall('res.partner', 'unlink', [[...selectedIds]]);
       showMsg(true, `${selectedIds.size} partner(s) deleted.`);
       setSelectedIds(new Set());
       fetchPartners();
@@ -108,7 +108,7 @@ export default function B2BCustomers() {
 
   const handleApprove = async (id: number) => {
     try {
-      await odooCall('res.partner', 'write', [[id], { b2b_approved: true, b2b_pending: false }]);
+      await queenCall('res.partner', 'write', [[id], { b2b_approved: true, b2b_pending: false }]);
       showMsg(true, 'Customer approved for B2B ordering.');
       fetchPartners();
     } catch (err: any) { showMsg(false, err?.message || 'Approve failed'); }
@@ -117,7 +117,7 @@ export default function B2BCustomers() {
   const handleReject = async (id: number) => {
     if (!confirm('Reject this B2B application?')) return;
     try {
-      await odooCall('res.partner', 'write', [[id], { b2b_approved: false, b2b_pending: false }]);
+      await queenCall('res.partner', 'write', [[id], { b2b_approved: false, b2b_pending: false }]);
       showMsg(true, 'Application rejected.');
       fetchPartners();
     } catch (err: any) { showMsg(false, err?.message || 'Reject failed'); }
@@ -133,7 +133,7 @@ export default function B2BCustomers() {
     if (!editPartner) return;
     setSaving(true);
     try {
-      await odooCall('res.partner', 'write', [[editPartner.id], {
+      await queenCall('res.partner', 'write', [[editPartner.id], {
         b2b_website_price_mode: editMode,
         b2b_website_discount_percent: parseFloat(editDiscount) || 0,
       }]);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { odooCall } from '../../../services/odoo';
+import { queenCall } from '../../../services/queen';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -82,7 +82,7 @@ export default function B2BOrders() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await odooCall<B2BOrder[]>('sale.order', 'search_read', [
+      const res = await queenCall<B2BOrder[]>('sale.order', 'search_read', [
         [['tag_ids.name', 'in', ['B2B Request']]]
       ], {
         fields: [
@@ -103,7 +103,7 @@ export default function B2BOrders() {
 
   const fetchPartners = async () => {
     try {
-      const res = await odooCall<Partner[]>('res.partner', 'search_read', [
+      const res = await queenCall<Partner[]>('res.partner', 'search_read', [
         [['b2b_approved', '=', true], ['is_company', '=', true]]
       ], { fields: ['id', 'name'], limit: 0, order: 'name asc' });
       if (Array.isArray(res)) setPartners(res);
@@ -112,7 +112,7 @@ export default function B2BOrders() {
 
   const fetchProducts = async () => {
     try {
-      const res = await odooCall<Product[]>('product.template', 'search_read', [
+      const res = await queenCall<Product[]>('product.template', 'search_read', [
         [['sale_ok', '=', true]]
       ], { fields: ['id', 'name', 'list_price', 'default_code'], limit: 0, order: 'name asc' });
       if (Array.isArray(res)) setProducts(res);
@@ -134,7 +134,7 @@ export default function B2BOrders() {
     setSelectedOrder(order);
     setLoading(true);
     try {
-      const res = await odooCall<any[]>('sale.order.line', 'search_read', [
+      const res = await queenCall<any[]>('sale.order.line', 'search_read', [
         [['order_id', '=', order.id]]
       ], {
         fields: ['id', 'product_id', 'product_uom_qty', 'price_unit', 'price_subtotal', 'b2b_product_cost'],
@@ -168,7 +168,7 @@ export default function B2BOrders() {
       for (const lineId of Object.keys(priceInputs)) {
         const price = parseFloat(priceInputs[Number(lineId)] || '0');
         if (price > 0) {
-          await odooCall('sale.order.line', 'write', [[Number(lineId)], { price_unit: price }]);
+          await queenCall('sale.order.line', 'write', [[Number(lineId)], { price_unit: price }]);
         }
       }
       showMsg(true, 'Pricing updated on ' + selectedOrder.name);
@@ -184,7 +184,7 @@ export default function B2BOrders() {
   const handleAcceptPricing = async (id: number) => {
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_b2b_accept_pricing', [[id]]);
+      await queenCall('sale.order', 'action_b2b_accept_pricing', [[id]]);
       showMsg(true, 'Pricing accepted.');
       await fetchOrders();
     } catch (err: any) {
@@ -197,7 +197,7 @@ export default function B2BOrders() {
   const handleAdminConfirm = async (id: number) => {
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_b2b_admin_confirm', [[id]]);
+      await queenCall('sale.order', 'action_b2b_admin_confirm', [[id]]);
       showMsg(true, 'Order confirmed.');
       await fetchOrders();
     } catch (err: any) {
@@ -210,7 +210,7 @@ export default function B2BOrders() {
   const handle1ClickInvoiceDelivery = async (id: number) => {
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_b2b_1click_invoice_delivery', [[id]]);
+      await queenCall('sale.order', 'action_b2b_1click_invoice_delivery', [[id]]);
       showMsg(true, '1-Click: delivery validated and invoice posted.');
       await fetchOrders();
     } catch (err: any) {
@@ -223,7 +223,7 @@ export default function B2BOrders() {
   const handleCreateQuotation = async (id: number) => {
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_b2b_create_customer_quotation', [[id]]);
+      await queenCall('sale.order', 'action_b2b_create_customer_quotation', [[id]]);
       showMsg(true, 'Customer quotation created from request.');
       await fetchOrders();
     } catch (err: any) {
@@ -238,7 +238,7 @@ export default function B2BOrders() {
     if (!confirm(`Cancel ${selectedIds.size} selected order(s)?`)) return;
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_cancel', [[...selectedIds]]);
+      await queenCall('sale.order', 'action_cancel', [[...selectedIds]]);
       showMsg(true, `${selectedIds.size} order(s) cancelled.`);
       setSelectedIds(new Set());
       await fetchOrders();
@@ -251,7 +251,7 @@ export default function B2BOrders() {
     if (!confirm(`Reset ${selectedIds.size} order(s) to draft?`)) return;
     setLoading(true);
     try {
-      await odooCall('sale.order', 'action_draft', [[...selectedIds]]);
+      await queenCall('sale.order', 'action_draft', [[...selectedIds]]);
       showMsg(true, `${selectedIds.size} order(s) reset to draft.`);
       setSelectedIds(new Set());
       await fetchOrders();
@@ -266,7 +266,7 @@ export default function B2BOrders() {
     if (!confirm(`Permanently delete ${draftIds.length} draft order(s)? This cannot be undone.`)) return;
     setLoading(true);
     try {
-      await odooCall('sale.order', 'unlink', [draftIds]);
+      await queenCall('sale.order', 'unlink', [draftIds]);
       showMsg(true, `${draftIds.length} draft order(s) deleted.`);
       setSelectedIds(new Set());
       await fetchOrders();
@@ -285,25 +285,25 @@ export default function B2BOrders() {
     if (!form.partner_id || !form.product_id) return;
     setLoading(true);
     try {
-      const requestTag = await odooCall<any[]>('crm.tag', 'search_read', [
+      const requestTag = await queenCall<any[]>('crm.tag', 'search_read', [
         [['name', '=', 'B2B Request']]
       ], { fields: ['id'], limit: 1 });
       let tagId: number | null = null;
       if (Array.isArray(requestTag) && requestTag.length > 0) {
         tagId = requestTag[0].id;
       } else {
-        const created = await odooCall<number>('crm.tag', 'create', [{ name: 'B2B Request' }]);
+        const created = await queenCall<number>('crm.tag', 'create', [{ name: 'B2B Request' }]);
         tagId = created as number;
       }
 
       // Find a product.product for the order line
-      const variants = await odooCall<any[]>('product.product', 'search_read', [
+      const variants = await queenCall<any[]>('product.product', 'search_read', [
         [['product_tmpl_id', '=', form.product_id]]
       ], { fields: ['id'], limit: 1 });
       const variantId = Array.isArray(variants) && variants.length > 0 ? variants[0].id : null;
       if (!variantId) throw new Error('Product variant not found');
 
-      const orderId = await odooCall<number>('sale.order', 'create', [{
+      const orderId = await queenCall<number>('sale.order', 'create', [{
         partner_id: form.partner_id,
         note: form.note || '',
         tag_ids: tagId ? [[4, tagId]] : [],
@@ -580,7 +580,7 @@ export default function B2BOrders() {
                           onClick={async () => {
                             if (!confirm('Cancel this order?')) return;
                             setLoading(true);
-                            try { await odooCall('sale.order', 'action_cancel', [[order.id]]); showMsg(true, 'Order cancelled.'); await fetchOrders(); }
+                            try { await queenCall('sale.order', 'action_cancel', [[order.id]]); showMsg(true, 'Order cancelled.'); await fetchOrders(); }
                             catch (e: any) { showMsg(false, e?.message || 'Cancel failed'); }
                             finally { setLoading(false); }
                           }}
@@ -596,7 +596,7 @@ export default function B2BOrders() {
                         <button
                           onClick={async () => {
                             setLoading(true);
-                            try { await odooCall('sale.order', 'action_draft', [[order.id]]); showMsg(true, 'Reset to draft.'); await fetchOrders(); }
+                            try { await queenCall('sale.order', 'action_draft', [[order.id]]); showMsg(true, 'Reset to draft.'); await fetchOrders(); }
                             catch (e: any) { showMsg(false, e?.message || 'Reset failed'); }
                             finally { setLoading(false); }
                           }}
@@ -613,7 +613,7 @@ export default function B2BOrders() {
                           onClick={async () => {
                             if (!confirm('Permanently delete this draft order?')) return;
                             setLoading(true);
-                            try { await odooCall('sale.order', 'unlink', [[order.id]]); showMsg(true, 'Draft order deleted.'); await fetchOrders(); }
+                            try { await queenCall('sale.order', 'unlink', [[order.id]]); showMsg(true, 'Draft order deleted.'); await fetchOrders(); }
                             catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
                             finally { setLoading(false); }
                           }}
