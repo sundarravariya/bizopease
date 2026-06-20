@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { searchRead } from '../../../services/odoo';
+import { searchRead, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
-import { RefreshCw, TrendingDown, TrendingUp, Search, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  RefreshCw, TrendingDown, TrendingUp, Search, AlertCircle,
+  ChevronLeft, ChevronRight, CheckCircle2, Trash2,
+} from 'lucide-react';
 
 const PAGE_SIZE = 50;
 
@@ -21,9 +24,11 @@ export default function SettlementTracker() {
   const { isDark } = useTheme();
   const [rows, setRows] = useState<SettlementChange[]>([]);
   const [loading, setLoading] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const [search, setSearch] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'urgent' | 'not_urgent'>('all');
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const cardBg = isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200';
   const tableHead = isDark ? 'bg-[#111827]/60 text-[#5a6a8a] border-[#2a3250]' : 'bg-gray-50 text-gray-500 border-gray-200';
@@ -42,6 +47,7 @@ export default function SettlementTracker() {
         order: 'urgency asc, change_pct desc',
       });
       setRows(Array.isArray(data) ? data : []);
+      setSelected(new Set());
       setPage(1);
     } catch (e: any) {
       console.error('Failed to load settlement history:', e.message);
@@ -51,8 +57,6 @@ export default function SettlementTracker() {
   };
 
   useEffect(() => { load(); }, []);
-
-  // Reset to page 1 whenever filters/search change
   useEffect(() => { setPage(1); }, [search, urgencyFilter]);
 
   const filtered = useMemo(() => {
@@ -73,6 +77,40 @@ export default function SettlementTracker() {
   const safePage = Math.min(page, totalPages);
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // Select helpers
+  const toggleRow = (id: number) =>
+    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
+  const pageIds = pageRows.map(r => r.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every(id => selected.has(id));
+  const somePageSelected = pageIds.some(id => selected.has(id));
+
+  const togglePage = (checked: boolean) =>
+    setSelected(prev => {
+      const s = new Set(prev);
+      pageIds.forEach(id => checked ? s.add(id) : s.delete(id));
+      return s;
+    });
+
+  const selectAll = () => setSelected(new Set(filtered.map(r => r.id)));
+  const clearSelection = () => setSelected(new Set());
+
+  // Accept & Set Baseline: delete selected history records
+  const handleAcceptBaseline = async () => {
+    if (!selected.size) return;
+    setAccepting(true);
+    try {
+      const ids = [...selected];
+      await odooCall('flipkart.listing.settlement.history', 'unlink', [ids], {});
+      setRows(prev => prev.filter(r => !selected.has(r.id)));
+      setSelected(new Set());
+    } catch (e: any) {
+      console.error('Accept baseline failed:', e.message);
+    } finally {
+      setAccepting(false);
+    }
+  };
+
   const urgentCount = rows.filter(r => r.urgency === 'urgent').length;
   const notUrgentCount = rows.filter(r => r.urgency === 'not_urgent').length;
 
@@ -86,7 +124,6 @@ export default function SettlementTracker() {
         : isDark ? 'border-[#2a3250] text-[#5a6a8a] hover:text-white hover:border-[#7367f0]/50' : 'border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600'
     }`;
 
-  // Generate page number buttons (show at most 7 page numbers with ellipsis)
   const pageNums = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const pages: (number | '…')[] = [];
@@ -159,6 +196,32 @@ export default function SettlementTracker() {
         </div>
       </div>
 
+      {/* Bulk action bar — appears when anything is selected */}
+      {selected.size > 0 && (
+        <div className={`border rounded-2xl p-3 flex items-center gap-3 flex-wrap ${isDark ? 'bg-[#7367f0]/10 border-[#7367f0]/30' : 'bg-violet-50 border-violet-200'}`}>
+          <CheckCircle2 size={15} className='text-[#7367f0] flex-shrink-0' />
+          <span className={`text-xs font-semibold flex-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+            {selected.size} row{selected.size !== 1 ? 's' : ''} selected
+          </span>
+          <button onClick={selectAll} className={`text-xs font-semibold ${isDark ? 'text-[#7367f0] hover:text-violet-300' : 'text-violet-600 hover:text-violet-800'}`}>
+            Select all {filtered.length}
+          </button>
+          <button onClick={clearSelection} className={`text-xs ${textMuted} hover:text-white`}>
+            Clear
+          </button>
+          <button
+            onClick={handleAcceptBaseline}
+            disabled={accepting}
+            className='btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1.5'
+          >
+            {accepting
+              ? <><RefreshCw size={12} className='animate-spin' /> Accepting…</>
+              : <><Trash2 size={12} /> Accept & Set Baseline ({selected.size})</>
+            }
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className='flex flex-col items-center justify-center py-20 gap-3'>
           <RefreshCw size={32} className='animate-spin text-[#7367f0]' />
@@ -182,7 +245,6 @@ export default function SettlementTracker() {
 
       {!loading && filtered.length > 0 && (
         <div className={`border rounded-2xl overflow-hidden ${cardBg}`}>
-          {/* Table header row */}
           <div className={`px-4 py-2.5 border-b flex items-center justify-between ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
             <span className={`text-xs font-semibold ${textMuted}`}>
               {filtered.length} change{filtered.length !== 1 ? 's' : ''} · sorted by urgency then change %
@@ -196,6 +258,15 @@ export default function SettlementTracker() {
             <table className='w-full text-left border-collapse text-sm'>
               <thead>
                 <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${tableHead}`}>
+                  <th className='py-2.5 px-4 w-10'>
+                    <input
+                      type='checkbox'
+                      className='rounded'
+                      checked={allPageSelected}
+                      ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                      onChange={e => togglePage(e.target.checked)}
+                    />
+                  </th>
                   <th className='py-2.5 px-4'>Date</th>
                   <th className='py-2.5 px-4'>FSN</th>
                   <th className='py-2.5 px-4'>SKU</th>
@@ -210,8 +281,25 @@ export default function SettlementTracker() {
                 {pageRows.map(r => {
                   const isUp = r.new_settlement > r.old_settlement;
                   const isUrgent = r.urgency === 'urgent';
+                  const isSelected = selected.has(r.id);
                   return (
-                    <tr key={r.id} className={`transition-colors ${rowHover} ${isUrgent ? (isDark ? 'bg-red-500/[0.03]' : 'bg-red-50/50') : ''}`}>
+                    <tr
+                      key={r.id}
+                      onClick={() => toggleRow(r.id)}
+                      className={`transition-colors cursor-pointer ${rowHover} ${
+                        isSelected
+                          ? isDark ? 'bg-[#7367f0]/10' : 'bg-violet-50'
+                          : isUrgent ? (isDark ? 'bg-red-500/[0.03]' : 'bg-red-50/50') : ''
+                      }`}
+                    >
+                      <td className='py-2.5 px-4' onClick={e => e.stopPropagation()}>
+                        <input
+                          type='checkbox'
+                          className='rounded'
+                          checked={isSelected}
+                          onChange={() => toggleRow(r.id)}
+                        />
+                      </td>
                       <td className={`py-2.5 px-4 text-xs ${textMuted} whitespace-nowrap`}>{r.upload_date}</td>
                       <td className='py-2.5 px-4 text-xs font-mono text-[#7367f0]'>{r.fsn}</td>
                       <td className={`py-2.5 px-4 text-xs font-mono ${textMuted}`}>{r.sku || '—'}</td>
