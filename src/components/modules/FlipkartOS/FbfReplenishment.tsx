@@ -242,9 +242,9 @@ export default function FbfReplenishment() {
     });
   }, [filtered]);
 
-  const totalCritical = items.filter(i => i.urgency === 'critical').length;
-  const totalModerate = items.filter(i => i.urgency === 'moderate').length;
-  const totalUnits = items.reduce((s, i) => s + i.qty_to_send, 0);
+  const totalCritical = filtered.filter(i => i.urgency === 'critical').length;
+  const totalModerate = filtered.filter(i => i.urgency === 'moderate').length;
+  const totalUnits = filtered.reduce((s, i) => s + i.qty_to_send, 0);
 
   const urgencyBtnClass = (f: string) => {
     const active = urgencyFilters.has(f);
