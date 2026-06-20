@@ -4,6 +4,7 @@
 // proxy so the PDF is rendered from the queenfinger DB, never robifel.
 
 import { isQueenSession, getQueenToken } from '../services/queen';
+import { getActiveDb } from '../services/odoo';
 
 export const REPORTS = {
   saleOrder: 'sale.report_saleorder',                  // Sales Order / Quotation
@@ -28,7 +29,9 @@ export async function downloadOdooReport(reportName: string, id: number, filenam
     : odooReportUrl(reportName, id);
   const res = await fetch(reportUrl, {
     credentials: 'include',
-    headers: queen ? { Authorization: 'Bearer ' + getQueenToken() } : undefined,
+    headers: queen
+      ? { Authorization: 'Bearer ' + getQueenToken() }
+      : { 'X-Odoo-Db': getActiveDb() }, // route the PDF to this workspace's DB
   });
   if (!res.ok) throw new Error(`Could not generate PDF (HTTP ${res.status})`);
   const ct = res.headers.get('content-type') ?? '';

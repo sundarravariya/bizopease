@@ -16,6 +16,21 @@ export function setOdooBaseUrl(url: string) {
   api.defaults.baseURL = url;
 }
 
+// The Odoo database the current browser session is authenticated against. nginx
+// derives the per-request dbfilter host from the X-Odoo-Db header below, so each
+// workspace (robifel + any newly provisioned tenant DB) is fully isolated: a
+// session can only ever touch the DB it logged into. Seed from the persisted
+// user; odooLogin() updates it immediately at sign-in (before the user is stored).
+let _activeDb = '';
+try { _activeDb = JSON.parse(localStorage.getItem('robifel-user') || '{}')?.db || ''; } catch { /* none yet */ }
+export function getActiveDb(): string { return _activeDb || getOdooDb(); }
+
+// Tag every Odoo request with its target DB so nginx routes it to that DB only.
+api.interceptors.request.use((cfg) => {
+  try { (cfg.headers as any)['X-Odoo-Db'] = getActiveDb(); } catch { /* ignore */ }
+  return cfg;
+});
+
 let _reqId = 1;
 const nextId = () => _reqId++;
 
@@ -63,6 +78,7 @@ async function jsonRpc<T>(endpoint: string, params: Record<string, any>): Promis
 
 // ---------- Auth ----------
 export async function odooLogin(login: string, password: string, db = getOdooDb()) {
+  _activeDb = db; // pin subsequent requests to this DB before the user is persisted
   return jsonRpc<any>('/web/session/authenticate', { db, login, password });
 }
 

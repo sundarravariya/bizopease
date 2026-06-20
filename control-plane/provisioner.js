@@ -20,9 +20,15 @@ const { execSync } = require('child_process');
 
 // ─── HTTP HELPER ──────────────────────────────────────────────────────────────
 
+// The DB this provisioning run targets. Set once per provisionTenant() so every
+// authenticated call carries X-Forwarded-Host=<db>.local — required because
+// Odoo's dbfilter=^%d$ logs out a session whose DB doesn't match the request host.
+let _provHost = '';
+
 async function odooPost(odooUrl, endpoint, payload, cookie = '') {
   const headers = { 'Content-Type': 'application/json' };
   if (cookie) headers['Cookie'] = cookie;
+  if (_provHost) { headers['X-Forwarded-Host'] = _provHost; headers['X-Forwarded-Proto'] = 'https'; }
 
   const res = await fetch(odooUrl + endpoint, {
     method: 'POST',
@@ -45,32 +51,50 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function createOdooDb(odooUrl, masterPassword, dbName, adminEmail, adminPassword) {
   console.log(`[Provisioner] Creating Odoo DB "${dbName}" ...`);
 
-  const r = await odooPost(odooUrl, '/web/database/create', {
-    jsonrpc: '2.0', method: 'call', id: 1,
-    params: {
-      master_pwd: masterPassword,
-      name: dbName,
-      lang: 'en_US',
-      password: adminPassword,
-      login: adminEmail,
-      country_code: 'IN',
-      phone: '',
-      demo: false
-    }
+  // /web/database/create is a type='http' endpoint: it takes FORM fields (not a
+  // JSON-RPC body) and, on success, issues a 303 redirect to the new DB. It also
+  // blocks while Odoo initialises base modules (can take ~30-60s).
+  const form = new URLSearchParams({
+    master_pwd: masterPassword,
+    name: dbName,
+    lang: 'en_US',
+    password: adminPassword,
+    login: adminEmail,
+    country_code: 'IN',
+    phone: '',
+    demo: 'false',
   });
 
-  if (!r.ok) throw new Error(`DB create HTTP ${r.status}: ${JSON.stringify(r.data).slice(0, 300)}`);
-
-  if (r.data.error) {
-    const msg = r.data.error?.data?.message || r.data.error?.message || JSON.stringify(r.data.error);
-    if (msg.toLowerCase().includes('already exists')) {
-      console.warn(`[Provisioner] DB "${dbName}" already exists — continuing with existing.`);
-      return;
-    }
-    throw new Error(`Odoo DB create error: ${msg}`);
+  let res;
+  try {
+    res = await fetch(odooUrl + '/web/database/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Forwarded-Host': `${dbName}.local`,
+        'X-Forwarded-Proto': 'https',
+      },
+      body: form.toString(),
+      redirect: 'manual',
+    });
+  } catch (e) {
+    throw new Error(`DB create request failed: ${e.message}`);
   }
 
-  console.log(`[Provisioner] ✓ DB "${dbName}" created.`);
+  // 3xx (manual redirect) = created successfully.
+  if (res.status >= 300 && res.status < 400) {
+    console.log(`[Provisioner] ✓ DB "${dbName}" created.`);
+    return;
+  }
+
+  const text = await res.text().catch(() => '');
+  if (/already exists|duplicate database/i.test(text)) {
+    console.warn(`[Provisioner] DB "${dbName}" already exists — continuing with existing.`);
+    return;
+  }
+  // type='http' renders an HTML error page (HTTP 200) on failure.
+  const m = text.match(/<p[^>]*>\s*([^<]{5,250}?)\s*<\/p>/i);
+  throw new Error(`Odoo DB create failed (HTTP ${res.status}): ${m ? m[1].trim() : text.slice(0, 200) || 'unknown'}`);
 }
 
 // ─── STEP 2: WAIT FOR DB READY ────────────────────────────────────────────────
@@ -193,6 +217,9 @@ async function provisionTenant(slug, companyName, email, password) {
   console.log(`[Provisioner] Admin:    ${email}`);
   console.log(`[Provisioner] Portal:   ${portalUrl}`);
   console.log(`[Provisioner] ${'═'.repeat(55)}\n`);
+
+  // All authenticated calls below must resolve to this DB under dbfilter=^%d$.
+  _provHost = `${dbName}.local`;
 
   // 1. Create the PostgreSQL + Odoo database
   await createOdooDb(odooUrl, masterPassword, dbName, email, password);
