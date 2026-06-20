@@ -16,7 +16,25 @@
  */
 
 const { getSetting } = require('./database');
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
+const util = require('util');
+const fs = require('fs');
+const execAsync = util.promisify(exec);
+
+// Odoo CLI provisioning. The HTTP database manager is disabled (list_db=False),
+// so new tenant DBs are created with the Odoo CLI instead — which bypasses the
+// manager entirely and never weakens that security setting.
+const ODOO_BIN = '/usr/bin/odoo';
+const ODOO_CONF = '/etc/odoo/odoo.conf';
+const VALID_DB = /^[A-Za-z0-9_]+$/;
+
+async function odooCli(dbName, extraArgs, timeoutMs = 300000) {
+  if (!VALID_DB.test(dbName)) throw new Error(`Unsafe DB name: ${dbName}`);
+  const cmd = `sudo -u odoo ${ODOO_BIN} -c ${ODOO_CONF} -d ${dbName} ` +
+    `${extraArgs} --stop-after-init --no-http --max-cron-threads=0 2>&1`;
+  const { stdout } = await execAsync(cmd, { timeout: timeoutMs, maxBuffer: 1024 * 1024 * 32 });
+  return stdout || '';
+}
 
 // ─── HTTP HELPER ──────────────────────────────────────────────────────────────
 
@@ -48,53 +66,54 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─── STEP 1: CREATE DATABASE ──────────────────────────────────────────────────
 
-async function createOdooDb(odooUrl, masterPassword, dbName, adminEmail, adminPassword) {
-  console.log(`[Provisioner] Creating Odoo DB "${dbName}" ...`);
-
-  // /web/database/create is a type='http' endpoint: it takes FORM fields (not a
-  // JSON-RPC body) and, on success, issues a 303 redirect to the new DB. It also
-  // blocks while Odoo initialises base modules (can take ~30-60s).
-  const form = new URLSearchParams({
-    master_pwd: masterPassword,
-    name: dbName,
-    lang: 'en_US',
-    password: adminPassword,
-    login: adminEmail,
-    country_code: 'IN',
-    phone: '',
-    demo: 'false',
-  });
-
-  let res;
+function dbExistsSync(dbName) {
   try {
-    res = await fetch(odooUrl + '/web/database/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Forwarded-Host': `${dbName}.local`,
-        'X-Forwarded-Proto': 'https',
-      },
-      body: form.toString(),
-      redirect: 'manual',
-    });
-  } catch (e) {
-    throw new Error(`DB create request failed: ${e.message}`);
-  }
+    const out = execSync(
+      `sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${dbName}'"`,
+      { timeout: 8000 }
+    ).toString().trim();
+    return out === '1';
+  } catch { return false; }
+}
 
-  // 3xx (manual redirect) = created successfully.
-  if (res.status >= 300 && res.status < 400) {
-    console.log(`[Provisioner] ✓ DB "${dbName}" created.`);
+async function createOdooDb(dbName) {
+  if (dbExistsSync(dbName)) {
+    console.warn(`[Provisioner] DB "${dbName}" already exists — skipping base init.`);
     return;
   }
+  console.log(`[Provisioner] Creating + initialising Odoo DB "${dbName}" (base) ...`);
+  // Creates the Postgres DB and installs `base` with no demo data.
+  await odooCli(dbName, '-i base --without-demo=all', 300000);
+  if (!dbExistsSync(dbName)) throw new Error(`DB "${dbName}" was not created by Odoo CLI`);
+  console.log(`[Provisioner] ✓ DB "${dbName}" created.`);
+}
 
-  const text = await res.text().catch(() => '');
-  if (/already exists|duplicate database/i.test(text)) {
-    console.warn(`[Provisioner] DB "${dbName}" already exists — continuing with existing.`);
-    return;
+// Set the admin login + password and company name/currency via `odoo shell`.
+async function setupAdminAndCompany(dbName, adminEmail, adminPassword, companyName) {
+  console.log(`[Provisioner] Configuring admin user + company for "${dbName}" ...`);
+  const py = [
+    `admin = env.ref('base.user_admin')`,
+    `admin.write({'login': ${JSON.stringify(adminEmail)}, 'password': ${JSON.stringify(adminPassword)}})`,
+    `co = env['res.company'].browse(1)`,
+    `co.write({'name': ${JSON.stringify(companyName)}})`,
+    `inr = env['res.currency'].search([('name','=','INR')], limit=1)`,
+    `inr and co.write({'currency_id': inr.id})`,
+    `env.cr.commit()`,
+    `print('SETUP_OK')`,
+    ``,
+  ].join('\n');
+  const tmp = `/tmp/prov_setup_${dbName}.py`;
+  fs.writeFileSync(tmp, py, { mode: 0o644 });
+  try {
+    const { stdout } = await execAsync(
+      `cat ${tmp} | sudo -u odoo ${ODOO_BIN} shell -c ${ODOO_CONF} -d ${dbName} --no-http --max-cron-threads=0 2>&1`,
+      { timeout: 120000, maxBuffer: 1024 * 1024 * 16 }
+    );
+    if (!/SETUP_OK/.test(stdout)) throw new Error(`admin/company setup did not confirm: ${stdout.slice(-300)}`);
+    console.log(`[Provisioner] ✓ Admin + company configured.`);
+  } finally {
+    try { fs.unlinkSync(tmp); } catch {}
   }
-  // type='http' renders an HTML error page (HTTP 200) on failure.
-  const m = text.match(/<p[^>]*>\s*([^<]{5,250}?)\s*<\/p>/i);
-  throw new Error(`Odoo DB create failed (HTTP ${res.status}): ${m ? m[1].trim() : text.slice(0, 200) || 'unknown'}`);
 }
 
 // ─── STEP 2: WAIT FOR DB READY ────────────────────────────────────────────────
@@ -157,35 +176,16 @@ async function setupCompany(odooUrl, cookie, companyName) {
   }
 }
 
-// ─── STEP 5: INSTALL CUSTOM ADDONS ───────────────────────────────────────────
+// ─── STEP 5: INSTALL CUSTOM ADDONS (CLI) ─────────────────────────────────────
 
-async function installAddons(odooUrl, cookie) {
-  const wanted = ['b2b_os', 'flipkart_os', 'robifel_hr'];
-  console.log(`[Provisioner] Installing addons: ${wanted.join(', ')} ...`);
-
+async function installAddons(dbName, addons = ['b2b_os', 'flipkart_os', 'robifel_hr']) {
+  console.log(`[Provisioner] Installing addons via CLI: ${addons.join(', ')} ...`);
   try {
-    const found = await callKw(odooUrl, cookie, 'ir.module.module', 'search_read',
-      [[['name', 'in', wanted]]],
-      { fields: ['id', 'name', 'state'], limit: 10 }
-    );
-
-    if (!found?.length) {
-      console.warn('[Provisioner] ⚠ Custom addons not found in module list. Verify addons_path in odoo.conf.');
-      return;
-    }
-
-    const toInstall = found.filter(m => m.state !== 'installed');
-    if (!toInstall.length) {
-      console.log('[Provisioner] ✓ All custom addons already installed.');
-      return;
-    }
-
-    const ids = toInstall.map(m => m.id);
-    console.log(`[Provisioner] Installing: ${toInstall.map(m => m.name).join(', ')} (IDs: ${ids})`);
-    await callKw(odooUrl, cookie, 'ir.module.module', 'button_immediate_install', [ids]);
-    console.log('[Provisioner] ✓ Addon installation triggered (runs in background on Odoo).');
+    await odooCli(dbName, `-i ${addons.join(',')} --without-demo=all`, 420000);
+    console.log('[Provisioner] ✓ Addons installed.');
   } catch (err) {
-    console.error(`[Provisioner] Addon install error (non-fatal): ${err.message}`);
+    // Non-fatal: the workspace is still usable with base + whatever installed.
+    console.error(`[Provisioner] Addon install error (non-fatal): ${err.message.slice(0, 300)}`);
   }
 }
 
@@ -204,11 +204,8 @@ async function provisionTenant(slug, companyName, email, password) {
   const portalUrl = `https://bizopease.robifel.in/${cleanSlug}`;
 
   const odooUrl = (await getSetting('ODOO_URL')) || 'http://127.0.0.1:8069';
-  const masterPassword = await getSetting('ODOO_MASTER_PASSWORD');
-
-  if (!masterPassword) {
-    throw new Error('ODOO_MASTER_PASSWORD not set. Configure it in SuperAdmin → Settings.');
-  }
+  // DB creation uses the Odoo CLI (not the HTTP db-manager), so no master
+  // password is required — the control-plane runs the CLI as the odoo user.
 
   console.log(`\n[Provisioner] ${'═'.repeat(55)}`);
   console.log(`[Provisioner] Tenant:   ${cleanSlug}`);
@@ -218,20 +215,20 @@ async function provisionTenant(slug, companyName, email, password) {
   console.log(`[Provisioner] Portal:   ${portalUrl}`);
   console.log(`[Provisioner] ${'═'.repeat(55)}\n`);
 
-  // All authenticated calls below must resolve to this DB under dbfilter=^%d$.
+  // HTTP verification at the end must resolve to this DB under dbfilter=^%d$.
   _provHost = `${dbName}.local`;
 
-  // 1. Create the PostgreSQL + Odoo database
-  await createOdooDb(odooUrl, masterPassword, dbName, email, password);
+  // 1. Create + initialise the database (base, no demo) via the Odoo CLI.
+  await createOdooDb(dbName);
 
-  // 2. Wait for Odoo to initialise modules, get session cookie
-  const cookie = await waitForDb(odooUrl, dbName, email, password);
+  // 2. Set the admin login/password + company name/currency.
+  await setupAdminAndCompany(dbName, email, password, companyName);
 
-  // 3. Set company name + INR currency
-  await setupCompany(odooUrl, cookie, companyName);
+  // 3. Install the custom addons (non-fatal if one fails).
+  await installAddons(dbName);
 
-  // 4. Install our custom addons
-  await installAddons(odooUrl, cookie);
+  // 4. Verify the tenant can authenticate over HTTP (proves routing + creds).
+  await waitForDb(odooUrl, dbName, email, password, 60000);
 
   console.log(`\n[Provisioner] ✅ "${cleanSlug}" ready!`);
   console.log(`[Provisioner]    BizOpease Portal: ${portalUrl}`);

@@ -824,10 +824,32 @@ app.post('/api/superadmin/workspaces/:id/set-plan', requireSuperAdmin, (req, res
 });
 
 app.delete('/api/superadmin/workspaces/:id', requireSuperAdmin, (req, res) => {
-  masterDb.run("DELETE FROM workspaces WHERE tenant_id=?", [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    if (this.changes === 0) return res.status(404).json({ error: 'Workspace not found' });
-    res.json({ success: true });
+  const tenantId = req.params.id;
+  // Look up the tenant's Odoo DB first so we can drop it along with the registry row.
+  masterDb.get("SELECT odoo_db_name FROM workspaces WHERE tenant_id=?", [tenantId], (e0, row) => {
+    if (e0) return res.status(500).json({ error: e0.message });
+    if (!row) return res.status(404).json({ error: 'Workspace not found' });
+    const db = row.odoo_db_name || '';
+
+    masterDb.run("DELETE FROM workspaces WHERE tenant_id=?", [tenantId], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+
+      // Drop the Odoo DB + filestore — but ONLY provisioned tenant DBs (ws_*).
+      // Core databases are never droppable through this endpoint.
+      const PROTECTED = new Set(['robifel', 'queenfinger', 'deliveasy']);
+      if (db && /^ws_[A-Za-z0-9_]+$/.test(db) && !PROTECTED.has(db)) {
+        const cmd =
+          `sudo -u postgres dropdb --force --if-exists ${db}; ` +
+          `rm -rf /var/lib/odoo/.local/share/Odoo/filestore/${db}`;
+        exec(cmd, (e2) => {
+          if (e2) console.error(`[Workspace] DB drop for ${db} failed: ${e2.message}`);
+          else console.log(`[Workspace] Dropped DB + filestore for ${db}`);
+        });
+        return res.json({ success: true, droppedDb: db });
+      }
+      // No tenant DB to drop (or a protected name) — registry row removed only.
+      res.json({ success: true, droppedDb: null });
+    });
   });
 });
 
