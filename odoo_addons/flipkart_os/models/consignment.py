@@ -291,7 +291,10 @@ class FlipkartConsignment(models.Model):
         return previous_month_date.strftime("%b '%Y")
 
     def _is_paint_category(self, category):
-        return 'paint' in (category or '').lower()
+        cat = (category or '').lower()
+        if 'nail paint remover' in cat:
+            return False
+        return 'paint' in cat
 
     def _compute_generic_name(self, product_name, category, brand):
         combined_name = '%s %s' % (product_name or '', (category or '').replace('_', ' '))
