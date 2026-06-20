@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
-const { masterDb, getSetting, saveSetting } = require('./database');
+const { masterDb, getSetting, saveSetting, addAuditLog } = require('./database');
 const { provisionTenant } = require('./provisioner');
 
 const app = express();
@@ -772,6 +772,7 @@ app.post('/api/superadmin/workspaces', requireSuperAdmin, async (req, res) => {
         [cleanSlug, workspaceName.trim(), 'active', expiry.toISOString(), planType || 'starter', dbName, adminEmail],
         err2 => {
           if (err2) return res.status(500).json({ error: 'Provisioned but registry failed' });
+          addAuditLog('workspace.create', cleanSlug, `db=${dbName} email=${adminEmail} plan=${planType || 'starter'}`);
           res.json({ success: true, tenantId: cleanSlug, dbName });
         }
       );
@@ -787,6 +788,7 @@ app.post('/api/superadmin/workspaces/:id/activate', requireSuperAdmin, (req, res
   masterDb.run("UPDATE workspaces SET subscription_status='active', subscription_expires_at=? WHERE tenant_id=?",
     [expiry.toISOString(), req.params.id], err => {
       if (err) return res.status(500).json({ error: err.message });
+      addAuditLog('workspace.activate', req.params.id, `days=${days}`);
       res.json({ success: true });
     });
 });
@@ -795,6 +797,7 @@ app.post('/api/superadmin/workspaces/:id/deactivate', requireSuperAdmin, (req, r
   masterDb.run("UPDATE workspaces SET subscription_status='unpaid' WHERE tenant_id=?",
     [req.params.id], err => {
       if (err) return res.status(500).json({ error: err.message });
+      addAuditLog('workspace.deactivate', req.params.id, '');
       res.json({ success: true });
     });
 });
@@ -809,6 +812,7 @@ app.post('/api/superadmin/workspaces/:id/extend', requireSuperAdmin, (req, res) 
     masterDb.run("UPDATE workspaces SET subscription_status='active', subscription_expires_at=? WHERE tenant_id=?",
       [base.toISOString(), req.params.id], err2 => {
         if (err2) return res.status(500).json({ error: err2.message });
+        addAuditLog('workspace.extend', req.params.id, `days=${days} until=${base.toISOString()}`);
         res.json({ success: true, newExpiry: base.toISOString() });
       });
   });
@@ -819,6 +823,7 @@ app.post('/api/superadmin/workspaces/:id/set-plan', requireSuperAdmin, (req, res
   if (!['starter', 'pro'].includes(planType)) return res.status(400).json({ error: 'Invalid plan' });
   masterDb.run("UPDATE workspaces SET plan_type=? WHERE tenant_id=?", [planType, req.params.id], err => {
     if (err) return res.status(500).json({ error: err.message });
+    addAuditLog('workspace.set-plan', req.params.id, `plan=${planType}`);
     res.json({ success: true });
   });
 });
@@ -845,9 +850,11 @@ app.delete('/api/superadmin/workspaces/:id', requireSuperAdmin, (req, res) => {
           if (e2) console.error(`[Workspace] DB drop for ${db} failed: ${e2.message}`);
           else console.log(`[Workspace] Dropped DB + filestore for ${db}`);
         });
+        addAuditLog('workspace.delete', tenantId, `droppedDb=${db}`);
         return res.json({ success: true, droppedDb: db });
       }
       // No tenant DB to drop (or a protected name) — registry row removed only.
+      addAuditLog('workspace.delete', tenantId, `registry-only db=${db || 'none'}`);
       res.json({ success: true, droppedDb: null });
     });
   });
@@ -915,6 +922,7 @@ app.post('/api/superadmin/backups/restore', requireSuperAdmin, (req, res) => {
   const dumpPath = path.join(BACKUP_DIR, String(date), `${db}.dump`);
   const filestorePath = path.join(BACKUP_DIR, String(date), 'filestore.tar.gz');
   if (!fs.existsSync(dumpPath)) return res.status(404).json({ error: `Dump not found: ${dumpPath}` });
+  addAuditLog('backup.restore', db, `from=${date}`);
   res.json({ success: true, message: `Restore of ${db} from ${date} started. Odoo restarts in ~60 seconds.` });
 
   // Step 1: restore the database (the script stops Odoo, drops+recreates, pg_restore, starts Odoo).
@@ -1026,12 +1034,243 @@ app.post('/api/superadmin/config', requireSuperAdmin, (req, res) => {
 // ════════════════════════════════════════════════════════════════════════
 
 app.post('/api/superadmin/restart', requireSuperAdmin, (req, res) => {
+  addAuditLog('server.restart', null, '');
   res.json({ success: true, message: 'Server restart triggered in 2 seconds. Reconnect shortly.' });
   setTimeout(() => {
     exec('pm2 reload bizopease-saas', (err, stdout) => {
       console.log('[Admin] PM2 reload:', stdout, err?.message);
     });
   }, 2000);
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: SYSTEM HEALTH  (server + database + backup observability)
+// ════════════════════════════════════════════════════════════════════════
+
+function shell(cmd, timeout = 12000) {
+  return new Promise((resolve) => {
+    exec(cmd, { timeout, maxBuffer: 1024 * 1024 * 4 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout || '').trim());
+    });
+  });
+}
+
+app.get('/api/superadmin/health', requireSuperAdmin, async (req, res) => {
+  try {
+    // Postgres reachable + per-database sizes (bytes). One query, sanitised output.
+    const pgSizes = await shell(
+      `sudo -u postgres psql -tAF'|' -c ` +
+      `"SELECT datname, pg_database_size(datname) FROM pg_database ` +
+      `WHERE datistemplate=false AND datname NOT IN ('postgres') ORDER BY pg_database_size(datname) DESC"`
+    );
+    const databases = pgSizes ? pgSizes.split('\n').filter(Boolean).map(l => {
+      const [name, size] = l.split('|');
+      return { name, size: parseInt(size) || 0 };
+    }) : [];
+    const pgUp = !!pgSizes || databases.length > 0;
+
+    // Odoo service state via systemd.
+    const odooState = (await shell('systemctl is-active odoo')) || 'unknown';
+
+    // Disk usage for the backups / data volume (root fs).
+    const dfLine = await shell("df -PB1 / | tail -1");
+    let disk = null;
+    if (dfLine) {
+      const p = dfLine.split(/\s+/);
+      // Filesystem  1B-blocks  Used  Available  Use%  Mounted
+      disk = { total: parseInt(p[1]) || 0, used: parseInt(p[2]) || 0, free: parseInt(p[3]) || 0, usePct: parseInt(p[4]) || 0 };
+    }
+
+    // pm2 process state for the control-plane.
+    const pm2Raw = await shell("pm2 jlist");
+    let pm2 = { online: false, uptimeMs: 0, restarts: 0, cpu: 0, memory: 0 };
+    try {
+      const list = JSON.parse(pm2Raw || '[]');
+      const proc = list.find(p => p.name === 'bizopease-saas') || list[0];
+      if (proc) {
+        pm2 = {
+          online: proc.pm2_env?.status === 'online',
+          uptimeMs: proc.pm2_env?.pm_uptime ? (Date.now() - proc.pm2_env.pm_uptime) : 0,
+          restarts: proc.pm2_env?.restart_time || 0,
+          cpu: proc.monit?.cpu || 0,
+          memory: proc.monit?.memory || 0,
+        };
+      }
+    } catch {}
+
+    // Newest backup folder + age.
+    let lastBackup = null;
+    try {
+      if (fs.existsSync(BACKUP_DIR)) {
+        const dates = fs.readdirSync(BACKUP_DIR)
+          .filter(d => /^\d{8}-\d{4}$/.test(d) || /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+        const newest = dates[dates.length - 1];
+        if (newest) {
+          const st = fs.statSync(path.join(BACKUP_DIR, newest));
+          lastBackup = { date: newest, ageHours: Math.round((Date.now() - st.mtimeMs) / 3600000), count: dates.length };
+        }
+      }
+    } catch {}
+
+    res.json({
+      now: new Date().toISOString(),
+      postgres: { up: pgUp },
+      odoo: { state: odooState },
+      databases,
+      disk,
+      pm2,
+      lastBackup,
+      controlPlaneUptimeSec: Math.round(process.uptime()),
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Health check failed: ' + e.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: AUDIT LOG
+// ════════════════════════════════════════════════════════════════════════
+
+app.get('/api/superadmin/audit', requireSuperAdmin, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+  masterDb.all("SELECT id, action, tenant_id, details, created_at FROM audit_log ORDER BY id DESC LIMIT ?",
+    [limit], (err, rows) => {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      res.json(rows || []);
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: RESET A WORKSPACE ADMIN PASSWORD  (Odoo shell, ws_* only)
+// ════════════════════════════════════════════════════════════════════════
+
+app.post('/api/superadmin/workspaces/:id/reset-password', requireSuperAdmin, (req, res) => {
+  const { newPassword } = req.body || {};
+  if (!newPassword || String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  masterDb.get("SELECT odoo_db_name, admin_email FROM workspaces WHERE tenant_id=?", [req.params.id], (err, ws) => {
+    if (err || !ws) return res.status(404).json({ error: 'Workspace not found' });
+    const db = ws.odoo_db_name || '';
+    // Provisioned tenant DBs only — never reset the core robifel/queenfinger admins here.
+    if (!/^ws_[A-Za-z0-9_]+$/.test(db)) {
+      return res.status(400).json({ error: 'Password reset is only available for provisioned (ws_*) workspaces.' });
+    }
+    if (!ws.admin_email) return res.status(400).json({ error: 'No admin email on record for this workspace.' });
+
+    // Set a proper PBKDF2 hash via the Odoo ORM (NEVER Postgres crypt()).
+    const py = [
+      `u = env['res.users'].search([('login','=',${JSON.stringify(ws.admin_email)})], limit=1)`,
+      `u and u.write({'password': ${JSON.stringify(String(newPassword))}})`,
+      `env.cr.commit()`,
+      `print('RESET_OK' if u else 'NO_USER')`,
+      ``,
+    ].join('\n');
+    const tmp = `/tmp/sa_reset_${db}_${Date.now()}.py`;
+    try { fs.writeFileSync(tmp, py, { mode: 0o600 }); }
+    catch (e) { return res.status(500).json({ error: 'Could not stage reset: ' + e.message }); }
+
+    const cmd = `cat ${tmp} | sudo -u odoo /usr/bin/odoo shell -c /etc/odoo/odoo.conf -d ${db} --no-http --max-cron-threads=0 2>&1`;
+    exec(cmd, { timeout: 120000, maxBuffer: 1024 * 1024 * 16 }, (e2, stdout) => {
+      try { fs.unlinkSync(tmp); } catch {}
+      if (e2 && !/RESET_OK/.test(stdout || '')) {
+        return res.status(500).json({ error: 'Reset failed: ' + (stdout || e2.message).slice(-300) });
+      }
+      if (/NO_USER/.test(stdout || '')) return res.status(404).json({ error: `No Odoo user with login ${ws.admin_email}` });
+      if (!/RESET_OK/.test(stdout || '')) return res.status(500).json({ error: 'Reset did not confirm: ' + (stdout || '').slice(-300) });
+      addAuditLog('workspace.reset-password', req.params.id, `db=${db} login=${ws.admin_email}`);
+      res.json({ success: true, message: `Password reset for ${ws.admin_email}` });
+    });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: PER-WORKSPACE ON-DEMAND BACKUP  (single DB dump + filestore)
+// ════════════════════════════════════════════════════════════════════════
+
+app.post('/api/superadmin/workspaces/:id/backup', requireSuperAdmin, (req, res) => {
+  masterDb.get("SELECT odoo_db_name FROM workspaces WHERE tenant_id=?", [req.params.id], (err, ws) => {
+    if (err || !ws) return res.status(404).json({ error: 'Workspace not found' });
+    const db = ws.odoo_db_name || '';
+    if (!/^[A-Za-z0-9_]+$/.test(db)) return res.status(400).json({ error: 'Invalid database name on record.' });
+
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '').replace(/-/g, '');
+    const dir = path.join(BACKUP_DIR, `${stamp.slice(0,8)}-${stamp.slice(8,12)}`);
+    const fsDir = '/var/lib/odoo/.local/share/Odoo';
+    addAuditLog('workspace.backup', req.params.id, `db=${db}`);
+    res.json({ success: true, message: `On-demand backup of ${db} started — check Backups in ~30s.` });
+
+    const cmd =
+      `mkdir -p ${dir} && ` +
+      `sudo -u postgres pg_dump -Fc ${db} > ${dir}/${db}.dump && ` +
+      `( [ -d ${fsDir}/filestore/${db} ] && tar -czf ${dir}/filestore.tar.gz -C ${fsDir} filestore/${db} || true )`;
+    exec(`${cmd} >> /var/log/odoo-backup.log 2>&1`, (e2) => {
+      if (e2) console.error(`[Backup] Per-workspace backup of ${db} failed: ${e2.message}`);
+      else console.log(`[Backup] Per-workspace backup of ${db} → ${dir}`);
+    });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: DELETE A BACKUP SET  (retention / cleanup)
+// ════════════════════════════════════════════════════════════════════════
+
+app.post('/api/superadmin/backups/delete', requireSuperAdmin, (req, res) => {
+  const { date } = req.body || {};
+  if (!date || !/^[\w-]+$/.test(String(date))) return res.status(400).json({ error: 'Invalid date' });
+  const dir = path.join(BACKUP_DIR, String(date));
+  // Guard: must be a direct child of BACKUP_DIR (no traversal).
+  if (path.dirname(dir) !== BACKUP_DIR || !fs.existsSync(dir)) {
+    return res.status(404).json({ error: 'Backup set not found' });
+  }
+  exec(`rm -rf ${dir}`, (err) => {
+    if (err) return res.status(500).json({ error: 'Delete failed: ' + err.message });
+    addAuditLog('backup.delete', null, `date=${date}`);
+    res.json({ success: true });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// SUPERADMIN: CONNECTION TESTS  (SMTP + Queenfinger B2B database)
+// ════════════════════════════════════════════════════════════════════════
+
+app.post('/api/superadmin/test-smtp', requireSuperAdmin, async (req, res) => {
+  if (!SMTP_USER || !SMTP_PASS) return res.status(503).json({ error: 'SMTP_USER / SMTP_PASS not configured in Settings.' });
+  const to = (req.body && req.body.to) || SMTP_FROM || SMTP_USER;
+  try {
+    await getMailer().sendMail({
+      from: SMTP_FROM || SMTP_USER,
+      to,
+      subject: 'BizOpease SMTP Test',
+      text: 'This is a test email from the BizOpease superadmin panel. SMTP is configured correctly.',
+    });
+    res.json({ success: true, message: `Test email sent to ${to}` });
+  } catch (e) {
+    res.status(500).json({ error: 'SMTP test failed: ' + e.message });
+  }
+});
+
+app.get('/api/superadmin/test-queen', requireSuperAdmin, async (req, res) => {
+  try {
+    _queenSession = null; // force a fresh authentication
+    await getQueenSession();
+    const r = await fetch(`${QUEEN_URL || 'http://localhost:8070'}/web/dataset/call_kw`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `session_id=${_queenSession}`,
+        'X-Forwarded-Host': `${QUEEN_DB}.local`,
+        'X-Forwarded-Proto': 'https',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'call',
+        params: { model: 'res.partner', method: 'search_count', args: [[]], kwargs: {} } }),
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error.data?.message || j.error.message || 'RPC error');
+    res.json({ success: true, db: QUEEN_DB, partnerCount: j.result });
+  } catch (e) {
+    res.status(500).json({ error: 'Queenfinger test failed: ' + e.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════
