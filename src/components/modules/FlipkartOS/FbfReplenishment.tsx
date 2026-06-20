@@ -55,7 +55,7 @@ function downloadCsv(wh: string, whItems: ReplenishmentItem[], listingMap: Recor
     alert('No critical or moderate items with qty to send in this warehouse.');
     return;
   }
-  const header = 'PRODUCT ID,SKU,LISTING ID,SELLING PRICE,QTY,COST PRICE';
+  const header = 'PRODUCT ID,SKU,LISTING ID,SELLING PRICE,QUANTITY,COST PRICE';
   const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = csvItems.map(item => {
     const l = listingMap[item.fsn];
