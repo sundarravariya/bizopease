@@ -893,17 +893,25 @@ app.post('/api/superadmin/backups/restore', requireSuperAdmin, (req, res) => {
   const dumpPath = path.join(BACKUP_DIR, String(date), `${db}.dump`);
   const filestorePath = path.join(BACKUP_DIR, String(date), 'filestore.tar.gz');
   if (!fs.existsSync(dumpPath)) return res.status(404).json({ error: `Dump not found: ${dumpPath}` });
-  res.json({ success: true, message: `Restore of ${db} from ${date} started. This takes ~60 seconds.` });
-  // Restore DB
+  res.json({ success: true, message: `Restore of ${db} from ${date} started. Odoo restarts in ~60 seconds.` });
+
+  // Step 1: restore the database (the script stops Odoo, drops+recreates, pg_restore, starts Odoo).
   const cmd = `/usr/local/bin/odoo-restore.sh ${dumpPath} ${db} >> /var/log/odoo-backup.log 2>&1`;
   exec(cmd, (err) => {
     if (err) { console.error('[Restore] DB restore failed:', err.message); return; }
     console.log(`[Restore] DB restore of ${db} complete`);
-    // Restore filestore if present
+
+    // Step 2: restore ONLY this DB's filestore subtree (never touch other DBs'
+    // attachments), then hand ownership back to the odoo user so Odoo can read it.
     if (fs.existsSync(filestorePath)) {
-      exec(`tar -xzf ${filestorePath} -C /var/lib/odoo/.local/share/Odoo/ >> /var/log/odoo-backup.log 2>&1`, (e2) => {
+      const fsDir = '/var/lib/odoo/.local/share/Odoo';
+      const restoreFs =
+        `rm -rf ${fsDir}/filestore/${db} && ` +
+        `tar -xzf ${filestorePath} -C ${fsDir} filestore/${db} && ` +
+        `chown -R odoo:odoo ${fsDir}/filestore/${db}`;
+      exec(`${restoreFs} >> /var/log/odoo-backup.log 2>&1`, (e2) => {
         if (e2) console.error('[Restore] Filestore restore failed:', e2.message);
-        else console.log('[Restore] Filestore restore complete');
+        else console.log(`[Restore] Filestore for ${db} restored`);
       });
     }
   });

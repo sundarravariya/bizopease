@@ -443,14 +443,18 @@ function Logs() {
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────
-const CONFIG_GROUPS: { title: string; keys: string[] }[] = [
-  { title: 'Odoo', keys: ['ODOO_URL', 'ODOO_MASTER_PASSWORD'] },
+const CONFIG_GROUPS: { title: string; keys: string[]; hint?: string }[] = [
+  { title: 'Odoo', keys: ['ODOO_URL', 'ODOO_MASTER_PASSWORD'],
+    hint: 'ODOO_MASTER_PASSWORD must equal admin_passwd in /etc/odoo/odoo.conf. It is required to create new workspace databases from the Workspaces tab.' },
+  { title: 'Queenfinger (B2B database)', keys: ['QUEEN_URL', 'QUEEN_DB', 'QUEEN_ADMIN_LOGIN', 'QUEEN_ADMIN_PASSWORD'],
+    hint: 'Server-side admin session for the queenfinger B2B database. QUEEN_ADMIN_PASSWORD must equal the queenfinger admin user’s password.' },
   { title: 'Razorpay (payments)', keys: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_PLAN_ID_STARTER', 'RAZORPAY_PLAN_ID_PRO', 'RAZORPAY_WEBHOOK_SECRET', 'PLAN_PRICE_STARTER', 'PLAN_PRICE_PRO'] },
   { title: 'Backups (Cloudflare R2)', keys: ['R2_ACCOUNT_ID', 'R2_BUCKET_NAME', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT'] },
   { title: 'Email (SMTP)', keys: ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] },
-  { title: 'Superadmin & Security', keys: ['SUPERADMIN_USERNAME', 'SUPERADMIN_PASSWORD', 'JWT_SECRET'] },
+  { title: 'Superadmin & Security', keys: ['SUPERADMIN_USERNAME', 'SUPERADMIN_PASSWORD', 'JWT_SECRET', 'ADMIN_OTP_ENABLED'],
+    hint: 'ADMIN_OTP_ENABLED = true requires admins to enter an emailed code at login (needs the SMTP group configured).' },
 ];
-const isSensitive = (k: string) => k.includes('SECRET') || k.includes('PASS') || k.includes('KEY') || k === 'JWT_SECRET';
+const isSensitive = (k: string) => k.includes('SECRET') || k.includes('PASS') || (k.includes('KEY') && k !== 'RAZORPAY_KEY_ID') || k === 'JWT_SECRET';
 
 function SettingsTab({ notify }: { notify: (ok: boolean, m: string) => void }) {
   const [cfg, setCfg] = useState<Record<string, string>>({});
@@ -480,7 +484,8 @@ function SettingsTab({ notify }: { notify: (ok: boolean, m: string) => void }) {
       <div className="space-y-5">
         {CONFIG_GROUPS.map(g => (
           <div key={g.title} className={`${card} p-5`}>
-            <h3 className="font-bold text-sm mb-3 text-[#9d95f5]">{g.title}</h3>
+            <h3 className="font-bold text-sm mb-1 text-[#9d95f5]">{g.title}</h3>
+            {g.hint && <p className="text-[11px] text-[#6a7a9a] mb-3 leading-relaxed">{g.hint}</p>}
             <div className="grid md:grid-cols-2 gap-3">
               {g.keys.map(k => (
                 <div key={k}>
