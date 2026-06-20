@@ -110,6 +110,8 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'ledger', label: 'Unified Ledger', icon: BookOpen, path: '/flipkart/ledger' },
       { id: 'upload', label: 'Upload Center', icon: Upload, path: '/flipkart/upload' },
       { id: 'quick-sale', label: 'Quick Sale Order', icon: ShoppingCart, path: '/flipkart/quick-sale' },
+      { id: 'unmapped-fsns', label: 'Unmapped FSNs', icon: AlertTriangle, path: '/flipkart/unmapped-fsns' },
+      { id: 'settlement-tracker', label: 'Settlement Tracker', icon: TrendingDown, path: '/flipkart/settlement-tracker' },
       { id: 'fk-setup', label: 'Setup & Master Data', icon: Settings2, path: '/flipkart/setup' },
     ],
   },

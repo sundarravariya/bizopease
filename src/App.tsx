@@ -97,6 +97,8 @@ const Profile           = lazy(() => import('./components/modules/Settings/Profi
 const ComingSoon        = lazy(() => import('./components/ui/ComingSoon'));
 const SuperAdminApp     = lazy(() => import('./superadmin/SuperAdminApp'));
 const QrPunchHandler    = lazy(() => import('./components/QrPunchHandler'));
+const UnmappedFsns      = lazy(() => import('./components/modules/FlipkartOS/UnmappedFsns'));
+const SettlementTracker = lazy(() => import('./components/modules/FlipkartOS/SettlementTracker'));
 
 // ─── Loading fallback ───────────────────────────────────────────────────────
 function PageLoader() {
@@ -231,7 +233,9 @@ function InnerApp() {
           <Route path="flipkart/setup"          element={<Suspense fallback={<PageLoader />}><FlipkartSetup /></Suspense>} />
           <Route path="flipkart/ledger"         element={<Suspense fallback={<PageLoader />}><UnifiedLedger /></Suspense>} />
           <Route path="flipkart/quick-sale"     element={<Suspense fallback={<PageLoader />}><QuickSaleOrder /></Suspense>} />
-          <Route path="flipkart/create-entry"   element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
+          <Route path="flipkart/create-entry"      element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
+          <Route path="flipkart/unmapped-fsns"    element={<Suspense fallback={<PageLoader />}><UnmappedFsns /></Suspense>} />
+          <Route path="flipkart/settlement-tracker" element={<Suspense fallback={<PageLoader />}><SettlementTracker /></Suspense>} />
 
           {/* ─── B2B ─── */}
           <Route path="b2b/orders"    element={<Suspense fallback={<PageLoader />}><B2BOrders /></Suspense>} />

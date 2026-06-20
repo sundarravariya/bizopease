@@ -50,3 +50,4 @@ access_flipkart_expense,flipkart.expense,model_flipkart_expense,base.group_user,
 access_flipkart_owner,flipkart.owner,model_flipkart_owner,base.group_user,1,1,1,1
 access_flipkart_odoo_sales_sync,flipkart.odoo.sales.sync,model_flipkart_odoo_sales_sync,base.group_user,1,1,1,1
 access_flipkart_sales_period_report,flipkart.sales.period.report,model_flipkart_sales_period_report,base.group_user,1,1,1,1
+access_flipkart_listing_settlement_history,flipkart.listing.settlement.history,model_flipkart_listing_settlement_history,base.group_user,1,1,1,1

@@ -3,7 +3,7 @@ import { searchRead, odooCall, createRecord } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import {
   RefreshCw, Send, AlertCircle, CheckCircle2,
-  Zap, Package, ChevronDown, ChevronUp, Warehouse,
+  Zap, Package, ChevronDown, ChevronUp, Warehouse, Download,
 } from 'lucide-react';
 
 interface Account { id: number; name: string; }
@@ -26,7 +26,12 @@ interface ReplenishmentItem {
   selected: boolean;
 }
 
-type UrgencyFilter = 'all' | 'critical' | 'moderate' | 'healthy';
+interface ListingData {
+  fsn: string;
+  listing_id: string;
+  selling_price: number;
+  bank_settlement: number;
+}
 
 function mapItem(r: any): ReplenishmentItem {
   return {
@@ -41,6 +46,40 @@ function mapItem(r: any): ReplenishmentItem {
 
 const urgencyOrder: Record<string, number> = { critical: 0, moderate: 1, healthy: 2 };
 
+function downloadCsv(wh: string, whItems: ReplenishmentItem[], listingMap: Record<string, ListingData>) {
+  const csvItems = whItems.filter(i =>
+    (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send > 0
+  );
+  if (!csvItems.length) {
+    alert('No critical or moderate items with qty to send in this warehouse.');
+    return;
+  }
+  const header = 'PRODUCT ID,SKU,LISTING ID,SELLING PRICE,QTY,COST PRICE';
+  const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = csvItems.map(item => {
+    const l = listingMap[item.fsn];
+    const costPrice = l?.bank_settlement ? (l.bank_settlement / 1.18).toFixed(2) : '';
+    return [
+      item.fsn,
+      item.sku,
+      l?.listing_id ?? '',
+      l?.selling_price ?? '',
+      item.qty_to_send,
+      costPrice,
+    ].map(q).join(',');
+  });
+  const csv = [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `FBF_${wh.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function FbfReplenishment() {
   const { isDark } = useTheme();
   const [items, setItems] = useState<ReplenishmentItem[]>([]);
@@ -51,8 +90,10 @@ export default function FbfReplenishment() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountFilter, setAccountFilter] = useState<number | 'all'>('all');
   const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
+  // Multi-select urgency: empty set = "all"
+  const [urgencyFilters, setUrgencyFilters] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [listingMap, setListingMap] = useState<Record<string, ListingData>>({});
 
   const cardBg = isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200';
   const tableHead = isDark ? 'bg-[#111827]/60 text-[#5a6a8a] border-[#2a3250]' : 'bg-gray-50 text-gray-500 border-gray-200';
@@ -60,6 +101,29 @@ export default function FbfReplenishment() {
   const rowHover = isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-gray-50';
   const textMain = isDark ? 'text-white' : 'text-gray-900';
   const textMuted = isDark ? 'text-[#5a6a8a]' : 'text-gray-500';
+
+  const toggleUrgency = (f: string) => {
+    setUrgencyFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f); else next.add(f);
+      return next;
+    });
+  };
+
+  const loadListingData = async (fsns: string[]) => {
+    const unique = [...new Set(fsns.filter(Boolean))];
+    if (!unique.length) return;
+    try {
+      const data = await searchRead<any>('flipkart.listing', {
+        domain: [['fsn', 'in', unique]],
+        fields: ['fsn', 'listing_id', 'selling_price', 'bank_settlement'],
+        limit: 0,
+      });
+      const map: Record<string, ListingData> = {};
+      for (const d of (Array.isArray(data) ? data : [])) map[d.fsn] = d;
+      setListingMap(map);
+    } catch { /* non-fatal */ }
+  };
 
   const syncData = async () => {
     setLoading(true);
@@ -71,7 +135,9 @@ export default function FbfReplenishment() {
         domain: [], limit: 0,
         order: 'urgency asc, qty_to_send desc',
       });
-      return Array.isArray(r) ? r.map(mapItem) : [];
+      const mapped = Array.isArray(r) ? r.map(mapItem) : [];
+      await loadListingData(mapped.map(i => i.fsn));
+      return mapped;
     } catch (e) {
       console.error('Sync failed', e);
       return null;
@@ -99,7 +165,6 @@ export default function FbfReplenishment() {
     }
   };
 
-  // On mount: load accounts, sync existing recs, auto-generate if empty.
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -108,7 +173,6 @@ export default function FbfReplenishment() {
         if (Array.isArray(accs)) setAccounts(accs);
         const existing = await syncData();
         if (existing && existing.length === 0 && accs && accs.length > 0) {
-          // Auto-generate if no recs exist yet.
           await handleGenerate(accs);
         } else if (existing) {
           setItems(existing);
@@ -153,17 +217,15 @@ export default function FbfReplenishment() {
   const toggleCollapse = (wh: string) =>
     setCollapsed(prev => { const s = new Set(prev); s.has(wh) ? s.delete(wh) : s.add(wh); return s; });
 
-  // Unique warehouses and accounts from loaded items for filter dropdowns.
   const allWarehouses = useMemo(() => [...new Set(items.map(i => i.warehouse_name))].sort(), [items]);
 
   const filtered = useMemo(() => items.filter(i => {
     if (accountFilter !== 'all' && (!Array.isArray(i.account_id) || i.account_id[0] !== accountFilter)) return false;
     if (warehouseFilter !== 'all' && i.warehouse_name !== warehouseFilter) return false;
-    if (urgencyFilter !== 'all' && i.urgency !== urgencyFilter) return false;
+    if (urgencyFilters.size > 0 && !urgencyFilters.has(i.urgency)) return false;
     return true;
-  }), [items, accountFilter, warehouseFilter, urgencyFilter]);
+  }), [items, accountFilter, warehouseFilter, urgencyFilters]);
 
-  // Group filtered items by warehouse, sorted by most critical first.
   const grouped = useMemo(() => {
     const map = new Map<string, ReplenishmentItem[]>();
     for (const item of filtered) {
@@ -171,7 +233,6 @@ export default function FbfReplenishment() {
       if (!map.has(wh)) map.set(wh, []);
       map.get(wh)!.push(item);
     }
-    // Sort warehouses by most critical items first.
     return [...map.entries()].sort(([, a], [, b]) => {
       const minA = Math.min(...a.map(i => urgencyOrder[i.urgency]));
       const minB = Math.min(...b.map(i => urgencyOrder[i.urgency]));
@@ -182,6 +243,18 @@ export default function FbfReplenishment() {
   const totalCritical = items.filter(i => i.urgency === 'critical').length;
   const totalModerate = items.filter(i => i.urgency === 'moderate').length;
   const totalUnits = items.reduce((s, i) => s + i.qty_to_send, 0);
+
+  const urgencyBtnClass = (f: string) => {
+    const active = urgencyFilters.has(f);
+    const colorMap: Record<string, string> = {
+      critical: 'bg-red-500 text-white border-red-500',
+      moderate: 'bg-amber-500 text-white border-amber-500',
+      healthy: 'bg-emerald-500 text-white border-emerald-500',
+    };
+    return active
+      ? colorMap[f] || 'bg-[#7367f0] text-white border-[#7367f0]'
+      : isDark ? 'border-[#2a3250] text-[#5a6a8a]' : 'border-gray-200 text-gray-500';
+  };
 
   return (
     <div className='p-4 max-w-7xl mx-auto space-y-5 animate-fade-in'>
@@ -255,18 +328,25 @@ export default function FbfReplenishment() {
             {allWarehouses.map(wh => <option key={wh} value={wh}>{wh}</option>)}
           </select>
         </div>
-        {/* Urgency */}
+        {/* Urgency — multi-select */}
         <div className='flex items-start gap-2'>
           <span className={`text-[11px] font-semibold uppercase tracking-wider shrink-0 w-20 pt-1 ${textMuted}`}>Urgency</span>
-          <div className='flex gap-1 flex-wrap'>
-            {(['all', 'critical', 'moderate', 'healthy'] as UrgencyFilter[]).map(f => (
-              <button key={f} onClick={() => setUrgencyFilter(f)}
-                className={`text-xs px-3 py-1 rounded-lg font-semibold capitalize border transition-all ${
-                  urgencyFilter === f ? 'bg-[#7367f0] text-white border-[#7367f0]' : isDark ? 'border-[#2a3250] text-[#5a6a8a]' : 'border-gray-200 text-gray-500'
-                }`}>
-                {f}
+          <div className='flex gap-1 flex-wrap items-center'>
+            {(['critical', 'moderate', 'healthy'] as const).map(f => (
+              <button key={f} onClick={() => toggleUrgency(f)}
+                className={`text-xs px-3 py-1 rounded-lg font-semibold capitalize border transition-all ${urgencyBtnClass(f)}`}>
+                {urgencyFilters.has(f) ? '✓ ' : ''}{f}
               </button>
             ))}
+            {urgencyFilters.size > 0 && (
+              <button onClick={() => setUrgencyFilters(new Set())}
+                className={`text-xs px-2 py-1 rounded-lg border transition-all ${isDark ? 'border-[#2a3250] text-[#5a6a8a] hover:text-white' : 'border-gray-200 text-gray-400 hover:text-gray-700'}`}>
+                Clear
+              </button>
+            )}
+            <span className={`text-[10px] ml-1 ${textMuted}`}>
+              {urgencyFilters.size === 0 ? 'Showing all' : `Showing: ${[...urgencyFilters].join(', ')}`}
+            </span>
           </div>
         </div>
       </div>
@@ -294,6 +374,7 @@ export default function FbfReplenishment() {
         const whUnits = whItems.reduce((s, i) => s + i.qty_to_send, 0);
         const selectedInWh = whItems.filter(i => i.selected);
         const allWhSelected = whItems.length > 0 && whItems.every(i => i.selected);
+        const csvCount = whItems.filter(i => (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send > 0).length;
 
         return (
           <div key={wh} className={`card border rounded-2xl overflow-hidden ${cardBg}`}>
@@ -308,7 +389,7 @@ export default function FbfReplenishment() {
                 <span className={`font-bold text-sm flex-1 ${textMain}`}>{wh}</span>
                 {isCollapsed ? <ChevronDown size={15} className={textMuted} /> : <ChevronUp size={15} className={textMuted} />}
               </div>
-              {/* Row 2: stats + consign */}
+              {/* Row 2: stats + buttons */}
               <div className='flex items-center gap-2 mt-1.5 flex-wrap' onClick={e => e.stopPropagation()}>
                 <div className='flex gap-2 text-[11px] font-semibold flex-wrap flex-1'>
                   {whCritical > 0 && <span className='text-red-400'>{whCritical} critical</span>}
@@ -316,15 +397,25 @@ export default function FbfReplenishment() {
                   <span className={textMuted}>{whItems.length} SKUs</span>
                   <span className='text-[#7367f0]'>{whUnits.toLocaleString('en-IN')} units</span>
                 </div>
-                {selectedInWh.length > 0 && (
-                  <button
-                    onClick={e => { e.stopPropagation(); handleCreateConsignment(whItems); }}
-                    disabled={consigning}
-                    className='btn-primary text-[11px] px-3 py-1.5 flex items-center gap-1.5 shrink-0'
-                  >
-                    <Send size={11} /> Consign ({selectedInWh.length})
-                  </button>
-                )}
+                <div className='flex items-center gap-2 shrink-0'>
+                  {csvCount > 0 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); downloadCsv(wh, whItems, listingMap); }}
+                      className={`text-[11px] px-3 py-1.5 flex items-center gap-1.5 rounded-lg border font-semibold transition-all ${isDark ? 'border-[#2a3250] text-[#8897b5] hover:border-emerald-500/50 hover:text-emerald-400' : 'border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-600'}`}
+                    >
+                      <Download size={11} /> Download CSV ({csvCount})
+                    </button>
+                  )}
+                  {selectedInWh.length > 0 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleCreateConsignment(whItems); }}
+                      disabled={consigning}
+                      className='btn-primary text-[11px] px-3 py-1.5 flex items-center gap-1.5'
+                    >
+                      <Send size={11} /> Consign ({selectedInWh.length})
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -333,7 +424,6 @@ export default function FbfReplenishment() {
               <>
                 {/* Mobile cards */}
                 <div className={`md:hidden divide-y ${tableDivide}`}>
-                  {/* Select-all row */}
                   <div className={`flex items-center gap-2 px-4 py-2 ${isDark ? 'bg-[#111827]/20' : 'bg-gray-50/50'}`}>
                     <input type='checkbox' className='rounded' checked={allWhSelected}
                       onChange={e => toggleWarehouseAll(wh, e.target.checked)} />
