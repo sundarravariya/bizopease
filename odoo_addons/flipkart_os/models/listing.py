@@ -156,12 +156,11 @@ class FlipkartListingUpload(models.TransientModel):
             if existing:
                 old_bank_settlement = existing.bank_settlement
                 existing.write(vals)
-                # Track bank_settlement changes
-                if new_bank_settlement != 0.0 and old_bank_settlement != new_bank_settlement:
-                    if old_bank_settlement != 0.0:
-                        change_pct = abs((new_bank_settlement - old_bank_settlement) / old_bank_settlement) * 100.0
-                    else:
-                        change_pct = 100.0
+                # Only track genuine changes — both old and new must be non-zero.
+                # Skips first-time population (old=0 → new=X) which would wrongly show 100%.
+                if (old_bank_settlement != 0.0 and new_bank_settlement != 0.0
+                        and old_bank_settlement != new_bank_settlement):
+                    change_pct = abs((new_bank_settlement - old_bank_settlement) / old_bank_settlement) * 100.0
                     SettlementHistory.create({
                         'fsn': fsn,
                         'sku': vals.get('sku', ''),
