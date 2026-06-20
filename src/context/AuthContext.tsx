@@ -41,6 +41,24 @@ function flushCache() {
   PORTAL_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
 }
 
+const CRED_KEY = 'biz_ak';
+
+function saveCredentials(username: string, password: string, db: string) {
+  try {
+    localStorage.setItem(CRED_KEY, btoa(JSON.stringify({ username, password, db })));
+  } catch {}
+}
+
+function loadCredentials(): { username: string; password: string; db: string } | null {
+  try {
+    const raw = localStorage.getItem(CRED_KEY);
+    if (!raw) return null;
+    return JSON.parse(atob(raw));
+  } catch {
+    return null;
+  }
+}
+
 function loadStoredUser(): User | null {
   try {
     const raw = localStorage.getItem('robifel-user');
@@ -83,7 +101,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     odooGetSession()
       .then(async session => {
         if (!session?.uid) {
-          // Session expired on Odoo side — force re-login
+          // Session expired on Odoo side — try silent re-login before forcing logout
+          const creds = loadCredentials();
+          if (creds) {
+            try {
+              const result = await odooLogin(creds.username, creds.password, creds.db);
+              if (result?.uid) {
+                const restored: User = {
+                  uid: result.uid,
+                  name: result.name || creds.username,
+                  username: result.username || creds.username,
+                  email: result.username || creds.username,
+                  db: result.db || creds.db,
+                  company_id: Array.isArray(result.company_id) ? result.company_id : [1],
+                  company_name: result.company_name || '',
+                  is_admin: result.is_system || result.is_admin || false,
+                  session_id: `odoo-${result.uid}-${Date.now()}`,
+                };
+                setUser(restored);
+                localStorage.setItem('robifel-user', JSON.stringify(restored));
+                return;
+              }
+            } catch { /* fall through to logout */ }
+          }
+          // Auto re-login failed — force re-login
           setUser(null);
           localStorage.removeItem('robifel-user');
           flushCache();
@@ -137,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       setUser(userData);
       localStorage.setItem('robifel-user', JSON.stringify(userData));
+      saveCredentials(username, password, db);
 
       // Confirm manager role via group membership (authoritative).
       try {
@@ -163,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     flushCache();
     setUser(null);
     localStorage.removeItem('robifel-user');
+    localStorage.removeItem(CRED_KEY);
     localStorage.removeItem('bizopease_queen_token'); // drop queenfinger JWT
   }, []);
 
