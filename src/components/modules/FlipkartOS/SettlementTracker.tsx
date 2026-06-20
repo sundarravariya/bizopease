@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { searchRead } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
-import { RefreshCw, TrendingDown, TrendingUp, Search, AlertCircle } from 'lucide-react';
+import { RefreshCw, TrendingDown, TrendingUp, Search, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const PAGE_SIZE = 50;
 
 interface SettlementChange {
   id: number;
@@ -21,6 +23,7 @@ export default function SettlementTracker() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'urgent' | 'not_urgent'>('all');
+  const [page, setPage] = useState(1);
 
   const cardBg = isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200';
   const tableHead = isDark ? 'bg-[#111827]/60 text-[#5a6a8a] border-[#2a3250]' : 'bg-gray-50 text-gray-500 border-gray-200';
@@ -35,10 +38,11 @@ export default function SettlementTracker() {
       const data = await searchRead<SettlementChange>('flipkart.listing.settlement.history', {
         domain: [],
         fields: ['id', 'fsn', 'sku', 'product_name', 'upload_date', 'old_settlement', 'new_settlement', 'change_pct', 'urgency'],
-        limit: 500,
+        limit: 0,
         order: 'urgency asc, change_pct desc',
       });
       setRows(Array.isArray(data) ? data : []);
+      setPage(1);
     } catch (e: any) {
       console.error('Failed to load settlement history:', e.message);
     } finally {
@@ -47,6 +51,9 @@ export default function SettlementTracker() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Reset to page 1 whenever filters/search change
+  useEffect(() => { setPage(1); }, [search, urgencyFilter]);
 
   const filtered = useMemo(() => {
     let result = rows;
@@ -62,11 +69,36 @@ export default function SettlementTracker() {
     return result;
   }, [rows, urgencyFilter, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const urgentCount = rows.filter(r => r.urgency === 'urgent').length;
   const notUrgentCount = rows.filter(r => r.urgency === 'not_urgent').length;
 
   const fmt = (n: number) => `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtPct = (n: number) => `${Number(n).toFixed(2)}%`;
+
+  const pageBtnClass = (active: boolean) =>
+    `h-7 min-w-[28px] px-2 rounded-lg text-xs font-semibold border transition-all ${
+      active
+        ? 'bg-[#7367f0] text-white border-[#7367f0]'
+        : isDark ? 'border-[#2a3250] text-[#5a6a8a] hover:text-white hover:border-[#7367f0]/50' : 'border-gray-200 text-gray-500 hover:border-violet-400 hover:text-violet-600'
+    }`;
+
+  // Generate page number buttons (show at most 7 page numbers with ellipsis)
+  const pageNums = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [];
+    if (safePage <= 4) {
+      pages.push(1, 2, 3, 4, 5, '…', totalPages);
+    } else if (safePage >= totalPages - 3) {
+      pages.push(1, '…', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+    } else {
+      pages.push(1, '…', safePage - 1, safePage, safePage + 1, '…', totalPages);
+    }
+    return pages;
+  }, [safePage, totalPages]);
 
   return (
     <div className='p-4 max-w-7xl mx-auto space-y-5 animate-fade-in'>
@@ -150,11 +182,16 @@ export default function SettlementTracker() {
 
       {!loading && filtered.length > 0 && (
         <div className={`border rounded-2xl overflow-hidden ${cardBg}`}>
+          {/* Table header row */}
           <div className={`px-4 py-2.5 border-b flex items-center justify-between ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
             <span className={`text-xs font-semibold ${textMuted}`}>
               {filtered.length} change{filtered.length !== 1 ? 's' : ''} · sorted by urgency then change %
             </span>
+            <span className={`text-xs ${textMuted}`}>
+              Page {safePage} of {totalPages}
+            </span>
           </div>
+
           <div className='overflow-x-auto'>
             <table className='w-full text-left border-collapse text-sm'>
               <thead>
@@ -170,7 +207,7 @@ export default function SettlementTracker() {
                 </tr>
               </thead>
               <tbody className={`divide-y ${tableDivide}`}>
-                {filtered.map(r => {
+                {pageRows.map(r => {
                   const isUp = r.new_settlement > r.old_settlement;
                   const isUrgent = r.urgency === 'urgent';
                   return (
@@ -201,6 +238,36 @@ export default function SettlementTracker() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination footer */}
+          {totalPages > 1 && (
+            <div className={`px-4 py-3 border-t flex items-center justify-between gap-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+              <span className={`text-xs ${textMuted}`}>
+                Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+              </span>
+              <div className='flex items-center gap-1'>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className={`${pageBtnClass(false)} disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {pageNums.map((n, i) =>
+                  n === '…'
+                    ? <span key={`ellipsis-${i}`} className={`text-xs px-1 ${textMuted}`}>…</span>
+                    : <button key={n} onClick={() => setPage(n as number)} className={pageBtnClass(safePage === n)}>{n}</button>
+                )}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className={`${pageBtnClass(false)} disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
