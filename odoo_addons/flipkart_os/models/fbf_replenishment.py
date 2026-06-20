@@ -143,11 +143,15 @@ class FlipkartFbfReplenishmentGenerate(models.TransientModel):
             ('consignment_id.state', 'in', ('draft', 'rtd', 'picked_up')),
             ('fsn', '!=', False)
         ])
-        
-        odoo_transit_map = {} # (fsn, warehouse_id) -> total_qty
+
+        # (fsn, warehouse_id) -> qty  — used when backend_warehouse_id is configured
+        odoo_transit_map = {}
+        # fsn -> qty  — fallback when backend_warehouse_id is not set on warehouse config
+        odoo_transit_by_fsn = {}
         for line in c_lines:
             key = (line.fsn, line.consignment_id.warehouse_id.id)
             odoo_transit_map[key] = odoo_transit_map.get(key, 0.0) + (line.quantity_sent or 0.0)
+            odoo_transit_by_fsn[line.fsn] = odoo_transit_by_fsn.get(line.fsn, 0.0) + (line.quantity_sent or 0.0)
 
         stocks = FbfStock.search([
             ('account_id', '=', self.account_id.id),
@@ -169,9 +173,13 @@ class FlipkartFbfReplenishmentGenerate(models.TransientModel):
 
         for s in stocks:
             if s.sales_14d > 0 or s.sales_7d > 0 or s.qty_live < 5 or s.fsn in fsn_with_flipkart_sales:
-                # Add Odoo Transit if warehouse configuration matchesbackend warehouse on consignment
-                odoo_key = (s.fsn, s.warehouse_config_id.backend_warehouse_id.id)
-                odoo_t = odoo_transit_map.get(odoo_key, 0.0)
+                # Deduct pending consignment qty (draft/rtd/picked_up) to avoid double-scheduling.
+                # Match by (fsn, warehouse) when backend_warehouse_id is configured; fall back to FSN-only.
+                wh_id = s.warehouse_config_id.backend_warehouse_id.id
+                if wh_id:
+                    odoo_t = odoo_transit_map.get((s.fsn, wh_id), 0.0)
+                else:
+                    odoo_t = odoo_transit_by_fsn.get(s.fsn, 0.0)
                 
                 Replenishment.create({
                     'account_id': self.account_id.id,
