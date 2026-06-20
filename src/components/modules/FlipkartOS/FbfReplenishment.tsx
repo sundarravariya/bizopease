@@ -28,6 +28,7 @@ interface ReplenishmentItem {
 
 interface ListingData {
   fsn: string;
+  sku: string;
   listing_id: string;
   selling_price: number;
   bank_settlement: number;
@@ -58,10 +59,10 @@ function downloadCsv(wh: string, whItems: ReplenishmentItem[], listingMap: Recor
   const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = csvItems.map(item => {
     const l = listingMap[item.fsn];
-    const costPrice = l?.bank_settlement ? (l.bank_settlement / 1.18).toFixed(2) : '';
+    const costPrice = l?.bank_settlement ? Math.round(l.bank_settlement / 1.18) : '';
     return [
       item.fsn,
-      item.sku,
+      l?.sku || item.sku,
       l?.listing_id ?? '',
       l?.selling_price ?? '',
       item.qty_to_send,
@@ -116,7 +117,7 @@ export default function FbfReplenishment() {
     try {
       const data = await searchRead<any>('flipkart.listing', {
         domain: [['fsn', 'in', unique]],
-        fields: ['fsn', 'listing_id', 'selling_price', 'bank_settlement'],
+        fields: ['fsn', 'sku', 'listing_id', 'selling_price', 'bank_settlement'],
         limit: 0,
       });
       const map: Record<string, ListingData> = {};
