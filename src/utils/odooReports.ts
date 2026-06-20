@@ -1,6 +1,9 @@
 // Native Odoo QWeb PDF reports, downloaded via the report controller using the
 // active portal session (same origin, cookies sent). Report names verified on
-// the production instance.
+// the production instance. Queen tenants are routed through the auth-gated queen
+// proxy so the PDF is rendered from the queenfinger DB, never robifel.
+
+import { isQueenSession, getQueenToken } from '../services/queen';
 
 export const REPORTS = {
   saleOrder: 'sale.report_saleorder',                  // Sales Order / Quotation
@@ -19,7 +22,14 @@ export function odooReportUrl(reportName: string, id: number): string {
  * web app and the native WebView), then saves it with a friendly filename.
  */
 export async function downloadOdooReport(reportName: string, id: number, filename: string): Promise<void> {
-  const res = await fetch(odooReportUrl(reportName, id), { credentials: 'include' });
+  const queen = isQueenSession();
+  const reportUrl = queen
+    ? `/api/queen/report/pdf/${reportName}/${id}`
+    : odooReportUrl(reportName, id);
+  const res = await fetch(reportUrl, {
+    credentials: 'include',
+    headers: queen ? { Authorization: 'Bearer ' + getQueenToken() } : undefined,
+  });
   if (!res.ok) throw new Error(`Could not generate PDF (HTTP ${res.status})`);
   const ct = res.headers.get('content-type') ?? '';
   if (!ct.includes('application/pdf')) {

@@ -6,6 +6,35 @@ export const setQueenToken = (t: string) => localStorage.setItem(QUEEN_TOKEN_KEY
 export const getQueenToken = () => localStorage.getItem(QUEEN_TOKEN_KEY) || '';
 export const clearQueenToken = () => localStorage.removeItem(QUEEN_TOKEN_KEY);
 
+/**
+ * True when the active portal user is a queen tenant AND holds a queen JWT.
+ * Both conditions are required so a stale token alone can never reroute a
+ * robifel user's traffic to queenfinger. Used by odoo.ts (call_kw reroute),
+ * odooReports.ts (PDF) and asset URLs below — the single source of truth.
+ */
+export function isQueenSession(): boolean {
+  try {
+    if (!getQueenToken()) return false;
+    const u = JSON.parse(localStorage.getItem('robifel-user') || '{}');
+    return u?.is_queen_tenant === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a queenfinger /web/content URL routed through the auth-gated queen proxy.
+ * Used for inline images/attachments (raw <img>/<a> that cannot send a header),
+ * so the token rides as a query param. Returns null when not a queen session.
+ */
+export function queenContentUrl(params: Record<string, string | number>): string | null {
+  if (!isQueenSession()) return null;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) qs.set(k, String(v));
+  qs.set('token', getQueenToken());
+  return `/api/queen/content?${qs.toString()}`;
+}
+
 export async function queenCall<T = any>(
   model: string,
   method: string,

@@ -110,7 +110,9 @@ function requireSuperAdmin(req, res, next) {
 // robifel users (role 'tenant', db robifel) and anonymous callers are rejected,
 // so there is no cross-database data leak through the shared admin proxy.
 function requireQueenAuth(req, res, next) {
-  const token = (req.headers['authorization'] || '').split(' ')[1];
+  // Header for JSON/fetch callers; query param for raw browser asset GETs
+  // (<img>/<a> can't set an Authorization header).
+  const token = (req.headers['authorization'] || '').split(' ')[1] || req.query.token;
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -1121,6 +1123,52 @@ app.post('/api/queen/rpc', requireQueenAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Stream a binary GET (PDF report / attachment) from the queenfinger Odoo using
+// the server-side queen admin session. Keeps binary asset traffic on the
+// queenfinger DB so queen tenants never pull robifel reports/images.
+async function streamQueen(res, relPath, onError) {
+  const fetchOnce = async (sid) => fetch(`${QUEEN_URL || 'http://localhost:8070'}${relPath}`, {
+    headers: {
+      'Cookie': `session_id=${sid}`,
+      'X-Forwarded-Host': `${QUEEN_DB}.local`,
+      'X-Forwarded-Proto': 'https',
+    },
+  });
+  try {
+    let sid = await getQueenSession();
+    let r = await fetchOnce(sid);
+    // A stale shared session redirects to /web/login (HTML). Refresh once.
+    const ct0 = r.headers.get('content-type') || '';
+    if (r.status === 303 || r.status === 302 || ct0.includes('text/html')) {
+      _queenSession = null;
+      sid = await getQueenSession();
+      r = await fetchOnce(sid);
+    }
+    if (!r.ok) return onError(r.status, `Upstream returned ${r.status}`);
+    res.status(200);
+    res.setHeader('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    const cd = r.headers.get('content-disposition');
+    if (cd) res.setHeader('Content-Disposition', cd);
+    res.send(Buffer.from(await r.arrayBuffer()));
+  } catch (e) {
+    onError(500, e.message);
+  }
+}
+
+// Queenfinger PDF reports: /api/queen/report/pdf/<reportName>/<id>
+app.get('/api/queen/report/*', requireQueenAuth, (req, res) => {
+  const reportPath = req.params[0]; // e.g. pdf/account.report_invoice_with_payments/123
+  if (!/^[\w./-]+$/.test(reportPath)) return res.status(400).send('Invalid report path');
+  streamQueen(res, `/report/${reportPath}`, (code, msg) => res.status(code).send(msg));
+});
+
+// Queenfinger attachments/images: /api/queen/content?model=&id=&field=
+app.get('/api/queen/content', requireQueenAuth, (req, res) => {
+  const qs = new URLSearchParams(req.query);
+  qs.delete('token');
+  streamQueen(res, `/web/content?${qs.toString()}`, (code, msg) => res.status(code).send(msg));
 });
 
 // ════════════════════════════════════════════════════════════════════════

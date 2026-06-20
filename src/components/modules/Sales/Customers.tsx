@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord, writeRecord } from '../../../services/odoo';
+import { queenContentUrl } from '../../../services/queen';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import {
   Plus, RefreshCw, Search, X, Mail, Phone, MapPin,
@@ -496,7 +497,10 @@ export default function Customers() {
 
                 {drawerCustomer.b2b_has_photo && (
                   <a
-                    href={`/web/content?model=res.partner&id=${drawerCustomer.id}&field=b2b_business_photo`}
+                    href={
+                      queenContentUrl({ model: 'res.partner', id: drawerCustomer.id, field: 'b2b_business_photo' })
+                      ?? `/web/content?model=res.partner&id=${drawerCustomer.id}&field=b2b_business_photo`
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className={`flex items-center gap-3 p-3 rounded-xl mb-2 ${innerBg} hover:opacity-80`}

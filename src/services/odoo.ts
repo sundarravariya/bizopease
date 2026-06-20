@@ -1,22 +1,8 @@
 import axios from 'axios';
 import { getOdooDb } from '../config/tenant';
-import { getQueenToken } from './queen';
+import { getQueenToken, isQueenSession } from './queen';
 
 const BASE_URL = import.meta.env.VITE_ODOO_URL || '';
-
-// Queen tenants have no robifel browser session — every Odoo model call must go
-// through the control-plane queen proxy (bound to the queenfinger DB). We detect
-// a queen session from the persisted user flag PLUS a queen JWT, so a stale token
-// alone can never reroute a robifel user's calls to queenfinger.
-function isQueenSession(): boolean {
-  try {
-    if (!getQueenToken()) return false;
-    const u = JSON.parse(localStorage.getItem('robifel-user') || '{}');
-    return u?.is_queen_tenant === true;
-  } catch {
-    return false;
-  }
-}
 
 const api = axios.create({
   baseURL: BASE_URL,
