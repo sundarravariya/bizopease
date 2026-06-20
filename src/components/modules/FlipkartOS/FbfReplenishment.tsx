@@ -49,7 +49,7 @@ const urgencyOrder: Record<string, number> = { critical: 0, moderate: 1, healthy
 
 function downloadCsv(wh: string, whItems: ReplenishmentItem[], listingMap: Record<string, ListingData>) {
   const csvItems = whItems.filter(i =>
-    (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send > 0
+    (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send >= 5
   );
   if (!csvItems.length) {
     alert('No critical or moderate items with qty to send in this warehouse.');
@@ -375,7 +375,7 @@ export default function FbfReplenishment() {
         const whUnits = whItems.reduce((s, i) => s + i.qty_to_send, 0);
         const selectedInWh = whItems.filter(i => i.selected);
         const allWhSelected = whItems.length > 0 && whItems.every(i => i.selected);
-        const csvCount = whItems.filter(i => (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send > 0).length;
+        const csvCount = whItems.filter(i => (i.urgency === 'critical' || i.urgency === 'moderate') && i.qty_to_send >= 5).length;
 
         return (
           <div key={wh} className={`card border rounded-2xl overflow-hidden ${cardBg}`}>
