@@ -221,6 +221,7 @@ export default function FbfReplenishment() {
   const allWarehouses = useMemo(() => [...new Set(items.map(i => i.warehouse_name))].sort(), [items]);
 
   const filtered = useMemo(() => items.filter(i => {
+    if (i.qty_to_send < 5) return false;
     if (accountFilter !== 'all' && (!Array.isArray(i.account_id) || i.account_id[0] !== accountFilter)) return false;
     if (warehouseFilter !== 'all' && i.warehouse_name !== warehouseFilter) return false;
     if (urgencyFilters.size > 0 && !urgencyFilters.has(i.urgency)) return false;
