@@ -78,7 +78,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Inclusive start date (YYYY-MM-DD) for the selected period.
+  function periodStart(): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (period === 'week') {
+      const d = new Date(now); d.setDate(d.getDate() - 6);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+    if (period === 'year') return `${now.getFullYear()}-01-01`;
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`; // month
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -90,15 +102,14 @@ export default function Dashboard() {
   }
 
   async function loadKpis() {
-    const now = new Date();
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const start = periodStart();
 
     const [sales, purchase, invoices, products, revenue, receivable] = await Promise.allSettled([
       searchCount('sale.order', [['state', 'in', ['sale', 'done']]]),
       searchCount('purchase.order', [['state', 'in', ['purchase', 'done']]]),
       searchCount('account.move', [['move_type', '=', 'out_invoice'], ['state', '=', 'posted']]),
       searchCount('product.template', [['active', '=', true]]),
-      getSum('sale.order', [['state', 'in', ['sale', 'done']], ['date_order', '>=', monthStart]], 'amount_total'),
+      getSum('sale.order', [['state', 'in', ['sale', 'done']], ['date_order', '>=', start]], 'amount_total'),
       getSum('account.move', [['move_type', '=', 'out_invoice'], ['payment_state', 'not in', ['paid', 'in_payment']], ['state', '=', 'posted']], 'amount_residual'),
     ]);
 
@@ -127,49 +138,58 @@ export default function Dashboard() {
   }
 
   async function loadCharts() {
-    try {
-      const now = new Date();
-      const yearStart = `${now.getFullYear()}-01-01`;
+    const start = periodStart();
+    // Week/month → daily buckets; year → monthly buckets.
+    const gran: 'day' | 'month' = period === 'year' ? 'month' : 'day';
 
-      // Monthly revenue grouped by month
-      const monthly = await readGroup<any>('sale.order', {
-        domain: [['state', 'in', ['sale', 'done']], ['date_order', '>=', yearStart]],
-        fields: ['amount_total:sum', 'date_order:count'],
-        groupby: ['date_order:month'],
-        orderby: 'date_order asc',
+    // ── Revenue chart (independent of the category query below) ──────────────
+    try {
+      const rows = await readGroup<any>('sale.order', {
+        domain: [['state', 'in', ['sale', 'done']], ['date_order', '>=', start]],
+        fields: ['amount_total:sum'],
+        groupby: [`date_order:${gran}`],
+        orderby: `date_order:${gran} asc`,
       });
 
-      const chartData = (monthly || []).map((row: any) => {
-        const label = row['date_order:month'] || '';
-        const monthIdx = MONTH_LABELS.findIndex(m =>
-          label.toLowerCase().includes(m.toLowerCase())
-        );
+      const chartData = (rows || []).map((row: any) => {
+        const raw = row[`date_order:${gran}`] || '';
+        let label = String(raw).slice(0, 6);
+        if (gran === 'month') {
+          const idx = MONTH_LABELS.findIndex(m => String(raw).toLowerCase().includes(m.toLowerCase()));
+          label = idx >= 0 ? MONTH_LABELS[idx] : String(raw).slice(0, 3);
+        } else {
+          // "DD Mon YYYY" → "DD Mon"
+          const parts = String(raw).split(' ');
+          label = parts.length >= 2 ? `${parts[0]} ${parts[1]}` : String(raw).slice(0, 6);
+        }
         return {
-          month: monthIdx >= 0 ? MONTH_LABELS[monthIdx] : label.slice(0, 3),
+          month: label,
           revenue: Math.round(row.amount_total || 0),
-          orders: row.date_order_count || 0,
+          orders: row.__count || 0,
         };
       });
       setMonthlyData(chartData);
+    } catch {
+      setMonthlyData([]);
+    }
 
-      // Product categories
+    // ── Product categories (separate so a failure here can't blank the chart) ─
+    try {
       const catGroup = await readGroup<any>('product.template', {
         domain: [['active', '=', true]],
         fields: ['categ_id'],
         groupby: ['categ_id'],
-        limit: 5,
-        orderby: 'categ_id_count desc',
       });
-      const total = (catGroup || []).reduce((s: number, r: any) => s + (r.categ_id_count || 0), 0) || 1;
+      const sorted = (catGroup || []).slice().sort((a: any, b: any) => (b.__count || 0) - (a.__count || 0)).slice(0, 5);
+      const total = sorted.reduce((s: number, r: any) => s + (r.__count || 0), 0) || 1;
       setCategoryData(
-        (catGroup || []).slice(0, 5).map((r: any, i: number) => ({
+        sorted.map((r: any, i: number) => ({
           name: Array.isArray(r.categ_id) ? r.categ_id[1] : (r.categ_id || 'Other'),
-          value: Math.round(((r.categ_id_count || 0) / total) * 100),
+          value: Math.round(((r.__count || 0) / total) * 100),
           color: PIE_COLORS[i % PIE_COLORS.length],
         }))
       );
     } catch {
-      setMonthlyData([]);
       setCategoryData([]);
     }
   }
@@ -221,7 +241,7 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiCard title="Revenue This Month" value={loading ? '...' : fmt(kpis.revenue)}
+        <KpiCard title={`Revenue This ${period === 'week' ? 'Week' : period === 'year' ? 'Year' : 'Month'}`} value={loading ? '...' : fmt(kpis.revenue)}
           sub="Confirmed sales" icon={IndianRupee}
           gradient="bg-gradient-to-br from-[#7367f0] to-[#5a52e0]" isDark={isDark} />
         <KpiCard title="Sales Orders" value={loading ? '...' : kpis.sales.toString()}
@@ -242,7 +262,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Revenue Overview</h3>
-              <p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Monthly sales revenue — current year</p>
+              <p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{period === 'week' ? 'Daily sales revenue — last 7 days' : period === 'year' ? 'Monthly sales revenue — current year' : 'Daily sales revenue — current month'}</p>
             </div>
             <div className="flex gap-4 text-xs">
               <span className="flex items-center gap-1.5"><span className="w-3 h-1 rounded-full bg-[#7367f0]" /><span className={isDark ? 'text-[#6a7a9a]' : 'text-gray-400'}>Revenue</span></span>

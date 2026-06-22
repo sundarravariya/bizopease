@@ -281,30 +281,101 @@ app.post('/api/signup/finalize', async (req, res) => {
     if (expected !== razorpay_signature) return res.status(400).json({ error: 'Payment signature invalid' });
   }
 
-  try {
-    const dbName = await provisionTenant(cleanSlug, workspaceName, email, password);
-    const expiry = new Date(); expiry.setDate(expiry.getDate() + 30);
-    masterDb.run(
-      `INSERT OR REPLACE INTO workspaces
-        (tenant_id, workspace_name, subscription_status, subscription_expires_at, plan_type,
-         razorpay_subscription_id, last_payment_id, odoo_db_name, admin_email)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [cleanSlug, workspaceName.trim(), 'active', expiry.toISOString(),
-       plan || 'starter', razorpay_subscription_id || 'trial', razorpay_payment_id || '',
-       dbName, email],
-      err => {
-        if (err) return res.status(500).json({ error: 'Provisioned but registry failed: ' + err.message });
-        res.json({ success: true, dbName, message: 'Workspace created successfully!' });
-      }
-    );
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  const dbName = `ws_${cleanSlug}`;
+  const expiry = new Date(); expiry.setDate(expiry.getDate() + 30);
+
+  // Register the workspace immediately as 'provisioning' and run the long Odoo
+  // provisioning in the BACKGROUND. Provisioning (DB init + addon install) can
+  // take several minutes — far longer than an HTTP request / nginx timeout — so
+  // we respond right away and let the signup UI poll /api/signup/status.
+  masterDb.run(
+    `INSERT OR REPLACE INTO workspaces
+      (tenant_id, workspace_name, subscription_status, subscription_expires_at, plan_type,
+       razorpay_subscription_id, last_payment_id, odoo_db_name, admin_email, admin_password,
+       provision_status, provision_error)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [cleanSlug, workspaceName.trim(), 'active', expiry.toISOString(),
+     plan || 'starter', razorpay_subscription_id || 'trial', razorpay_payment_id || '',
+     dbName, email, password, 'provisioning', ''],
+    err => {
+      if (err) return res.status(500).json({ error: 'Registry write failed: ' + err.message });
+
+      provisionTenant(cleanSlug, workspaceName, email, password)
+        .then(() => {
+          masterDb.run("UPDATE workspaces SET provision_status='ready', provision_error='' WHERE tenant_id=?", [cleanSlug]);
+          console.log(`[Signup] OK Provisioning complete for ${cleanSlug}`);
+        })
+        .catch(e => {
+          const msg = String(e && e.message ? e.message : e).slice(0, 500);
+          masterDb.run("UPDATE workspaces SET provision_status='failed', provision_error=? WHERE tenant_id=?", [msg, cleanSlug]);
+          console.error(`[Signup] FAIL Provisioning failed for ${cleanSlug}: ${msg}`);
+        });
+
+      res.json({ success: true, dbName, provisioning: true, message: 'Workspace provisioning started.' });
+    }
+  );
+});
+
+// Signup provisioning status — polled by the signup UI after /finalize.
+app.get('/api/signup/status', (req, res) => {
+  const slug = generateOdooSlug(req.query.slug || '');
+  if (!slug) return res.status(400).json({ error: 'slug required' });
+  masterDb.get(
+    'SELECT provision_status, provision_error, odoo_db_name FROM workspaces WHERE tenant_id=?',
+    [slug],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: 'lookup failed' });
+      if (!row) return res.json({ status: 'pending' });
+      res.json({ status: row.provision_status, error: row.provision_error || '', dbName: row.odoo_db_name });
+    }
+  );
 });
 
 // ════════════════════════════════════════════════════════════════════════
 // TENANT AUTH ROUTES  (used by login.html and React SPA)
 // ════════════════════════════════════════════════════════════════════════
+
+// Self-healing workspace resolver: when an email is in neither the admin
+// registry nor workspace_users (e.g. the employee/login was created straight in
+// the Odoo backend, bypassing the portal HR screen that auto-registers logins),
+// probe each READY tenant DB for an active, internal (non-share) res.users with
+// that login. On a hit we backfill workspace_users so the next login is instant.
+const VALID_DB_NAME = /^[A-Za-z0-9_]+$/;
+const SAFE_EMAIL = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+
+function probeOdooDbsForLogin(email) {
+  return new Promise((resolve) => {
+    if (!SAFE_EMAIL.test(email)) return resolve(null);
+    masterDb.all(
+      `SELECT tenant_id, workspace_name, odoo_db_name, subscription_status, is_queen_tenant
+         FROM workspaces
+        WHERE provision_status = 'ready' AND odoo_db_name IS NOT NULL AND odoo_db_name != ''
+          AND COALESCE(is_queen_tenant, 0) = 0`,
+      [],
+      (err, rows) => {
+        if (err || !rows || !rows.length) return resolve(null);
+        const candidates = rows.filter(r => VALID_DB_NAME.test(r.odoo_db_name));
+        let i = 0;
+        const next = () => {
+          if (i >= candidates.length) return resolve(null);
+          const ws = candidates[i++];
+          const sql =
+            "SELECT 1 FROM res_users u WHERE u.active AND NOT COALESCE(u.share, false) " +
+            `AND lower(u.login) = lower('${email}') LIMIT 1`;
+          exec(
+            `sudo -u postgres psql -d ${ws.odoo_db_name} -tAc "${sql}"`,
+            { timeout: 8000 },
+            (e, stdout) => {
+              if (!e && String(stdout).trim() === '1') return resolve(ws);
+              next();
+            }
+          );
+        };
+        next();
+      }
+    );
+  });
+}
 
 /**
  * POST /api/auth/find-workspace
@@ -339,8 +410,18 @@ app.post('/api/auth/find-workspace', loginLimiter, (req, res) => {
         [email],
         (e2, ws2) => {
           if (e2) return res.status(500).json({ error: 'Registry lookup failed' });
-          if (!ws2) return res.status(404).json({ error: 'No workspace found for this email address. Contact your administrator.' });
-          reply(ws2);
+          if (ws2) return reply(ws2);
+
+          // Last resort: probe Odoo DBs for a login created directly in the
+          // backend, then backfill the registry so future logins skip the probe.
+          probeOdooDbsForLogin(email).then((found) => {
+            if (!found) return res.status(404).json({ error: 'No workspace found for this email address. Contact your administrator.' });
+            masterDb.run(
+              'INSERT OR IGNORE INTO workspace_users (email, tenant_id, odoo_db_name) VALUES (?, ?, ?)',
+              [email, found.tenant_id, found.odoo_db_name]
+            );
+            reply(found);
+          }).catch(() => res.status(404).json({ error: 'No workspace found for this email address. Contact your administrator.' }));
         }
       );
     }

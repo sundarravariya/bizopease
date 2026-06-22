@@ -99,6 +99,14 @@ const SuperAdminApp     = lazy(() => import('./superadmin/SuperAdminApp'));
 const QrPunchHandler    = lazy(() => import('./components/QrPunchHandler'));
 const UnmappedFsns      = lazy(() => import('./components/modules/FlipkartOS/UnmappedFsns'));
 const SettlementTracker = lazy(() => import('./components/modules/FlipkartOS/SettlementTracker'));
+// Business OS (native, non-Flipkart) modules
+const BizDeadStock       = lazy(() => import('./components/modules/BusinessOS/BizDeadStock'));
+const BizSupplierReorders = lazy(() => import('./components/modules/BusinessOS/BizSupplierReorders'));
+const BizStockValuation  = lazy(() => import('./components/modules/BusinessOS/BizStockValuation'));
+const BizSalesDashboard  = lazy(() => import('./components/modules/BusinessOS/BizSalesDashboard'));
+const BizLedger          = lazy(() => import('./components/modules/BusinessOS/BizLedger'));
+const BizMoneyManager    = lazy(() => import('./components/modules/BusinessOS/BizMoneyManager'));
+const BizExpenses        = lazy(() => import('./components/modules/BusinessOS/BizExpenses'));
 
 // ─── Loading fallback ───────────────────────────────────────────────────────
 function PageLoader() {
@@ -236,6 +244,16 @@ function InnerApp() {
           <Route path="flipkart/create-entry"      element={<Suspense fallback={<PageLoader />}><CreateEntry /></Suspense>} />
           <Route path="flipkart/unmapped-fsns"    element={<Suspense fallback={<PageLoader />}><UnmappedFsns /></Suspense>} />
           <Route path="flipkart/settlement-tracker" element={<Suspense fallback={<PageLoader />}><SettlementTracker /></Suspense>} />
+
+          {/* ─── Business OS (native, non-Flipkart) ─── */}
+          <Route path="biz/sales-dashboard" element={<Suspense fallback={<PageLoader />}><BizSalesDashboard /></Suspense>} />
+          <Route path="biz/deadstock"       element={<Suspense fallback={<PageLoader />}><BizDeadStock /></Suspense>} />
+          <Route path="biz/supplier"        element={<Suspense fallback={<PageLoader />}><BizSupplierReorders /></Suspense>} />
+          <Route path="biz/valuation"       element={<Suspense fallback={<PageLoader />}><BizStockValuation /></Suspense>} />
+          <Route path="biz/ledger"          element={<Suspense fallback={<PageLoader />}><BizLedger /></Suspense>} />
+          <Route path="biz/money"           element={<Suspense fallback={<PageLoader />}><BizMoneyManager /></Suspense>} />
+          <Route path="biz/expenses"        element={<Suspense fallback={<PageLoader />}><BizExpenses /></Suspense>} />
+          <Route path="biz/quick-sale"      element={<Suspense fallback={<PageLoader />}><QuickSaleOrder /></Suspense>} />
 
           {/* ─── B2B ─── */}
           <Route path="b2b/orders"    element={<Suspense fallback={<PageLoader />}><B2BOrders /></Suspense>} />

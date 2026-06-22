@@ -129,6 +129,35 @@ export async function checkLocationEnabled(): Promise<LocationStatus> {
 }
 
 /**
+ * Ensure the Google ML Kit Barcode Scanner module is present on the device.
+ * On old Android devices it may not be pre-installed; calling this triggers an
+ * in-app download from Google Play Services (a few MB, usually < 5 s on Wi-Fi).
+ * iOS bundles ML Kit with the app so this is a no-op there.
+ */
+async function ensureBarcodeScannerModule(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return;
+  try {
+    const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+    if (!available) {
+      // Triggers the Play Services download prompt — awaiting it waits for the
+      // install to complete (or rejects on failure/cancellation).
+      await BarcodeScanner.installGoogleBarcodeScannerModule();
+    }
+  } catch (e: any) {
+    // installGoogleBarcodeScannerModule rejects if Play Services is too old or
+    // the device has no Google Play. Surface a friendlier error.
+    const msg = String(e?.message || e || '').toLowerCase();
+    if (msg.includes('not available') || msg.includes('install') || msg.includes('module')) {
+      throw new Error(
+        'Could not install the barcode scanning module. ' +
+        'Please update Google Play Services and try again.'
+      );
+    }
+    throw e;
+  }
+}
+
+/**
  * Scan a QR code using ML Kit native camera (no app popup). Returns the raw
  * text value. On web/non-native, falls back to browser-based input prompt so
  * admins can test by pasting the URL.
@@ -140,15 +169,15 @@ export async function scanQr(): Promise<string> {
     if (!val) throw new Error('QR scan cancelled.');
     return val;
   }
-  // Request camera permission first.
+  // Ensure ML Kit module is downloaded (auto-installs on old devices).
+  await ensureBarcodeScannerModule();
+  // Request camera permission.
   const perm = await BarcodeScanner.checkPermissions();
   if (perm.camera !== 'granted') {
     const req = await BarcodeScanner.requestPermissions();
     if (req.camera !== 'granted') throw new Error('Camera permission is required for QR scanning.');
   }
-  const result = await BarcodeScanner.scan({
-    formats: [BarcodeFormat.QrCode],
-  });
+  const result = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
   const barcode = result.barcodes?.[0];
   if (!barcode?.rawValue) throw new Error('No QR code found. Please try again.');
   return barcode.rawValue;
@@ -164,6 +193,8 @@ export async function scanBarcode(): Promise<string> {
     if (!val) throw new Error('Scan cancelled.');
     return val;
   }
+  // Ensure ML Kit module is downloaded (auto-installs on old devices).
+  await ensureBarcodeScannerModule();
   const perm = await BarcodeScanner.checkPermissions();
   if (perm.camera !== 'granted') {
     const req = await BarcodeScanner.requestPermissions();

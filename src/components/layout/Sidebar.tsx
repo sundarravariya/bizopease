@@ -6,14 +6,19 @@ import { searchRead } from '../../services/odoo';
 import { BRAND, companyName, brandInitial } from '../../config/brand';
 
 // Which Odoo module each menu id needs. Items not listed always show.
-const MODULE_BY_ID: Record<string, string> = {
-  'money-manager': 'flipkart_os', 'tasks': 'flipkart_os', 'consignments': 'flipkart_os',
-  'scanner': 'flipkart_os', 'returns': 'flipkart_os', 'create-entry': 'flipkart_os',
+// A string[] means "show if ANY of these modules is installed" — used for
+// features that exist in both flipkart_os and the native biz_* modules.
+const MODULE_BY_ID: Record<string, string | string[]> = {
+  'money-manager': 'flipkart_os', 'tasks': ['flipkart_os', 'biz_tasks'], 'consignments': 'flipkart_os',
+  'scanner': 'flipkart_os', 'daily-orders': 'flipkart_os', 'returns': 'flipkart_os', 'create-entry': 'flipkart_os',
   'flipkart-os': 'flipkart_os', 'settlements': 'flipkart_os',
   'sales': 'sale_management', 'purchase': 'purchase', 'inventory': 'stock',
   'accounting': 'account', 'crm': 'crm', 'hr': 'hr', 'b2b': 'b2b_os',
   'attendance': 'robifel_hr', 'salary': 'robifel_hr', 'live-map': 'robifel_hr',
   'kiosk': 'robifel_hr', 'hr-settings': 'robifel_hr',
+  // Native (non-Flipkart) Business OS modules
+  'biz-os': 'biz_os', 'biz-money': 'biz_money', 'biz-expenses': 'biz_money',
+  'biz-create-entry': 'biz_money',
 };
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse,
@@ -113,6 +118,41 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'unmapped-fsns', label: 'Unmapped FSNs', icon: AlertTriangle, path: '/flipkart/unmapped-fsns' },
       { id: 'settlement-tracker', label: 'Settlement Tracker', icon: TrendingDown, path: '/flipkart/settlement-tracker' },
       { id: 'fk-setup', label: 'Setup & Master Data', icon: Settings2, path: '/flipkart/setup' },
+    ],
+  },
+  // ─── BUSINESS OS — native (non-Flipkart) ─────
+  {
+    id: 'biz-money',
+    label: 'Money Manager',
+    icon: CreditCard,
+    path: '/biz/money',
+    groupLabel: 'BUSINESS OS',
+  },
+  {
+    id: 'biz-expenses',
+    label: 'Expenses',
+    icon: Receipt,
+    path: '/biz/expenses',
+  },
+  {
+    id: 'biz-create-entry',
+    label: 'Create Entry',
+    icon: PlusCircle,
+    path: '/biz/ledger',
+    badge: 'QUICK',
+    badgeColor: 'violet',
+  },
+  {
+    id: 'biz-os',
+    label: 'Business OS',
+    icon: Zap,
+    children: [
+      { id: 'biz-sales-dash', label: 'Sales Dashboard', icon: BarChart2, path: '/biz/sales-dashboard' },
+      { id: 'biz-deadstock', label: 'Dead Stock', icon: AlertTriangle, path: '/biz/deadstock' },
+      { id: 'biz-supplier', label: 'Supplier Reorders', icon: RefreshCcw, path: '/biz/supplier' },
+      { id: 'biz-valuation', label: 'Stock Valuation', icon: DollarSign, path: '/biz/valuation' },
+      { id: 'biz-quick-sale', label: 'Quick Sale Order', icon: ShoppingCart, path: '/biz/quick-sale' },
+      { id: 'biz-ledger', label: 'Unified Ledger', icon: BookOpen, path: '/biz/ledger' },
     ],
   },
   // ─── MODULES — standard Odoo back-office ─────
@@ -254,18 +294,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   // this workspace's DB. null = not yet loaded -> show everything (no flicker).
   const [installed, setInstalled] = useState<Set<string> | null>(null);
   useEffect(() => {
-    if (!user?.is_admin) return;
-    // For queen tenants this searchRead is auto-routed to the queenfinger DB, so the
-    // menu reflects exactly what is installed there (e.g. sale/purchase/account/b2b_os,
-    // and NOT flipkart_os/robifel_hr).
+    if (!user?.uid) return;
+    // Load for EVERY user (admins AND employees) — otherwise employees fall back
+    // to "show everything" and see menus for modules not installed in this
+    // workspace (e.g. Flipkart-only Consignments/Daily Orders/Returns on a
+    // biz_* tenant). ir.module.module read is granted to all internal users.
+    // For queen tenants this searchRead is auto-routed to the queenfinger DB, so
+    // the menu reflects exactly what is installed there.
     searchRead<{ name: string }>('ir.module.module', {
       domain: [['state', '=', 'installed']], fields: ['name'], limit: 0,
     }).then(mods => setInstalled(new Set((mods || []).map(m => m.name)))).catch(() => setInstalled(null));
-  }, [user?.is_admin]);
+  }, [user?.uid, user?.db]);
 
   const hasModule = (id: string) => {
     const mod = MODULE_BY_ID[id];
     if (!mod || !installed) return true;            // unknown / not loaded -> show
+    if (Array.isArray(mod)) return mod.some(m => installed.has(m));
     return installed.has(mod);
   };
 
@@ -276,6 +320,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const baseItems = user?.is_admin ? NAV_ITEMS : EMPLOYEE_NAV;
+  // B2B Portal shows wherever b2b_os is installed. Non-queen workspaces run B2B
+  // against their OWN Odoo DB (see queenCall in services/queen.ts); only the
+  // dedicated queen tenant proxies to the shared Queenfinger DB.
   const items = baseItems
     .filter(it => hasModule(it.id))
     .map(it => {

@@ -68,7 +68,23 @@ export default function Signup() {
     });
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.error || 'Could not create workspace');
-    setPhase('done');
+
+    // Provisioning now runs in the background on the server (it can take a few
+    // minutes). Poll the status endpoint until it's ready or fails.
+    const deadline = Date.now() + 6 * 60 * 1000; // 6-minute cap
+    while (Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 3000));
+      let sd: any;
+      try {
+        const sr = await fetch(`/api/signup/status?slug=${encodeURIComponent(slug)}`);
+        sd = await sr.json();
+      } catch {
+        continue; // transient network error — keep polling
+      }
+      if (sd.status === 'ready') { setPhase('done'); return; }
+      if (sd.status === 'failed') throw new Error(sd.error || 'Provisioning failed. Please contact support.');
+    }
+    throw new Error('Provisioning is taking longer than expected. Your workspace may still finish — try signing in shortly.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

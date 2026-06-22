@@ -1,0 +1,14 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_biz_bill_payment_vendor,biz.bill.payment.vendor,model_biz_bill_payment_vendor,base.group_user,1,1,1,1
+access_biz_money_associate,biz.money.associate,model_biz_money_associate,base.group_user,1,1,1,1
+access_biz_bill_payment_transaction,biz.bill.payment.transaction,model_biz_bill_payment_transaction,base.group_user,1,1,1,1
+access_biz_bill_vendor_ledger,biz.bill.vendor.ledger,model_biz_bill_vendor_ledger,base.group_user,1,1,1,1
+access_biz_associate_ledger,biz.associate.ledger,model_biz_associate_ledger,base.group_user,1,1,1,1
+access_biz_bill_vendor_ledger_summary,biz.bill.vendor.ledger.summary,model_biz_bill_vendor_ledger_summary,base.group_user,1,0,0,0
+access_biz_associate_ledger_summary,biz.associate.ledger.summary,model_biz_associate_ledger_summary,base.group_user,1,0,0,0
+access_biz_bill_payment_entry_wizard,biz.bill.payment.entry.wizard,model_biz_bill_payment_entry_wizard,base.group_user,1,1,1,1
+access_biz_expense,biz.expense,model_biz_expense,base.group_user,1,1,1,1
+access_biz_owner,biz.owner,model_biz_owner,base.group_user,1,1,1,1
+access_biz_carrying_agent,biz.carrying.agent,model_biz_carrying_agent,base.group_user,1,1,1,1
+access_biz_agent_ledger,biz.agent.ledger,model_biz_agent_ledger,base.group_user,1,1,1,1
+access_biz_agent_ledger_summary,biz.agent.ledger.summary,model_biz_agent_ledger_summary,base.group_user,1,0,0,0

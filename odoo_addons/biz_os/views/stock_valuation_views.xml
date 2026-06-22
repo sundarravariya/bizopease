@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_biz_stock_valuation_list" model="ir.ui.view">
+        <field name="name">biz.stock.valuation.list</field>
+        <field name="model">biz.stock.valuation</field>
+        <field name="arch" type="xml">
+            <list string="Stock Valuation" create="false">
+                <header>
+                    <button name="action_recalculate" string="Recalculate" type="object" class="btn-primary"/>
+                </header>
+                <field name="product_id"/>
+                <field name="category_id"/>
+                <field name="cost_price"/>
+                <field name="main_qty"/>
+                <field name="total_qty"/>
+                <field name="total_valuation" sum="Total Value"/>
+                <field name="last_updated"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_biz_stock_valuation_pivot" model="ir.ui.view">
+        <field name="name">biz.stock.valuation.pivot</field>
+        <field name="model">biz.stock.valuation</field>
+        <field name="arch" type="xml">
+            <pivot string="Stock Valuation">
+                <field name="category_id" type="row"/>
+                <field name="total_valuation" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_biz_stock_valuation" model="ir.actions.act_window">
+        <field name="name">Stock Valuation</field>
+        <field name="res_model">biz.stock.valuation</field>
+        <field name="view_mode">list,pivot</field>
+    </record>
+
+    <menuitem id="menu_biz_stock_valuation" name="Stock Valuation" parent="menu_biz_os_root"
+              action="action_biz_stock_valuation" sequence="40"/>
+</odoo>

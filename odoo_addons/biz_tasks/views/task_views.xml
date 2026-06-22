@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_biz_task_list" model="ir.ui.view">
+        <field name="name">biz.task.list</field>
+        <field name="model">biz.task</field>
+        <field name="arch" type="xml">
+            <list string="Tasks">
+                <field name="task_date"/>
+                <field name="name"/>
+                <field name="assignee_id"/>
+                <field name="category"/>
+                <field name="priority" widget="priority"/>
+                <field name="deadline"/>
+                <field name="state" widget="badge"/>
+                <field name="points"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_biz_task_form" model="ir.ui.view">
+        <field name="name">biz.task.form</field>
+        <field name="model">biz.task</field>
+        <field name="arch" type="xml">
+            <form string="Task">
+                <header>
+                    <button name="action_start" string="Start" type="object"
+                            class="btn-primary" invisible="state != 'todo'"/>
+                    <button name="action_done" string="Mark Done" type="object"
+                            class="btn-primary" invisible="state == 'done'"/>
+                    <button name="action_reset" string="Reset" type="object"
+                            invisible="state == 'todo'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="assignee_id"/>
+                            <field name="assigned_by_id"/>
+                            <field name="category"/>
+                        </group>
+                        <group>
+                            <field name="priority" widget="priority"/>
+                            <field name="task_date"/>
+                            <field name="deadline"/>
+                            <field name="points"/>
+                            <field name="done_date"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Task details..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_biz_task_search" model="ir.ui.view">
+        <field name="name">biz.task.search</field>
+        <field name="model">biz.task</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="assignee_id"/>
+                <filter name="todo" string="To Do" domain="[('state','=','todo')]"/>
+                <filter name="in_progress" string="In Progress" domain="[('state','=','in_progress')]"/>
+                <filter name="done" string="Done" domain="[('state','=','done')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_assignee" string="Assignee" context="{'group_by':'assignee_id'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by':'state'}"/>
+                    <filter name="group_category" string="Category" context="{'group_by':'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_biz_task" model="ir.actions.act_window">
+        <field name="name">Tasks</field>
+        <field name="res_model">biz.task</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_biz_task_root" name="Tasks" sequence="50"/>
+    <menuitem id="menu_biz_task" name="Tasks" parent="menu_biz_task_root"
+              action="action_biz_task" sequence="10"/>
+</odoo>

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Robifel HR — Attendance & Salary',
+    'name': 'HR Attendance & Salary',
     'version': '18.0.1.0.0',
     'category': 'Human Resources',
     'summary': 'Staff attendance (GPS + selfie), live location, and salary engine',
     'description': 'Portal-driven attendance and salary management for small teams.',
-    'author': 'Robifel',
+    'author': 'BizOpease',
     'depends': ['base', 'hr', 'hr_attendance'],
     'data': [
         'security/ir.model.access.csv',

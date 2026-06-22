@@ -6,8 +6,11 @@ import Header from './Header';
 import WorkHoursGate from '../WorkHoursGate';
 import { useTheme } from '../../context/ThemeContext';
 
-// Routes that render as full-screen phone-style apps (no desktop top bar / outer padding)
-const BARE_ROUTES = ['/settlements/studio', '/settlements/expenses', '/tasks'];
+// Routes that render as full-screen phone-style apps (no desktop top bar / outer
+// padding). On mobile they keep a floating hamburger button to open the sidebar.
+// Includes the native Business OS money screens so they match the Flipkart
+// Money Manager / Expenses (which have no top header either).
+const BARE_ROUTES = ['/settlements/studio', '/settlements/expenses', '/tasks', '/biz/money', '/biz/expenses'];
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

@@ -441,7 +441,7 @@ export default function Invoices() {
               <div>
                 <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${st}`}>Products</p>
                 {loadingLines ? (
-                  <div className="flex items-center gap-2 py-3"><RefreshCw size={14} className="animate-spin text-violet-400" /><span className={`text-xs ${st}`}>Loadingâ€¦</span></div>
+                  <div className="flex items-center gap-2 py-3"><RefreshCw size={14} className="animate-spin text-violet-400" /><span className={`text-xs ${st}`}>Loading...</span></div>
                 ) : detailLines.length === 0 ? (
                   <p className={`text-xs ${st}`}>No line items.</p>
                 ) : (
@@ -460,8 +460,8 @@ export default function Invoices() {
                           <tr key={i} className={`border-t ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
                             <td className={`px-3 py-2 ${pt}`}>{Array.isArray(ln.product_id) ? ln.product_id[1] : ln.name}</td>
                             <td className={`px-3 py-2 text-right ${st}`}>{ln.quantity}</td>
-                            <td className={`px-3 py-2 text-right ${st}`}>â‚¹{ln.price_unit.toLocaleString('en-IN')}</td>
-                            <td className={`px-3 py-2 text-right font-semibold ${pt}`}>â‚¹{ln.price_subtotal.toLocaleString('en-IN')}</td>
+                            <td className={`px-3 py-2 text-right ${st}`}>Rs.{ln.price_unit.toLocaleString('en-IN')}</td>
+                            <td className={`px-3 py-2 text-right font-semibold ${pt}`}>Rs.{ln.price_subtotal.toLocaleString('en-IN')}</td>
                           </tr>
                         ))}
                       </tbody>

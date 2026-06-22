@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { searchRead, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import { scanBarcode, isNative } from '../../../services/native';
@@ -58,9 +58,11 @@ const TABS = ['all', 'draft', 'scanned', 'processed', 'rejected', 'cancelled'] a
 export default function ReturnsManagement() {
   const { isDark } = useTheme();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Single account selector — used for both filtering the table AND as upload target
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [uploadAccountId, setUploadAccountId] = useState<number | ''>('');
-  const [filterAccountId, setFilterAccountId] = useState<number | ''>('');
+  const [accountId, setAccountId] = useState<number | ''>('');
+
   const [items, setItems] = useState<ReturnRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -69,11 +71,11 @@ export default function ReturnsManagement() {
   const [scanInput, setScanInput] = useState('');
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  // Scan wizard (mirrors flipkart.return.scan.wizard: identify -> confirm/reject -> next)
+  // Scan wizard
   const [wizOpen, setWizOpen] = useState(false);
   const [wizTracking, setWizTracking] = useState('');
-  const [wizMatch, setWizMatch] = useState<ScanMatch | null | undefined>(undefined); // undefined=idle, null=not found
-  const [wizComponents, setWizComponents] = useState<WizComponent[]>([]); // exploded leaves w/ checkboxes
+  const [wizMatch, setWizMatch] = useState<ScanMatch | null | undefined>(undefined);
+  const [wizComponents, setWizComponents] = useState<WizComponent[]>([]);
   const [wizBusy, setWizBusy] = useState(false);
   const [wizStats, setWizStats] = useState({ inwarded: 0, rejected: 0 });
   const wizInputRef = useRef<HTMLInputElement>(null);
@@ -81,7 +83,7 @@ export default function ReturnsManagement() {
   useEffect(() => {
     sync();
     searchRead<Account>('flipkart.account', { fields: ['id', 'name'], limit: 50 })
-      .then(r => { if (Array.isArray(r) && r.length) { setAccounts(r); setUploadAccountId(r[0].id); } })
+      .then(r => { if (Array.isArray(r) && r.length) { setAccounts(r); setAccountId(r[0].id); } })
       .catch(() => {});
   }, []);
 
@@ -99,9 +101,7 @@ export default function ReturnsManagement() {
         limit: 0,
         order: 'id desc',
       });
-      if (Array.isArray(r)) {
-        setItems(r.map(x => ({ ...x, selected: false })));
-      }
+      if (Array.isArray(r)) setItems(r.map(x => ({ ...x, selected: false })));
     } catch (e: any) {
       showMsg(false, e?.message || 'Failed to load returns');
     } finally {
@@ -119,26 +119,61 @@ export default function ReturnsManagement() {
     }
   };
 
-  const handleScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = scanInput.trim();
-    if (!val) return;
-    const found = items.find(r => r.tracking_id === val || r.return_id === val);
-    if (!found) {
-      showMsg(false, `No return found with tracking/return ID: ${val}`);
-      return;
-    }
-    if (found.state === 'processed') {
-      showMsg(false, 'This return has already been inwarded.');
-      return;
-    }
-    await doAction('action_confirm_inward', [found.id], `Return ${found.return_id} inwarded successfully`);
-    setScanInput('');
+  // ── Wizard helpers ────────────────────────────────────────────────────────────
+
+  const loadComponents = async (recId: number) => {
+    try {
+      const comps = await odooCall<WizComponent[]>(
+        'flipkart.return.management', 'get_inward_components', [[recId]], {});
+      setWizComponents(Array.isArray(comps) ? comps.map(c => ({ ...c, selected: true })) : []);
+    } catch { setWizComponents([]); }
   };
 
-  // ── Scan wizard ─────────────────────────────────────────────────────────────
+  const wizIdentifyByTracking = useCallback(async (tid: string) => {
+    if (!tid.trim()) return;
+    setWizBusy(true); setWizMatch(undefined); setWizComponents([]);
+    try {
+      const [rec] = await searchRead<ScanMatch>('flipkart.return.management', {
+        domain: [['tracking_id', '=', tid.trim()], ['state', '=', 'draft']],
+        fields: ['id', 'return_id', 'tracking_id', 'fsn', 'sku', 'product_id', 'quantity', 'return_reason'],
+        limit: 1,
+      });
+      setWizMatch(rec || null);
+      if (rec) await loadComponents(rec.id);
+    } catch (err: any) {
+      showMsg(false, err?.message || 'Lookup failed');
+      setWizMatch(null);
+    } finally {
+      setWizBusy(false);
+    }
+  }, []);
+
+  // Pre-populate wizard from a known record (table row "Inward" click)
+  const openWizardForRecord = (r: ReturnRecord) => {
+    const match: ScanMatch = {
+      id: r.id,
+      return_id: r.return_id,
+      tracking_id: r.tracking_id,
+      fsn: r.fsn,
+      sku: r.sku,
+      product_id: r.product_id,
+      quantity: r.quantity,
+      return_reason: r.return_reason,
+    };
+    setWizOpen(true);
+    setWizTracking(r.tracking_id);
+    setWizMatch(match);
+    setWizComponents([]);
+    setWizStats({ inwarded: 0, rejected: 0 });
+    loadComponents(r.id);
+  };
+
   const openWizard = () => {
-    setWizOpen(true); setWizTracking(''); setWizMatch(undefined); setWizComponents([]); setWizStats({ inwarded: 0, rejected: 0 });
+    setWizOpen(true);
+    setWizTracking('');
+    setWizMatch(undefined);
+    setWizComponents([]);
+    setWizStats({ inwarded: 0, rejected: 0 });
     setTimeout(() => wizInputRef.current?.focus(), 80);
   };
 
@@ -147,33 +182,28 @@ export default function ReturnsManagement() {
     setTimeout(() => wizInputRef.current?.focus(), 50);
   };
 
-  const wizIdentify = async (e?: React.FormEvent) => {
+  const wizIdentify = (e?: React.FormEvent) => {
     e?.preventDefault();
-    const tid = wizTracking.trim();
-    if (!tid) return;
-    setWizBusy(true); setWizMatch(undefined); setWizComponents([]);
-    try {
-      const [rec] = await searchRead<ScanMatch>('flipkart.return.management', {
-        domain: [['tracking_id', '=', tid], ['state', '=', 'draft']],
-        fields: ['id', 'return_id', 'tracking_id', 'fsn', 'sku', 'product_id', 'quantity', 'return_reason'],
-        limit: 1,
-      });
-      setWizMatch(rec || null);
-      if (rec) {
-        // Explode kit/BOM (incl. nested) into leaf components, all checked by default.
-        try {
-          const comps = await odooCall<WizComponent[]>('flipkart.return.management', 'get_inward_components', [[rec.id]], {});
-          setWizComponents(Array.isArray(comps) ? comps.map(c => ({ ...c, selected: true })) : []);
-        } catch { setWizComponents([]); }
-      }
-    } catch (err: any) { showMsg(false, err?.message || 'Lookup failed'); setWizMatch(null); }
-    finally { setWizBusy(false); }
+    wizIdentifyByTracking(wizTracking);
+  };
+
+  // Scan bar: open wizard pre-identified instead of direct inward
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = scanInput.trim();
+    if (!val) return;
+    setScanInput('');
+    setWizOpen(true);
+    setWizTracking(val);
+    setWizMatch(undefined);
+    setWizComponents([]);
+    setWizStats({ inwarded: 0, rejected: 0 });
+    wizIdentifyByTracking(val);
   };
 
   const toggleComponent = (pid: number) =>
     setWizComponents(prev => prev.map(c => c.product_id === pid ? { ...c, selected: !c.selected } : c));
 
-  // Multi-component kit → partial inward of the checked leaves. Otherwise full inward.
   const isKit = wizComponents.length > 1;
   const selectedComponents = wizComponents.filter(c => c.selected);
 
@@ -204,16 +234,14 @@ export default function ReturnsManagement() {
   };
 
   const handleUpload = async (file: File) => {
-    if (!uploadAccountId) { showMsg(false, 'Select an account before uploading.'); return; }
+    if (!accountId) { showMsg(false, 'Select an account before uploading.'); return; }
     setUploading(true);
     try {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = (e.target?.result as string)?.split(',')[1] || '';
+      reader.onload = async (ev) => {
+        const base64 = (ev.target?.result as string)?.split(',')[1] || '';
         const wizardId = await odooCall<number>('flipkart.return.upload', 'create', [{
-          file: base64,
-          file_name: file.name,
-          account_id: uploadAccountId,
+          file: base64, file_name: file.name, account_id: accountId,
         }], {});
         await odooCall('flipkart.return.upload', 'action_import', [[wizardId]], {});
         showMsg(true, `Imported ${file.name} successfully`);
@@ -247,8 +275,8 @@ export default function ReturnsManagement() {
       r.tracking_id?.toLowerCase().includes(q) ||
       r.fsn?.toLowerCase().includes(q) ||
       r.sku?.toLowerCase().includes(q);
-    const matchAccount = !filterAccountId ||
-      (Array.isArray(r.account_id) && r.account_id[0] === filterAccountId);
+    const matchAccount = !accountId ||
+      (Array.isArray(r.account_id) && r.account_id[0] === accountId);
     return matchTab && matchSearch && matchAccount;
   });
 
@@ -256,6 +284,8 @@ export default function ReturnsManagement() {
     acc[t] = t === 'all' ? items.length : items.filter(r => r.state === t).length;
     return acc;
   }, {} as Record<string, number>);
+
+  const ic = `input text-xs py-1.5 px-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -272,23 +302,18 @@ export default function ReturnsManagement() {
         <div>
           <h1 className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>Returns Management</h1>
           <p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>
-            {items.length} total -- {items.filter(r => r.state === 'draft').length} pending -- {items.filter(r => r.state === 'processed').length} inwarded
+            {items.length} total &mdash; {items.filter(r => r.state === 'draft').length} pending &mdash; {items.filter(r => r.state === 'processed').length} inwarded
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <button onClick={openWizard} className="btn-primary text-xs px-3 py-2">
             <ScanLine size={13} /> Scan Wizard
           </button>
           <button onClick={sync} disabled={loading} className="btn-secondary text-xs px-3 py-2">
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Sync
           </button>
-          {accounts.length > 0 && (
-            <select value={uploadAccountId} onChange={e => setUploadAccountId(Number(e.target.value))}
-              className={`input text-xs py-1.5 px-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`}>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          )}
-          <button onClick={() => fileRef.current?.click()} disabled={uploading || !uploadAccountId} className="btn-secondary text-xs px-3 py-2">
+          <button onClick={() => fileRef.current?.click()} disabled={uploading || !accountId}
+            className="btn-secondary text-xs px-3 py-2">
             <Upload size={13} className={uploading ? 'animate-spin' : ''} /> Upload CSV
           </button>
           <input ref={fileRef} type="file" accept=".csv" className="hidden"
@@ -320,40 +345,44 @@ export default function ReturnsManagement() {
       </div>
 
       {/* Scan Bar */}
-      <div className={`card p-4 flex gap-3 items-center`}>
+      <div className="card p-4 flex gap-3 items-center">
         <Scan size={18} className="text-[#7367f0] flex-shrink-0" />
-        <form onSubmit={handleScan} className="flex gap-2 flex-1">
-          <input value={scanInput} onChange={e => setScanInput(e.target.value)}
-            placeholder="Scan or type Tracking ID / Return ID to inward..."
-            className={`input flex-1 text-xs py-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
-          {isNative() && (
-            <button type="button" onClick={async () => {
-              try { const v = await scanBarcode(); setScanInput(v); }
-              catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
-            }} className="btn-secondary text-xs px-3 py-2">
-              <Camera size={14} />
-            </button>
-          )}
-          <button type="submit" disabled={!scanInput} className="btn-primary text-xs px-4 py-2">Inward</button>
+        <form onSubmit={handleScan} className="flex gap-2 flex-1 min-w-0">
+          {/* camera icon sits inside the input on the right — no extra button slot */}
+          <div className={`flex items-center flex-1 min-w-0 rounded-xl border px-3 py-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`}>
+            <input value={scanInput} onChange={e => setScanInput(e.target.value)}
+              placeholder="Tracking ID / Return ID..."
+              className={`flex-1 min-w-0 text-xs bg-transparent outline-none ${isDark ? 'text-white placeholder:text-[#4a5580]' : 'text-gray-900 placeholder:text-gray-400'}`} />
+            {isNative() && (
+              <button type="button" onClick={async () => {
+                try { const v = await scanBarcode(); setScanInput(v); }
+                catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
+              }} className="ml-2 flex-shrink-0 text-[#7367f0]">
+                <Camera size={16} />
+              </button>
+            )}
+          </div>
+          <button type="submit" disabled={!scanInput} className="btn-primary text-xs px-4 py-2 flex-shrink-0">Open Wizard</button>
         </form>
       </div>
 
-      {/* Tabs + Search + Account filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className={`flex gap-1 border-b flex-1 ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
+      {/* Tabs + Account filter + Search — single account dropdown */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className={`flex gap-1 border-b flex-1 min-w-0 ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-2 text-xs font-semibold capitalize border-b-2 transition-all ${tab === t
+              className={`px-3 py-2 text-xs font-semibold capitalize border-b-2 transition-all whitespace-nowrap ${tab === t
                 ? 'border-[#7367f0] text-[#7367f0]'
                 : `border-transparent ${isDark ? 'text-[#6a7a9a] hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}`}>
               {t === 'all' ? 'All' : STATE_META[t]?.label} {tabCounts[t] > 0 ? `(${tabCounts[t]})` : ''}
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           {accounts.length > 0 && (
-            <select value={filterAccountId} onChange={e => setFilterAccountId(e.target.value ? Number(e.target.value) : '')}
-              className={`input text-xs py-1.5 px-2 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`}>
+            <select value={accountId}
+              onChange={e => setAccountId(e.target.value ? Number(e.target.value) : '')}
+              className={ic}>
               <option value="">All Accounts</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
@@ -362,7 +391,7 @@ export default function ReturnsManagement() {
             <Search size={13} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-[#4a5580]' : 'text-gray-400'}`} />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search FSN / SKU / ID..."
-              className={`input pl-9 text-xs py-2 w-56 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
+              className={`input pl-9 text-xs py-2 w-48 ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`} />
           </div>
         </div>
       </div>
@@ -395,7 +424,7 @@ export default function ReturnsManagement() {
                   <th>SKU</th>
                   <th>Product</th>
                   <th className="text-center">Qty</th>
-                  <th>Date Requested</th>
+                  <th>Date</th>
                   <th>Type</th>
                   <th className="text-center">State</th>
                   <th className="text-center">Actions</th>
@@ -426,7 +455,7 @@ export default function ReturnsManagement() {
                     <td className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         {(r.state === 'draft' || r.state === 'scanned') && (
-                          <button onClick={() => doAction('action_confirm_inward', [r.id], 'Return inwarded')}
+                          <button onClick={() => openWizardForRecord(r)}
                             className="btn-primary text-[10px] px-2 py-1">Inward</button>
                         )}
                         {r.state !== 'processed' && r.state !== 'rejected' && r.state !== 'cancelled' && (
@@ -456,18 +485,25 @@ export default function ReturnsManagement() {
 
       {/* ── Scan Wizard ─────────────────────────────────────────────── */}
       {wizOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={() => setWizOpen(false)}>
-          <div className={`w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up ${isDark ? 'bg-[#161b2e]' : 'bg-white'}`} onClick={e => e.stopPropagation()}>
-            <div className="pt-2.5 flex justify-center sm:hidden"><div className="w-10 h-1 rounded-full bg-gray-400/40" /></div>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setWizOpen(false)}>
+          <div className={`w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl shadow-2xl animate-slide-up ${isDark ? 'bg-[#161b2e]' : 'bg-white'}`}
+            onClick={e => e.stopPropagation()}>
+            <div className="pt-2.5 flex justify-center sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-gray-400/40" />
+            </div>
             <div className={`px-5 py-4 flex items-center justify-between border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
               <div className="flex items-center gap-2">
                 <ScanLine size={18} className="text-[#7367f0]" />
                 <div>
                   <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>Scan Returns</h2>
-                  <p className={`text-[11px] ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Scan tracking ID, verify the item, then inward or reject.</p>
+                  <p className={`text-[11px] ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Verify item, then accept or reject.</p>
                 </div>
               </div>
-              <button onClick={() => setWizOpen(false)} className={`p-1.5 rounded-xl ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={18} /></button>
+              <button onClick={() => setWizOpen(false)}
+                className={`p-1.5 rounded-xl ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}>
+                <X size={18} />
+              </button>
             </div>
 
             {/* session stats */}
@@ -483,107 +519,144 @@ export default function ReturnsManagement() {
             </div>
 
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
-              {/* scan input */}
-              <form onSubmit={wizIdentify} className="flex gap-2">
-                <div className={`flex items-center gap-2 flex-1 px-3 py-2.5 rounded-2xl border ${isDark ? 'bg-[#12172a] border-[#2a3250]' : 'bg-gray-50 border-gray-200'}`}>
-                  <Scan size={16} className="text-[#7367f0]" />
-                  <input ref={wizInputRef} value={wizTracking} onChange={e => setWizTracking(e.target.value)} autoFocus
-                    placeholder="Scan / type Tracking ID..." className={`bg-transparent outline-none text-sm flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`} />
-                </div>
-                {isNative() && (
-                  <button type="button" onClick={async () => {
-                    try {
-                      const v = await scanBarcode();
-                      setWizTracking(v);
-                      // auto-identify after scan
-                      setWizBusy(true); setWizMatch(undefined); setWizComponents([]);
+              {/* scan input — camera inside input box, no 3rd button on mobile */}
+              <form onSubmit={wizIdentify} className="flex gap-2 min-w-0">
+                <div className={`flex items-center gap-2 flex-1 min-w-0 px-3 py-2.5 rounded-2xl border ${isDark ? 'bg-[#12172a] border-[#2a3250]' : 'bg-gray-50 border-gray-200'}`}>
+                  <Scan size={16} className="text-[#7367f0] flex-shrink-0" />
+                  <input ref={wizInputRef} value={wizTracking}
+                    onChange={e => setWizTracking(e.target.value)} autoFocus
+                    placeholder="Tracking ID..."
+                    className={`bg-transparent outline-none text-sm flex-1 min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`} />
+                  {isNative() && (
+                    <button type="button" onClick={async () => {
                       try {
-                        const [rec] = await searchRead<ScanMatch>('flipkart.return.management', {
-                          domain: [['tracking_id', '=', v.trim()], ['state', '=', 'draft']],
-                          fields: ['id', 'return_id', 'tracking_id', 'fsn', 'sku', 'product_id', 'quantity', 'return_reason'],
-                          limit: 1,
-                        });
-                        setWizMatch(rec || null);
-                        if (rec) {
-                          try {
-                            const comps = await odooCall<WizComponent[]>('flipkart.return.management', 'get_inward_components', [[rec.id]], {});
-                            setWizComponents(Array.isArray(comps) ? comps.map(c => ({ ...c, selected: true })) : []);
-                          } catch { setWizComponents([]); }
-                        }
-                      } catch (err: any) { showMsg(false, err?.message || 'Lookup failed'); setWizMatch(null); }
-                      finally { setWizBusy(false); }
-                    } catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
-                  }} className="btn-secondary text-xs px-3 py-2.5">
-                    <Camera size={16} />
-                  </button>
-                )}
-                <button type="submit" disabled={wizBusy || !wizTracking.trim()} className="btn-secondary text-xs px-4 py-2">
-                  {wizBusy && wizMatch === undefined ? <RefreshCw size={14} className="animate-spin" /> : 'Find'}
+                        const v = await scanBarcode();
+                        setWizTracking(v);
+                        // Prevent keyboard from opening after camera closes
+                        wizInputRef.current?.blur();
+                        wizIdentifyByTracking(v);
+                      } catch (e: any) { showMsg(false, e?.message || 'Scan cancelled'); }
+                    }} className="flex-shrink-0 text-[#7367f0] p-0.5">
+                      <Camera size={18} />
+                    </button>
+                  )}
+                </div>
+                <button type="submit" disabled={wizBusy || !wizTracking.trim()}
+                  className="btn-secondary text-xs px-4 py-2 flex-shrink-0">
+                  {wizBusy && wizMatch === undefined
+                    ? <RefreshCw size={14} className="animate-spin" />
+                    : 'Find'}
                 </button>
               </form>
 
-              {/* identification result */}
+              {/* not found */}
               {wizMatch === null && (
                 <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 flex items-center gap-2 text-rose-400 text-sm font-medium">
                   <Ban size={16} /> No pending return found for "{wizTracking.trim()}".
                 </div>
               )}
+
+              {/* identified item + accept/reject */}
               {wizMatch && (
                 <div className={`rounded-2xl border p-4 ${isDark ? 'border-[#2a3250] bg-[#12172a]' : 'border-gray-200 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-9 h-9 rounded-xl bg-[#7367f0]/15 flex items-center justify-center"><Package size={18} className="text-[#7367f0]" /></span>
+                  {/* product header */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-10 h-10 rounded-xl bg-[#7367f0]/15 flex items-center justify-center flex-shrink-0">
+                      <Package size={20} className="text-[#7367f0]" />
+                    </span>
                     <div className="min-w-0">
-                      <p className={`font-bold text-sm truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{Array.isArray(wizMatch.product_id) ? wizMatch.product_id[1] : 'Not identified'}</p>
-                      <p className={`text-[11px] font-mono ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>FSN {wizMatch.fsn} • Qty {wizMatch.quantity}</p>
+                      <p className={`font-bold text-sm leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {Array.isArray(wizMatch.product_id) ? wizMatch.product_id[1] : 'Product not mapped'}
+                      </p>
+                      <p className={`text-[11px] font-mono mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>
+                        FSN: {wizMatch.fsn} &nbsp;·&nbsp; Qty: {wizMatch.quantity}
+                      </p>
                     </div>
                   </div>
-                  <div className={`grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-[#8897b5]' : 'text-gray-600'}`}>
-                    <div><span className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}>Return ID:</span> <span className="font-mono">{wizMatch.return_id}</span></div>
-                    <div><span className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}>SKU:</span> {wizMatch.sku || '--'}</div>
-                    {wizMatch.return_reason && <div className="col-span-2"><span className={isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}>Reason:</span> {wizMatch.return_reason}</div>}
+
+                  {/* meta grid — each cell is min-w-0 + overflow-wrap so long IDs don't bleed */}
+                  <div className={`grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] mb-3 ${isDark ? 'text-[#8897b5]' : 'text-gray-600'}`}>
+                    <div className="min-w-0">
+                      <span className={`block text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Return ID</span>
+                      <span className="font-mono font-semibold break-all">{wizMatch.return_id}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className={`block text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>SKU</span>
+                      <span className="font-mono break-all">{wizMatch.sku || '--'}</span>
+                    </div>
+                    {wizMatch.return_reason && (
+                      <div className="col-span-2 min-w-0">
+                        <span className={`block text-[10px] uppercase tracking-wider mb-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Return Reason</span>
+                        <span>{wizMatch.return_reason}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Kit components — tick the ones to inward (partial inward) */}
-                  {isKit && (
-                    <div className={`mt-3 rounded-xl border ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
+                  {/* BOM / Kit components */}
+                  {wizBusy && wizComponents.length === 0 && (
+                    <div className="flex items-center gap-2 py-2 text-[11px] text-[#7367f0]">
+                      <RefreshCw size={12} className="animate-spin" /> Loading components…
+                    </div>
+                  )}
+                  {wizComponents.length > 0 && (
+                    <div className={`rounded-xl border mb-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-200'}`}>
                       <div className={`px-3 py-2 flex items-center justify-between border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
                         <span className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-[#8897b5]' : 'text-gray-500'}`}>
-                          Kit Components ({selectedComponents.length}/{wizComponents.length})
+                          {isKit ? `BOM Components (${selectedComponents.length}/${wizComponents.length} selected)` : 'Component'}
                         </span>
-                        <button type="button"
-                          onClick={() => { const all = wizComponents.every(c => c.selected); setWizComponents(prev => prev.map(c => ({ ...c, selected: !all }))); }}
-                          className="text-[11px] font-semibold text-[#7367f0]">
-                          {wizComponents.every(c => c.selected) ? 'Clear all' : 'Select all'}
-                        </button>
+                        {isKit && (
+                          <button type="button"
+                            onClick={() => { const all = wizComponents.every(c => c.selected); setWizComponents(prev => prev.map(c => ({ ...c, selected: !all }))); }}
+                            className="text-[11px] font-semibold text-[#7367f0]">
+                            {wizComponents.every(c => c.selected) ? 'Clear all' : 'Select all'}
+                          </button>
+                        )}
                       </div>
-                      <div className="max-h-44 overflow-y-auto divide-y divide-[#2a3250]/40">
+                      <div className="max-h-44 overflow-y-auto divide-y divide-[#2a3250]/30">
                         {wizComponents.map(c => (
                           <label key={c.product_id}
-                            className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${c.selected ? '' : 'opacity-50'} ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
-                            <input type="checkbox" checked={c.selected} onChange={() => toggleComponent(c.product_id)}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-opacity ${c.selected ? '' : 'opacity-40'} ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                            <input type="checkbox" checked={c.selected}
+                              onChange={() => toggleComponent(c.product_id)}
                               className="rounded border-[#2a3250] accent-[#7367f0]" />
-                            <span className={`flex-1 text-xs truncate ${isDark ? 'text-white' : 'text-gray-900'}`} title={c.name}>
-                              {c.default_code ? <span className="font-mono text-[#7367f0]">[{c.default_code}] </span> : null}{c.name}
+                            <span className={`flex-1 text-xs min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`} title={c.name}>
+                              {c.default_code && (
+                                <span className="font-mono text-[#7367f0] mr-1">[{c.default_code}]</span>
+                              )}
+                              {c.name}
                             </span>
-                            <span className={`text-[11px] font-semibold ${isDark ? 'text-[#8897b5]' : 'text-gray-500'}`}>×{c.qty}</span>
+                            <span className={`text-[11px] font-bold flex-shrink-0 ${isDark ? 'text-[#8897b5]' : 'text-gray-500'}`}>×{c.qty}</span>
                           </label>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="flex gap-2 mt-3">
-                    <button onClick={wizConfirm} disabled={wizBusy || (isKit && selectedComponents.length === 0)} className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-1.5 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                      {wizBusy ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={15} />} {isKit ? `Inward ${selectedComponents.length} item${selectedComponents.length === 1 ? '' : 's'}` : 'Confirm Inward'}
+                  {/* Accept / Reject */}
+                  <div className="flex gap-2">
+                    <button onClick={wizConfirm}
+                      disabled={wizBusy || (isKit && selectedComponents.length === 0)}
+                      className="flex-1 py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                      {wizBusy
+                        ? <RefreshCw size={14} className="animate-spin" />
+                        : <CheckCircle2 size={16} />}
+                      {isKit
+                        ? `Accept ${selectedComponents.length} item${selectedComponents.length === 1 ? '' : 's'}`
+                        : 'Accept / Inward'}
                     </button>
-                    <button onClick={wizReject} disabled={wizBusy} className="flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 border border-rose-500/40 text-rose-400 disabled:opacity-50">
-                      <Ban size={15} /> Reject
+                    <button onClick={wizReject} disabled={wizBusy}
+                      className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-rose-500/40 text-rose-400 disabled:opacity-50">
+                      <Ban size={16} /> Reject
                     </button>
                   </div>
                 </div>
               )}
+
               {wizMatch === undefined && !wizBusy && (
-                <p className={`text-center text-xs py-4 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>Scan a tracking ID to identify the return.</p>
+                <p className={`text-center text-xs py-4 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>
+                  Scan a tracking ID or barcode to identify the return.
+                </p>
               )}
             </div>
           </div>
@@ -592,4 +665,3 @@ export default function ReturnsManagement() {
     </div>
   );
 }
-

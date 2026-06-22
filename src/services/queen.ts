@@ -1,3 +1,5 @@
+import { callMethod } from './odoo';
+
 const QUEEN_RPC = '/api/queen/rpc';
 const QUEEN_TOKEN_KEY = 'bizopease_queen_token';
 
@@ -28,9 +30,13 @@ export function isQueenSession(): boolean {
  * so the token rides as a query param. Returns null when not a queen session.
  */
 export function queenContentUrl(params: Record<string, string | number>): string | null {
-  if (!isQueenSession()) return null;
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) qs.set(k, String(v));
+  if (!isQueenSession()) {
+    // Non-queen tenant: serve the attachment from the workspace's OWN Odoo DB
+    // (the browser carries that DB's session cookie). Full data separation.
+    return `/web/content?${qs.toString()}`;
+  }
   qs.set('token', getQueenToken());
   return `/api/queen/content?${qs.toString()}`;
 }
@@ -41,6 +47,13 @@ export async function queenCall<T = any>(
   args: any[] = [],
   kwargs: Record<string, any> = {}
 ): Promise<T> {
+  // Every workspace gets its OWN B2B data. Only the dedicated queen tenant
+  // proxies to the shared Queenfinger DB; all other workspaces run B2B against
+  // their own Odoo database via the normal call_kw path — so the same B2B
+  // screens work everywhere with complete per-tenant data separation.
+  if (!isQueenSession()) {
+    return callMethod<T>(model, method, args, kwargs);
+  }
   const token = getQueenToken();
   const r = await fetch(QUEEN_RPC, {
     method: 'POST',

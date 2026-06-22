@@ -609,7 +609,7 @@ export default function Products() {
                       <div className="truncate">{product.name}</div>
                       {product.default_code && <div className="font-mono text-[10px] text-[#7367f0]">{product.default_code}</div>}
                     </td>
-                    <td className={`text-right text-xs ${st}`}>â‚¹{(product.standard_price || 0).toLocaleString('en-IN')}</td>
+                    <td className={`text-right text-xs ${st}`}>Rs.{(product.standard_price || 0).toLocaleString('en-IN')}</td>
                     <td className={`text-right text-xs ${product.qty_available < 10 ? 'text-amber-400 font-bold' : isDark ? 'text-gray-300' : 'text-gray-700'}`}>{product.qty_available || 0}</td>
                     <td className={`text-right text-xs ${st}`}>{product.virtual_available || 0}</td>
                     <td className="text-center"><StockBadge qty={product.qty_available || 0} /></td>

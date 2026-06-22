@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_biz_dead_stock_list" model="ir.ui.view">
+        <field name="name">biz.dead.stock.list</field>
+        <field name="model">biz.dead.stock</field>
+        <field name="arch" type="xml">
+            <list string="Dead Stock" create="false">
+                <field name="product_id"/>
+                <field name="sku"/>
+                <field name="main_stock"/>
+                <field name="sales_30d"/>
+                <field name="sell_through_rate"/>
+                <field name="stock_value" sum="Total Value"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_biz_dead_stock_pivot" model="ir.ui.view">
+        <field name="name">biz.dead.stock.pivot</field>
+        <field name="model">biz.dead.stock</field>
+        <field name="arch" type="xml">
+            <pivot string="Dead Stock">
+                <field name="state" type="row"/>
+                <field name="stock_value" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_biz_dead_stock" model="ir.actions.act_window">
+        <field name="name">Dead Stock</field>
+        <field name="res_model">biz.dead.stock</field>
+        <field name="view_mode">list,pivot,form</field>
+    </record>
+
+    <record id="view_biz_dead_stock_generate_form" model="ir.ui.view">
+        <field name="name">biz.dead.stock.generate.form</field>
+        <field name="model">biz.dead.stock.generate</field>
+        <field name="arch" type="xml">
+            <form string="Generate Dead Stock">
+                <group>
+                    <field name="warehouse_id"/>
+                </group>
+                <footer>
+                    <button name="action_generate" string="Generate" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_biz_dead_stock_generate" model="ir.actions.act_window">
+        <field name="name">Generate Dead Stock</field>
+        <field name="res_model">biz.dead.stock.generate</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Root Business OS menu (shared by all biz_os screens). -->
+    <menuitem id="menu_biz_os_root" name="Business OS" sequence="52"/>
+
+    <menuitem id="menu_biz_dead_stock" name="Dead Stock" parent="menu_biz_os_root"
+              action="action_biz_dead_stock" sequence="20"/>
+    <menuitem id="menu_biz_dead_stock_gen" name="Generate Dead Stock" parent="menu_biz_os_root"
+              action="action_biz_dead_stock_generate" sequence="21"/>
+</odoo>

@@ -1,11 +1,12 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
-import { searchRead, createRecord, writeRecord } from '../../../services/odoo';
+import { useAuth } from '../../../context/AuthContext';
+import { searchRead, createRecord, writeRecord, unlinkRecord } from '../../../services/odoo';
 import { registerWorkspaceLogins } from '../../../services/workspaceUsers';
 import {
   RefreshCw, Search, Eye, List, LayoutGrid,
   Mail, Phone, X, Users, UserCheck, CalendarOff, Building2,
-  UserPlus, Copy, Check, KeyRound, ShieldCheck,
+  UserPlus, Copy, Check, KeyRound, ShieldCheck, Trash2,
 } from 'lucide-react';
 
 function generatePassword(len = 12): string {
@@ -66,6 +67,8 @@ function getInitials(name: string) {
 
 export default function Employees() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try { return JSON.parse(localStorage.getItem('portal_employees') || 'null') || []; } catch { return []; }
   });
@@ -213,6 +216,59 @@ export default function Employees() {
     }
   };
 
+  // Delete an employee: hard-deletes BOTH the hr.employee record AND the linked
+  // Odoo login (res.users) from the database. If Odoo refuses to delete the user
+  // because it is referenced by other records, fall back to archiving it so the
+  // login is at least disabled. Guards against deleting your own account/an admin.
+  const handleDelete = async (emp: Employee) => {
+    try {
+      const rec = await searchRead<{ user_id: [number, string] | false }>('hr.employee', {
+        domain: [['id', '=', emp.id]], fields: ['user_id'], limit: 1,
+      });
+      const userId = Array.isArray(rec[0]?.user_id) ? rec[0].user_id[0] : undefined;
+
+      if (userId && user?.uid && userId === user.uid) {
+        showToast('You cannot delete your own account.');
+        return;
+      }
+      // Block deleting an administrator / system account.
+      if (userId) {
+        try {
+          const isAdmin = await searchRead<{ id: number }>('res.users', {
+            domain: [['id', '=', userId], ['groups_id.name', '=', 'Settings']], fields: ['id'], limit: 1,
+          });
+          if (isAdmin.length) { showToast('Cannot delete an administrator account.'); return; }
+        } catch { /* if the check fails, fall through to the confirm */ }
+      }
+
+      if (!window.confirm(`Delete ${emp.name}? This permanently removes the employee record${userId ? ' and their login account' : ''} from Odoo. This cannot be undone.`)) return;
+
+      setDeletingId(emp.id);
+      await unlinkRecord('hr.employee', [emp.id]);
+      let loginDisabledOnly = false;
+      if (userId) {
+        // Fully delete the linked Odoo login account. If Odoo refuses (the user
+        // is referenced by other records), fall back to archiving it so the
+        // login is at least disabled.
+        try {
+          await unlinkRecord('res.users', [userId]);
+        } catch {
+          loginDisabledOnly = true;
+          try { await writeRecord('res.users', [userId], { active: false }); } catch { /* non-fatal */ }
+        }
+      }
+      setEmployees(prev => prev.filter(e => e.id !== emp.id));
+      setDrawerEmp(null);
+      showToast(loginDisabledOnly
+        ? 'Employee deleted. Login could not be removed (in use) — it was disabled instead.'
+        : 'Employee and login deleted.');
+    } catch (e: any) {
+      showToast('Delete failed: ' + (e?.message || 'Could not delete employee'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Get leave history for drawer
   const getLeaveHistory = (empId: number) => {
     try {
@@ -337,6 +393,10 @@ export default function Employees() {
                 <button className='btn-primary text-[10px] px-3 py-1.5 flex items-center gap-1 flex-1 justify-center'>
                   <CalendarOff size={10} /> Request Leave
                 </button>
+                <button onClick={() => handleDelete(emp)} disabled={deletingId === emp.id} title='Delete employee'
+                  className='text-[10px] px-2.5 py-1.5 rounded-lg flex items-center justify-center border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 disabled:opacity-40'>
+                  {deletingId === emp.id ? <RefreshCw size={11} className='animate-spin' /> : <Trash2 size={11} />}
+                </button>
               </div>
             </div>
           ))}
@@ -393,8 +453,11 @@ export default function Employees() {
                         <span className={`${STATE_CONFIG[emp.state].badge} text-[10px]`}>{STATE_CONFIG[emp.state].label}</span>
                       </td>
                       <td>
-                        <div className='flex items-center justify-center'>
-                          <button onClick={() => setDrawerEmp(emp)} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/5 text-[#5a6a8a] hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}><Eye size={13} /></button>
+                        <div className='flex items-center justify-center gap-1'>
+                          <button onClick={() => setDrawerEmp(emp)} title='View profile' className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/5 text-[#5a6a8a] hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}><Eye size={13} /></button>
+                          <button onClick={() => handleDelete(emp)} disabled={deletingId === emp.id} title='Delete employee' className='p-1.5 rounded-lg transition-colors text-rose-400 hover:bg-rose-500/10 disabled:opacity-40'>
+                            {deletingId === emp.id ? <RefreshCw size={13} className='animate-spin' /> : <Trash2 size={13} />}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -454,6 +517,12 @@ export default function Employees() {
               )) : (
                 <div className={`text-xs ${ts} text-center py-4`}>No leave records found.</div>
               )}
+            </div>
+            <div className='pt-2 border-t' style={{ borderColor: bd }}>
+              <button onClick={() => handleDelete(drawerEmp)} disabled={deletingId === drawerEmp.id}
+                className='w-full text-xs px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 font-semibold border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 disabled:opacity-40'>
+                {deletingId === drawerEmp.id ? <><RefreshCw size={13} className='animate-spin' /> Deleting…</> : <><Trash2 size={13} /> Delete Employee</>}
+              </button>
             </div>
           </div>
         </div>

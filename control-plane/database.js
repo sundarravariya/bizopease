@@ -41,9 +41,13 @@ masterDb.serialize(() => {
                              CHECK(provision_status IN ('pending','provisioning','ready','failed')),
     provision_error          TEXT DEFAULT '',            -- last error from provisioner
     nginx_configured         INTEGER DEFAULT 0,          -- 1 if Nginx block written
+    is_queen_tenant          INTEGER DEFAULT 0,          -- 1 = auth against QUEEN_URL/QUEEN_DB
     created_at               TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at               TEXT DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // Migration: add is_queen_tenant to existing databases that were created before this column
+  masterDb.run(`ALTER TABLE workspaces ADD COLUMN is_queen_tenant INTEGER DEFAULT 0`, () => {});
 
   // Email -> workspace map for NON-owner logins (employees). The owner is found
   // via workspaces.admin_email; everyone else is registered here by the portal

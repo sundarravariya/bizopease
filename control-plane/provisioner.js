@@ -32,7 +32,12 @@ async function odooCli(dbName, extraArgs, timeoutMs = 300000) {
   if (!VALID_DB.test(dbName)) throw new Error(`Unsafe DB name: ${dbName}`);
   const cmd = `sudo -u odoo ${ODOO_BIN} -c ${ODOO_CONF} -d ${dbName} ` +
     `${extraArgs} --stop-after-init --no-http --max-cron-threads=0 2>&1`;
-  const { stdout } = await execAsync(cmd, { timeout: timeoutMs, maxBuffer: 1024 * 1024 * 32 });
+  // Run from /tmp: docutils (used by Odoo to render module descriptions during
+  // install) resolves its 'html4css1.css' stylesheet against the CURRENT WORKING
+  // DIRECTORY. If cwd is unreadable by the `odoo` user (e.g. the root-owned
+  // control-plane dir, or /root), docutils raises PermissionError and base init
+  // — and thus the whole DB creation — fails. /tmp is always odoo-readable.
+  const { stdout } = await execAsync(cmd, { timeout: timeoutMs, maxBuffer: 1024 * 1024 * 32, cwd: '/tmp' });
   return stdout || '';
 }
 
@@ -107,7 +112,7 @@ async function setupAdminAndCompany(dbName, adminEmail, adminPassword, companyNa
   try {
     const { stdout } = await execAsync(
       `cat ${tmp} | sudo -u odoo ${ODOO_BIN} shell -c ${ODOO_CONF} -d ${dbName} --no-http --max-cron-threads=0 2>&1`,
-      { timeout: 120000, maxBuffer: 1024 * 1024 * 16 }
+      { timeout: 120000, maxBuffer: 1024 * 1024 * 16, cwd: '/tmp' }  // /tmp: odoo-readable cwd (see odooCli)
     );
     if (!/SETUP_OK/.test(stdout)) throw new Error(`admin/company setup did not confirm: ${stdout.slice(-300)}`);
     console.log(`[Provisioner] ✓ Admin + company configured.`);
@@ -178,7 +183,13 @@ async function setupCompany(odooUrl, cookie, companyName) {
 
 // ─── STEP 5: INSTALL CUSTOM ADDONS (CLI) ─────────────────────────────────────
 
-async function installAddons(dbName, addons = ['b2b_os', 'flipkart_os', 'robifel_hr']) {
+// Every new workspace gets the full generic business suite so all modules are
+// usable, each against its OWN database (complete data separation). b2b_os runs
+// per-tenant (the portal's B2B screens hit the workspace's own DB unless it is
+// the dedicated queen tenant). flipkart_os is intentionally excluded — it is
+// Flipkart-specific and only for the robifel tenant. Standard deps
+// (sale_management, purchase, account, stock, mrp) are pulled in automatically.
+async function installAddons(dbName, addons = ['biz_tasks', 'biz_money', 'biz_os', 'robifel_hr', 'b2b_os', 'crm']) {
   console.log(`[Provisioner] Installing addons via CLI: ${addons.join(', ')} ...`);
   try {
     await odooCli(dbName, `-i ${addons.join(',')} --without-demo=all`, 420000);

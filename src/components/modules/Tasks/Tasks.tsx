@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
-import { searchRead, createRecord, unlinkRecord, odooCall, readGroup, listInternalUsers } from '../../../services/odoo';
+import { searchRead, createRecord, unlinkRecord, odooCall, readGroup, listInternalUsers, isModuleInstalled } from '../../../services/odoo';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import {
   CheckCircle2, Circle, Plus, X, RefreshCw, Trophy, Flame, Target,
@@ -90,10 +90,15 @@ export default function Tasks() {
   const [busy, setBusy] = useState<number | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  // Non-Flipkart tenants run biz_tasks (biz.task); Flipkart tenants run flipkart_os
+  // (robifel.task). Resolve once; '' until known so loaders wait for the right model.
+  const [taskModel, setTaskModel] = useState<string>('');
+  useEffect(() => { isModuleInstalled('biz_tasks').then(b => setTaskModel(b ? 'biz.task' : 'robifel.task')); }, []);
 
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
 
   const loadTasks = useCallback(async () => {
+    if (!taskModel) return;
     setLoading(true);
     try {
       const baseDomain: any[] = [];
@@ -103,9 +108,9 @@ export default function Tasks() {
       const currentDomain = dateFilter === 'today' ? todayDomain : baseDomain;
 
       const [rows, overdueRows] = await Promise.all([
-        searchRead<Task>('robifel.task', { fields: TASK_FIELDS, domain: currentDomain, limit: 0, order: 'priority desc, sequence, id desc' }),
+        searchRead<Task>(taskModel, { fields: TASK_FIELDS, domain: currentDomain, limit: 0, order: 'priority desc, sequence, id desc' }),
         dateFilter === 'today'
-          ? searchRead<Task>('robifel.task', {
+          ? searchRead<Task>(taskModel, {
               fields: TASK_FIELDS,
               domain: [...baseDomain, ['task_date', '<', today()], ['state', '!=', 'done']],
               limit: 100, order: 'task_date asc, priority desc',
@@ -116,17 +121,18 @@ export default function Tasks() {
       setOverdueItems(Array.isArray(overdueRows) ? overdueRows : []);
     } catch (e: any) { showMsg(false, e.message); }
     finally { setLoading(false); }
-  }, [isManager, empFilter, dateFilter]);
+  }, [isManager, empFilter, dateFilter, taskModel]);
 
   const loadLeaders = useCallback(async () => {
+    if (!taskModel) return;
     try {
       const [doneRows, pendingRows] = await Promise.all([
-        readGroup<any>('robifel.task', {
+        readGroup<any>(taskModel, {
           domain: [['state', '=', 'done']],
           fields: ['points:sum', 'assignee_id'],
           groupby: ['assignee_id'],
         }),
-        readGroup<any>('robifel.task', {
+        readGroup<any>(taskModel, {
           domain: [['state', '!=', 'done'], ['task_date', '<=', today()]],
           fields: ['assignee_id'],
           groupby: ['assignee_id'],
@@ -155,14 +161,15 @@ export default function Tasks() {
         .sort((a, b) => b.points - a.points || b.done - a.done);
       setLeaders(board);
     } catch { setLeaders([]); setBehind([]); }
-  }, []);
+  }, [taskModel]);
 
   const loadMonthlyLeaders = useCallback(async () => {
+    if (!taskModel) return;
     const [year, month] = monthFilter.split('-').map(Number);
     const firstDay = `${monthFilter}-01`;
     const lastDay = new Date(year, month, 0).toISOString().slice(0, 10);
     try {
-      const rows = await readGroup<any>('robifel.task', {
+      const rows = await readGroup<any>(taskModel, {
         domain: [['state', '=', 'done'], ['done_date', '>=', firstDay + ' 00:00:00'], ['done_date', '<=', lastDay + ' 23:59:59']],
         fields: ['points:sum', 'assignee_id'],
         groupby: ['assignee_id'],
@@ -173,7 +180,7 @@ export default function Tasks() {
         .sort((a, b) => b.points - a.points || b.done - a.done);
       setMonthlyLeaders(board);
     } catch { setMonthlyLeaders([]); }
-  }, [monthFilter]);
+  }, [monthFilter, taskModel]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
   useEffect(() => { if (view === 'leaderboard') loadLeaders(); }, [view, loadLeaders]);
@@ -185,7 +192,7 @@ export default function Tasks() {
     setBusy(t.id);
     try {
       const method = state === 'done' ? 'action_done' : state === 'in_progress' ? 'action_start' : 'action_reset';
-      await odooCall('robifel.task', method, [[t.id]], {});
+      await odooCall(taskModel, method, [[t.id]], {});
       await loadTasks();
       if (state === 'done') showMsg(true, `+${t.points} points • "${t.name}" done`);
     } catch (e: any) { showMsg(false, e.message); }
@@ -196,7 +203,7 @@ export default function Tasks() {
 
   const removeTask = async (t: Task) => {
     setBusy(t.id);
-    try { await unlinkRecord('robifel.task', [t.id]); await loadTasks(); }
+    try { await unlinkRecord(taskModel, [t.id]); await loadTasks(); }
     catch (e: any) { showMsg(false, e.message); }
     finally { setBusy(null); }
   };
@@ -363,7 +370,7 @@ export default function Tasks() {
           onNext={() => setMonthFilter(m => nextMonth(m))} />
       )}
 
-      <BulkDeleteBar model="robifel.task" label="task" ids={Array.from(selIds)}
+      <BulkDeleteBar model={taskModel || 'robifel.task'} label="task" ids={Array.from(selIds)}
         onClear={() => setSelIds(new Set())} onDeleted={() => { setSelIds(new Set()); loadTasks(); }} />
 
       <button onClick={() => setCreateOpen(true)} className={`fixed ${selIds.size > 0 ? 'bottom-20' : 'bottom-6'} right-6 z-40 h-13 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-2 text-white font-bold text-sm transition-all`} style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
@@ -599,7 +606,7 @@ function CreateTask({ isDark, isManager, users, meUid, onClose, onSaved, onError
     if (!f.name?.trim()) { onError('Task name is required.'); return; }
     setSaving(true);
     try {
-      await createRecord('robifel.task', {
+      await createRecord(taskModel || 'robifel.task', {
         name: f.name.trim(),
         description: f.description || false,
         assignee_id: isManager ? (f.assignee_id || meUid) : meUid,

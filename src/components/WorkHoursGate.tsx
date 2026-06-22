@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { searchRead, odooCall } from '../services/odoo';
 import { applyScreenSecurity, getPosition, captureSelfie, nfcStatus, scanNfc, scanQr, isNative, checkLocationEnabled, LocationStatus } from '../services/native';
 
-interface Settings { work_start: string; work_end: string; enforce_work_hours: boolean; weekly_off: string; attendance_mode: string; nfc_tag_ids: string; today: string; server_now_minutes?: number; }
+interface Settings { work_start: string; work_end: string; enforce_work_hours: boolean; weekly_off: string; attendance_mode: string; nfc_tag_ids: string; today: string; server_now_minutes?: number; geofence_enabled?: boolean; }
 interface DayRec {
   id: number; status: string; geo_lat_in: number; geo_lng_in: number;
   check_out?: string | false; geo_lat_out: number; geo_lng_out: number;
@@ -68,10 +68,9 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
     if (isAdmin || !user?.uid) { setReady(true); return; }
     setLoadError(false);
     try {
-      // Check GPS before anything else — employees must have location on.
-      const gpsSt = await verifyGps();
-      if (gpsSt !== 'ok') { setReady(true); return; }
-
+      // Load settings + employee first. GPS is only HARD-required when the
+      // workplace geofence is enabled; otherwise we never block the app on it
+      // (location is still captured best-effort at punch time).
       const [s, emps] = await Promise.all([
         odooCall<Settings>('robifel.hr.settings', 'get_settings', [], {}),
         searchRead<{ id: number }>('hr.employee', { fields: ['id'], domain: [['user_id', '=', user.uid]], limit: 1 }),
@@ -79,6 +78,14 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
       setSettings(s);
       const eid = emps?.[0]?.id ?? null;
       setEmpId(eid);
+
+      if (s?.geofence_enabled) {
+        const gpsSt = await verifyGps();
+        if (gpsSt !== 'ok') { setReady(true); return; }
+      } else {
+        setGpsStatus('ok');  // geofence off → no GPS lockout
+      }
+
       if (eid) {
         // Use the server-authoritative date so a skewed device clock can't shift the day.
         const serverToday = s?.today || todayStr();
@@ -175,11 +182,14 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
       } else {
         // GPS + selfie mode.
         const pos = await getPosition();
-        if (!pos) { setErr(`Location is required to check ${kind === 'in' ? 'in' : 'out'}. Enable GPS and retry.`); return; }
+        // Location is only mandatory when the workplace geofence is enabled.
+        // With geofence off, capture it best-effort (0,0 if unavailable) so a
+        // flaky GPS fix never blocks check-in.
+        if (settings?.geofence_enabled && !pos) { setErr(`Location is required to check ${kind === 'in' ? 'in' : 'out'}. Enable GPS and retry.`); return; }
         const selfie = await captureSelfie();
         // On the employee app a selfie is mandatory; on web (admin testing) it's skipped.
         if (isNative() && !selfie) { setErr('A selfie is required. Allow camera access and try again.'); return; }
-        await odooCall('robifel.attendance.day', 'punch', [empId, kind, pos.lat, pos.lng, selfie], {});
+        await odooCall('robifel.attendance.day', 'punch', [empId, kind, pos?.lat || 0, pos?.lng || 0, selfie], {});
       }
       setConfirmOut(false);
       await loadState();

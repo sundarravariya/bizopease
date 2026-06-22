@@ -233,6 +233,30 @@ export async function searchCount(model: string, domain: any[] = []): Promise<nu
   });
 }
 
+// ---------- Installed-module awareness (cached per session) ----------
+// Used to pick native biz.* models vs Flipkart models per tenant. A given DB
+// installs EITHER flipkart_os OR the biz_* modules, never both.
+let _installedModulesPromise: Promise<Set<string>> | null = null;
+
+export function getInstalledModules(force = false): Promise<Set<string>> {
+  if (force) _installedModulesPromise = null;
+  if (!_installedModulesPromise) {
+    _installedModulesPromise = searchRead<{ name: string }>('ir.module.module', {
+      domain: [['state', '=', 'installed']], fields: ['name'], limit: 0,
+    })
+      .then(mods => new Set((mods || []).map(m => m.name)))
+      .catch(() => {
+        _installedModulesPromise = null; // allow retry on failure
+        return new Set<string>();
+      });
+  }
+  return _installedModulesPromise;
+}
+
+export async function isModuleInstalled(name: string): Promise<boolean> {
+  return (await getInstalledModules()).has(name);
+}
+
 export interface ReadGroupOptions {
   domain?: any[];
   fields: string[];

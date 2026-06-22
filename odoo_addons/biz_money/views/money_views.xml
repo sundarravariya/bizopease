@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===== Vendor ===== -->
+    <record id="view_biz_vendor_list" model="ir.ui.view">
+        <field name="name">biz.bill.payment.vendor.list</field>
+        <field name="model">biz.bill.payment.vendor</field>
+        <field name="arch" type="xml">
+            <list string="Vendors">
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="deduction_percent"/>
+                <field name="balance"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_biz_vendor_form" model="ir.ui.view">
+        <field name="name">biz.bill.payment.vendor.form</field>
+        <field name="model">biz.bill.payment.vendor</field>
+        <field name="arch" type="xml">
+            <form string="Vendor">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="phone"/>
+                        <field name="deduction_percent"/>
+                        <field name="balance"/>
+                    </group>
+                    <field name="notes" placeholder="Notes..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_biz_vendor" model="ir.actions.act_window">
+        <field name="name">Bill/Payment Vendors</field>
+        <field name="res_model">biz.bill.payment.vendor</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ===== Associate ===== -->
+    <record id="view_biz_associate_list" model="ir.ui.view">
+        <field name="name">biz.money.associate.list</field>
+        <field name="model">biz.money.associate</field>
+        <field name="arch" type="xml">
+            <list string="Associates">
+                <field name="name"/>
+                <field name="phone"/>
+                <field name="balance"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_biz_associate_form" model="ir.ui.view">
+        <field name="name">biz.money.associate.form</field>
+        <field name="model">biz.money.associate</field>
+        <field name="arch" type="xml">
+            <form string="Associate">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="phone"/>
+                        <field name="balance"/>
+                    </group>
+                    <field name="notes" placeholder="Notes..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_biz_associate" model="ir.actions.act_window">
+        <field name="name">Money Associates</field>
+        <field name="res_model">biz.money.associate</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ===== Transaction ===== -->
+    <record id="view_biz_transaction_list" model="ir.ui.view">
+        <field name="name">biz.bill.payment.transaction.list</field>
+        <field name="model">biz.bill.payment.transaction</field>
+        <field name="arch" type="xml">
+            <list string="Transactions">
+                <field name="date"/>
+                <field name="name"/>
+                <field name="vendor_id"/>
+                <field name="transfer_amount"/>
+                <field name="deduction_amount"/>
+                <field name="expected_cash_amount"/>
+                <field name="actual_cash_received"/>
+                <field name="received_by_id"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_biz_transaction_form" model="ir.ui.view">
+        <field name="name">biz.bill.payment.transaction.form</field>
+        <field name="model">biz.bill.payment.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Transaction">
+                <header>
+                    <button name="action_mark_cash_received" string="Mark Cash Received"
+                            type="object" class="btn-primary" invisible="payment_received"/>
+                    <button name="action_reset_cash_received" string="Reset"
+                            type="object" invisible="not payment_received"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="date"/>
+                            <field name="vendor_id"/>
+                            <field name="transfer_amount"/>
+                            <field name="deduction_percent"/>
+                            <field name="deduction_amount"/>
+                            <field name="expected_cash_amount"/>
+                        </group>
+                        <group>
+                            <field name="payment_received"/>
+                            <field name="received_by_id"/>
+                            <field name="received_date"/>
+                            <field name="actual_cash_received"/>
+                            <field name="vendor_balance_amount"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Notes..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_biz_transaction" model="ir.actions.act_window">
+        <field name="name">Bill/Payment Transactions</field>
+        <field name="res_model">biz.bill.payment.transaction</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ===== Summaries ===== -->
+    <record id="view_biz_vendor_summary_list" model="ir.ui.view">
+        <field name="name">biz.bill.vendor.ledger.summary.list</field>
+        <field name="model">biz.bill.vendor.ledger.summary</field>
+        <field name="arch" type="xml">
+            <list string="Vendor Balances" create="false">
+                <field name="vendor_id"/>
+                <field name="debit"/>
+                <field name="credit"/>
+                <field name="balance"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_biz_vendor_summary" model="ir.actions.act_window">
+        <field name="name">Vendor Balances</field>
+        <field name="res_model">biz.bill.vendor.ledger.summary</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="view_biz_associate_summary_list" model="ir.ui.view">
+        <field name="name">biz.associate.ledger.summary.list</field>
+        <field name="model">biz.associate.ledger.summary</field>
+        <field name="arch" type="xml">
+            <list string="Associate Balances" create="false">
+                <field name="associate_id"/>
+                <field name="debit"/>
+                <field name="credit"/>
+                <field name="balance"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_biz_associate_summary" model="ir.actions.act_window">
+        <field name="name">Associate Balances</field>
+        <field name="res_model">biz.associate.ledger.summary</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ===== Expense ===== -->
+    <record id="view_biz_expense_list" model="ir.ui.view">
+        <field name="name">biz.expense.list</field>
+        <field name="model">biz.expense</field>
+        <field name="arch" type="xml">
+            <list string="Expenses" editable="top">
+                <field name="date"/>
+                <field name="category"/>
+                <field name="description"/>
+                <field name="amount"/>
+                <field name="paid_by_id"/>
+                <field name="owner_id"/>
+                <field name="employee_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_biz_expense" model="ir.actions.act_window">
+        <field name="name">Expenses</field>
+        <field name="res_model">biz.expense</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ===== Owner ===== -->
+    <record id="view_biz_owner_list" model="ir.ui.view">
+        <field name="name">biz.owner.list</field>
+        <field name="model">biz.owner</field>
+        <field name="arch" type="xml">
+            <list string="Owners" editable="top">
+                <field name="name"/>
+                <field name="notes"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_biz_owner" model="ir.actions.act_window">
+        <field name="name">Owners</field>
+        <field name="res_model">biz.owner</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ===== Entry Wizard ===== -->
+    <record id="view_biz_entry_wizard_form" model="ir.ui.view">
+        <field name="name">biz.bill.payment.entry.wizard.form</field>
+        <field name="model">biz.bill.payment.entry.wizard</field>
+        <field name="arch" type="xml">
+            <form string="New Entry">
+                <group>
+                    <field name="entry_type"/>
+                    <field name="date"/>
+                    <field name="vendor_id"
+                           invisible="entry_type not in ('bank_transfer','receive_payment')"/>
+                    <field name="transaction_id"
+                           invisible="entry_type != 'receive_payment'"/>
+                    <field name="transfer_amount" invisible="entry_type != 'bank_transfer'"/>
+                    <field name="deduction_percent" invisible="entry_type != 'bank_transfer'"/>
+                    <field name="expected_cash_amount" invisible="entry_type != 'bank_transfer'"/>
+                    <field name="received_by_id"
+                           invisible="entry_type not in ('receive_payment','expense','associate_transfer')"/>
+                    <field name="to_associate_id" invisible="entry_type != 'associate_transfer'"/>
+                    <field name="actual_cash_received"
+                           invisible="entry_type not in ('receive_payment','expense','associate_transfer')"/>
+                    <field name="note"/>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Apply" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_biz_entry_wizard" model="ir.actions.act_window">
+        <field name="name">New Money Entry</field>
+        <field name="res_model">biz.bill.payment.entry.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ===== Menus ===== -->
+    <menuitem id="menu_biz_money_root" name="Money Manager" sequence="51"/>
+    <menuitem id="menu_biz_money_entry" name="New Entry" parent="menu_biz_money_root"
+              action="action_biz_entry_wizard" sequence="5"/>
+    <menuitem id="menu_biz_money_tx" name="Transactions" parent="menu_biz_money_root"
+              action="action_biz_transaction" sequence="10"/>
+    <menuitem id="menu_biz_money_vendor" name="Vendors" parent="menu_biz_money_root"
+              action="action_biz_vendor" sequence="20"/>
+    <menuitem id="menu_biz_money_vendor_bal" name="Vendor Balances" parent="menu_biz_money_root"
+              action="action_biz_vendor_summary" sequence="25"/>
+    <menuitem id="menu_biz_money_associate" name="Associates" parent="menu_biz_money_root"
+              action="action_biz_associate" sequence="30"/>
+    <menuitem id="menu_biz_money_associate_bal" name="Associate Balances" parent="menu_biz_money_root"
+              action="action_biz_associate_summary" sequence="35"/>
+    <menuitem id="menu_biz_money_expense" name="Expenses" parent="menu_biz_money_root"
+              action="action_biz_expense" sequence="40"/>
+    <menuitem id="menu_biz_money_owner" name="Owners" parent="menu_biz_money_root"
+              action="action_biz_owner" sequence="50"/>
+</odoo>

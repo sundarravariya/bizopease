@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_biz_dead_stock,biz.dead.stock,model_biz_dead_stock,base.group_user,1,1,1,1
+access_biz_dead_stock_gen,biz.dead.stock.generate,model_biz_dead_stock_generate,base.group_user,1,1,1,1
+access_biz_supplier_reorder,biz.supplier.reorder,model_biz_supplier_reorder,base.group_user,1,1,1,1
+access_biz_supplier_reorder_gen,biz.supplier.reorder.generate,model_biz_supplier_reorder_generate,base.group_user,1,1,1,1
+access_biz_stock_valuation,biz.stock.valuation,model_biz_stock_valuation,base.group_user,1,1,1,1
+access_biz_ledger,biz.ledger,model_biz_ledger,base.group_user,1,1,1,1
+access_biz_ledger_summary,biz.ledger.summary,model_biz_ledger_summary,base.group_user,1,1,1,1
+access_biz_manual_entry_wizard,biz.manual.entry.wizard,model_biz_manual_entry_wizard,base.group_user,1,1,1,1
+access_biz_unified_ledger_line,biz.unified.ledger.line,model_biz_unified_ledger_line,base.group_user,1,0,0,0
+access_biz_unified_ledger_summary,biz.unified.ledger.summary,model_biz_unified_ledger_summary,base.group_user,1,0,0,0
