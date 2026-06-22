@@ -56,7 +56,10 @@ export async function applyScreenSecurity(isEmployee: boolean): Promise<void> {
 
 export interface Position { lat: number; lng: number; accuracy?: number }
 
-/** Get current GPS position — native plugin on device, browser API on web. */
+/** Get current GPS position — native plugin on device, browser API on web.
+ * Tries a fast fix first (low accuracy + a recently cached position) so the UI
+ * doesn't stall on a cold high-accuracy lock, then falls back to a fresh
+ * high-accuracy fix if the fast path fails. */
 export async function getPosition(): Promise<Position | null> {
   try {
     if (isNative()) {
@@ -65,11 +68,16 @@ export async function getPosition(): Promise<Position | null> {
         perm = await Geolocation.requestPermissions({ permissions: ['location'] });
         if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') return null;
       }
-      const p = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
-      return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+      try {
+        const p = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 });
+        return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+      } catch {
+        const p = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+        return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+      }
     }
     const p: GeolocationPosition = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 }));
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }));
     return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
   } catch { return null; }
 }
@@ -89,22 +97,34 @@ export async function checkLocationEnabled(): Promise<LocationStatus> {
         perm = await Geolocation.requestPermissions({ permissions: ['location'] });
         if (perm.location !== 'granted' && perm.coarseLocation !== 'granted') return 'permission_denied';
       }
-      // Permission granted — check if GPS hardware/service is actually on.
+      // Permission granted — confirm a fix can be obtained. Accept a recently
+      // cached position and allow a generous timeout so a slow first-fix on a
+      // device that has GPS *on* is not misreported as "GPS off".
       try {
-        await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 6000 });
+        await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 });
         return 'ok';
-      } catch {
-        // Permission granted but can't get a fix → GPS service is disabled on device.
-        return 'gps_off';
+      } catch (e: any) {
+        const msg = String(e?.message || e?.errorMessage || e || '').toLowerCase();
+        // Only report GPS-off when the platform explicitly says location
+        // services are disabled/unavailable. A plain timeout means GPS is on
+        // but couldn't get a fast fix — don't lock the employee out for that.
+        if (msg.includes('disabled') || msg.includes('not enabled') ||
+            msg.includes('location services') || msg.includes('location unavailable') ||
+            msg.includes('go to settings') || msg.includes('location setting')) {
+          return 'gps_off';
+        }
+        return 'ok';
       }
     }
     // Web browser path.
     await new Promise<GeolocationPosition>((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 6000 }));
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }));
     return 'ok';
   } catch (e: any) {
-    // GeolocationPositionError.PERMISSION_DENIED = 1
-    return e?.code === 1 ? 'permission_denied' : 'gps_off';
+    // GeolocationPositionError: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
+    if (e?.code === 1) return 'permission_denied';
+    if (e?.code === 3) return 'ok'; // timeout with permission granted — GPS is on, just slow
+    return 'gps_off';
   }
 }
 
