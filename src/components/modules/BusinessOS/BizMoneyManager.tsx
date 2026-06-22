@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { searchRead, createRecord, odooCall } from '../../../services/odoo';
+import { searchRead, createRecord, writeRecord, unlinkRecord, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import {
   Search, Plus, X, RefreshCw, ChevronRight, Download, ArrowUpRight, ArrowDownLeft,
   Wallet, Building2, UserCheck, Truck, CheckCircle2, AlertCircle, ArrowLeft, Calendar, Receipt,
+  Pencil, Trash2,
 } from 'lucide-react';
 
 // Native (non-Flipkart) Money Manager — pixel-for-pixel the same UI as the
@@ -77,6 +78,8 @@ export default function BizMoneyManager() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
+  const [editPartyData, setEditPartyData] = useState<{ type: PartyType; party: Party } | null>(null);
+  const [editEntryData, setEditEntryData] = useState<LedgerItem | null>(null);
 
   const navigate = useNavigate();
   const { workspace } = useParams<{ workspace: string }>();
@@ -120,28 +123,56 @@ export default function BizMoneyManager() {
       if (type === 'vendor') {
         const rows = await searchRead<any>('biz.bill.payment.transaction', {
           domain: [['vendor_id', '=', party.id]],
-          fields: ['id', 'date', 'name', 'transfer_amount', 'deduction_amount', 'expected_cash_amount', 'actual_cash_received', 'received_by_id', 'state'],
-          order: 'date desc, id desc', limit: 0,
+          fields: ['id', 'date', 'name', 'transfer_amount', 'deduction_amount', 'expected_cash_amount',
+                   'actual_cash_received', 'received_by_id', 'agent_payment_amount',
+                   'carrying_agent_id', 'agent_payment_source', 'state'],
+          order: 'date asc, id asc', limit: 0,
         });
-        items = (rows || []).map(r => {
-          const received = r.actual_cash_received || 0;
-          const expected = r.expected_cash_amount || 0;
-          const remaining = Math.max(expected - received, 0);
+        for (const r of rows || []) {
+          const received  = r.actual_cash_received || 0;
+          const expected  = r.expected_cash_amount || 0;
+          const agentPaid = r.agent_payment_amount || 0;
+          const remaining = Math.max(expected - received - agentPaid, 0);
           let status = r.state;
           if (r.state !== 'received' && r.state !== 'agent_paid' && received > 0 && remaining > 0.01) status = 'partial';
-          const base = Array.isArray(r.received_by_id) ? `Received by ${r.received_by_id[1]}` : 'Bank transfer';
-          return {
-            id: r.id, date: r.date, title: r.name || 'Transaction',
-            subtitle: status === 'partial' ? `${base} - ${inr(remaining)} left to collect` : base,
-            amount: r.transfer_amount || 0, direction: 'out' as const, status,
+
+          items.push({
+            id: r.id, date: r.date,
+            title: r.name || 'Bank Transfer',
+            subtitle: `Bank transfer · Expected cash: ${inr(expected)}`,
+            amount: r.transfer_amount || 0, direction: 'out' as const,
+            status: items.length === 0 ? status : undefined,
             detail: [
-              { label: 'Transfer', value: r.transfer_amount || 0, tone: 'text-blue-400' },
-              { label: 'Deducted', value: r.deduction_amount || 0, tone: 'text-amber-500' },
-              { label: 'Expected', value: expected, tone: 'text-violet-400' },
-              { label: 'Received', value: received, tone: 'text-emerald-500' },
+              { label: 'Transfer',  value: r.transfer_amount || 0, tone: 'text-blue-400'   },
+              { label: 'Deducted',  value: r.deduction_amount || 0, tone: 'text-amber-500' },
+              { label: 'Expected',  value: expected,                tone: 'text-violet-400'},
+              { label: 'Remaining', value: remaining,               tone: remaining > 0 ? 'text-red-400' : 'text-emerald-500' },
             ],
-          };
-        });
+          });
+
+          if (received > 0.01) {
+            const rcvBy = Array.isArray(r.received_by_id) ? r.received_by_id[1] : '';
+            items.push({
+              id: r.id * 10000 + 1, date: r.date,
+              title: 'Cash Received',
+              subtitle: rcvBy ? `Collected by ${rcvBy}` : `For ${r.name || 'transaction'}`,
+              amount: received, direction: 'in' as const,
+            });
+          }
+
+          if (agentPaid > 0.01) {
+            const agentName = Array.isArray(r.carrying_agent_id) ? r.carrying_agent_id[1] : 'Agent';
+            const src = r.agent_payment_source === 'associate' ? 'via associate' : 'via agent';
+            items.push({
+              id: r.id * 10000 + 2, date: r.date,
+              title: 'Agent Payment',
+              subtitle: `Paid by ${agentName} ${src} · ${r.name || ''}`.trim(),
+              amount: agentPaid, direction: 'in' as const,
+              status: 'agent_paid',
+            });
+          }
+        }
+        items.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
       } else if (type === 'associate') {
         const rows = await searchRead<any>('biz.associate.ledger', {
           domain: [['associate_id', '=', party.id]],
@@ -260,8 +291,8 @@ export default function BizMoneyManager() {
         ) : filtered.length === 0 ? (
           <div className={`py-16 text-center text-sm ${sub}`}>No {TABS.find(t => t.key === tab)?.label.toLowerCase()} yet. Tap + to add one.</div>
         ) : filtered.map((p, i) => (
-          <button key={p.id} onClick={() => openLedger(tab, p)}
-            className={`w-full flex items-center gap-3 p-3.5 rounded-2xl border ${border} ${bgSoft} hover:border-[#7367f0]/50 transition-all text-left active:scale-[0.99]`}>
+          <div key={p.id} onClick={() => openLedger(tab, p)}
+            className={`group w-full flex items-center gap-3 p-3.5 rounded-2xl border ${border} ${bgSoft} hover:border-[#7367f0]/50 transition-all text-left active:scale-[0.99] cursor-pointer`}>
             <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]} flex items-center justify-center flex-shrink-0`}>
               <span className="text-white font-black text-sm">{initials(p.name)}</span>
             </div>
@@ -273,8 +304,12 @@ export default function BizMoneyManager() {
               <p className={`font-black text-sm ${p.balance > 0 ? (tab === 'agent' ? 'text-rose-500' : 'text-emerald-500') : p.balance < 0 ? 'text-amber-400' : sub}`}>{inr(p.balance)}</p>
               <p className={`text-[10px] font-semibold uppercase tracking-wider ${sub}`}>{p.balance > 0 ? (tab === 'agent' ? 'To Pay' : 'To Collect') : p.balance < 0 ? 'Advance' : 'Settled'}</p>
             </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setEditPartyData({ type: tab, party: p })} className="p-1.5 rounded-xl hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={14} /></button>
+              <button onClick={async () => { if (!confirm('Delete this party?')) return; try { await unlinkRecord(TABS.find(t => t.key === tab)!.model, [p.id]); fetchAll(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1.5 rounded-xl hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={14} /></button>
+            </div>
             <ChevronRight size={16} className={sub} />
-          </button>
+          </div>
         ))}
       </div>
 
@@ -308,6 +343,14 @@ export default function BizMoneyManager() {
           ledger={ledger} loading={ledgerLoading}
           onClose={() => setActiveParty(null)}
           onNewEntry={() => setEntryOpen(true)}
+          onEditEntry={item => setEditEntryData(item)}
+          onDeleteEntry={async item => {
+            if (!confirm('Delete this entry?')) return;
+            const model = activeParty.type === 'vendor' ? 'biz.bill.payment.transaction'
+              : activeParty.type === 'associate' ? 'biz.associate.ledger' : 'biz.agent.ledger';
+            try { await unlinkRecord(model, [item.id]); openLedger(activeParty.type, activeParty.party); fetchAll(); }
+            catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
+          }}
         />
       )}
 
@@ -324,15 +367,30 @@ export default function BizMoneyManager() {
           onSaved={() => { setEntryOpen(false); fetchAll(); if (activeParty) openLedger(activeParty.type, activeParty.party); showMsg(true, 'Entry applied successfully.'); }}
           onError={(m) => showMsg(false, m)} />
       )}
+
+      {editPartyData && (
+        <EditPartySheet isDark={isDark} type={editPartyData.type} party={editPartyData.party}
+          onClose={() => setEditPartyData(null)}
+          onSaved={() => { setEditPartyData(null); fetchAll(); showMsg(true, 'Updated successfully.'); }}
+          onError={(m) => showMsg(false, m)} />
+      )}
+
+      {editEntryData && activeParty && (
+        <EditEntrySheet isDark={isDark} item={editEntryData} type={activeParty.type}
+          onClose={() => setEditEntryData(null)}
+          onSaved={() => { setEditEntryData(null); openLedger(activeParty.type, activeParty.party); fetchAll(); showMsg(true, 'Entry updated.'); }}
+          onError={(m) => showMsg(false, m)} />
+      )}
     </div>
   );
 }
 
 function prettyType(s: string) { return (s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 
-function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry }: {
+function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry, onEditEntry, onDeleteEntry }: {
   isDark: boolean; party: Party; type: PartyType; ledger: LedgerItem[]; loading: boolean;
   onClose: () => void; onNewEntry: () => void;
+  onEditEntry?: (item: LedgerItem) => void; onDeleteEntry?: (item: LedgerItem) => void;
 }) {
   const txt = isDark ? 'text-white' : 'text-gray-900';
   const sub = isDark ? 'text-[#5a6a8a]' : 'text-gray-400';
@@ -399,7 +457,7 @@ function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry
           ) : ledger.length === 0 ? (
             <div className={`py-12 text-center text-sm ${sub}`}>No transactions yet for this {type}.</div>
           ) : ledger.map(l => (
-            <div key={l.id} className={`rounded-2xl p-3.5 ${itemBg}`}>
+            <div key={l.id} className={`group rounded-2xl p-3.5 ${itemBg}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -410,11 +468,19 @@ function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry
                   </div>
                   <p className={`text-xs mt-0.5 truncate ${sub}`}>{l.subtitle}</p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={`font-black text-sm ${l.direction === 'in' ? 'text-emerald-500' : l.direction === 'out' ? 'text-rose-500' : txt}`}>
-                    {l.direction === 'in' ? '+' : l.direction === 'out' ? '-' : ''}{inr(l.amount)}
-                  </p>
-                  <p className={`text-[10px] ${sub}`}>{l.date}</p>
+                <div className="flex items-start gap-2 flex-shrink-0">
+                  <div className="text-right">
+                    <p className={`font-black text-sm ${l.direction === 'in' ? 'text-emerald-500' : l.direction === 'out' ? 'text-rose-500' : txt}`}>
+                      {l.direction === 'in' ? '+' : l.direction === 'out' ? '-' : ''}{inr(l.amount)}
+                    </p>
+                    <p className={`text-[10px] ${sub}`}>{l.date}</p>
+                  </div>
+                  {(onEditEntry || onDeleteEntry) && (
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {onEditEntry && <button onClick={() => onEditEntry(l)} className="p-1 rounded-lg hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={13} /></button>}
+                      {onDeleteEntry && <button onClick={() => onDeleteEntry(l)} className="p-1 rounded-lg hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={13} /></button>}
+                    </div>
+                  )}
                 </div>
               </div>
               {l.detail && (
@@ -439,6 +505,98 @@ function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry
         </div>
       </div>
     </div>
+  );
+}
+
+const LEDGER_MODELS: Record<PartyType, string> = {
+  vendor: 'biz.bill.payment.transaction',
+  associate: 'biz.associate.ledger',
+  agent: 'biz.agent.ledger',
+};
+
+function EditPartySheet({ isDark, type, party, onClose, onSaved, onError }: {
+  isDark: boolean; type: PartyType; party: Party; onClose: () => void; onSaved: () => void; onError: (m: string) => void;
+}) {
+  const model = TABS.find(t => t.key === type)!.model;
+  const label = type === 'vendor' ? 'Bill Vendor' : type === 'associate' ? 'Money Associate' : 'Carrying Agent';
+  const field = `input text-sm py-2.5 w-full ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const [f, setF] = useState<Record<string, any>>({ name: party.name });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!f.name?.trim()) { onError('Name is required.'); return; }
+    setSaving(true);
+    try {
+      const vals: Record<string, any> = { name: f.name.trim() };
+      if (type === 'vendor') { vals.phone = f.phone || false; vals.deduction_percent = parseFloat(f.deduction_percent || 0) || 0; vals.notes = f.notes || false; }
+      else if (type === 'associate') { vals.phone = f.phone || false; vals.notes = f.notes || false; }
+      else { vals.contact_details = f.contact_details || false; }
+      await writeRecord(model, [party.id], vals);
+      onSaved();
+    } catch (e: any) { onError(e?.message || 'Update failed'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Sheet isDark={isDark} title={`Edit ${label}`} onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className={lbl}>Name *</label><input value={f.name || ''} onChange={e => setF(p => ({ ...p, name: e.target.value }))} className={field} /></div>
+        {type !== 'agent' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lbl}>Phone</label><input value={f.phone || ''} onChange={e => setF(p => ({ ...p, phone: e.target.value }))} className={field} /></div>
+            {type === 'vendor' && <div><label className={lbl}>Deduction %</label><input type="number" step="0.01" value={f.deduction_percent || ''} onChange={e => setF(p => ({ ...p, deduction_percent: e.target.value }))} placeholder="0.00" className={field} /></div>}
+          </div>
+        )}
+        {type === 'agent'
+          ? <div><label className={lbl}>Contact / Location</label><textarea rows={3} value={f.contact_details || ''} onChange={e => setF(p => ({ ...p, contact_details: e.target.value }))} className={`${field} resize-none`} /></div>
+          : <div><label className={lbl}>Notes</label><textarea rows={2} value={f.notes || ''} onChange={e => setF(p => ({ ...p, notes: e.target.value }))} className={`${field} resize-none`} /></div>}
+      </div>
+      <button onClick={save} disabled={saving || !f.name?.trim()} className="w-full mt-4 py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+        style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
+        {saving ? <RefreshCw size={16} className="animate-spin" /> : null} Save Changes
+      </button>
+    </Sheet>
+  );
+}
+
+function EditEntrySheet({ isDark, item, type, onClose, onSaved, onError }: {
+  isDark: boolean; item: LedgerItem; type: PartyType; onClose: () => void; onSaved: () => void; onError: (m: string) => void;
+}) {
+  const model = LEDGER_MODELS[type];
+  const field = `input text-sm py-2.5 w-full ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const [f, setF] = useState<Record<string, any>>({ date: item.date, amount: item.amount });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const vals: Record<string, any> = { date: f.date };
+      if (type === 'vendor') { vals.transfer_amount = parseFloat(f.amount || 0); if (f.note !== undefined) vals.note = f.note; }
+      else if (type === 'associate') { vals.amount = parseFloat(f.amount || 0); vals.reference = f.reference || false; vals.note = f.note || false; }
+      else { vals.amount_inr = parseFloat(f.amount || 0); vals.reference = f.reference || false; vals.notes = f.notes || false; }
+      await writeRecord(model, [item.id], vals);
+      onSaved();
+    } catch (e: any) { onError(e?.message || 'Update failed'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Sheet isDark={isDark} title="Edit Entry" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className={lbl}>Date</label><input type="date" value={f.date || ''} onChange={e => setF(p => ({ ...p, date: e.target.value }))} className={field} /></div>
+        <div><label className={lbl}>Amount (Rs.)</label><input type="number" step="0.01" inputMode="decimal" value={f.amount || ''} onChange={e => setF(p => ({ ...p, amount: e.target.value }))} className={field} /></div>
+        {type !== 'vendor' && (
+          <div><label className={lbl}>Reference</label><input value={f.reference || ''} onChange={e => setF(p => ({ ...p, reference: e.target.value }))} className={field} /></div>
+        )}
+        <div><label className={lbl}>Note</label><input value={f.note || f.notes || ''} onChange={e => setF(p => ({ ...p, note: e.target.value, notes: e.target.value }))} className={field} /></div>
+      </div>
+      <button onClick={save} disabled={saving} className="w-full mt-4 py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+        style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
+        {saving ? <RefreshCw size={16} className="animate-spin" /> : null} Save Changes
+      </button>
+    </Sheet>
   );
 }
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
-import { searchRead, createRecord, writeRecord, odooCall } from '../../../services/odoo';
+import { searchRead, createRecord, writeRecord, unlinkRecord, odooCall } from '../../../services/odoo';
 import {
   RefreshCw, Plus, Users, DollarSign, Truck, X,
-  ClipboardList, Search, ChevronRight, Inbox, CheckCircle2
+  ClipboardList, Search, ChevronRight, Inbox, CheckCircle2,
+  Pencil, Trash2,
 } from 'lucide-react';
 
 // ---- Interfaces ----------------------------------------------------------------------------------------------------------------------------
@@ -524,6 +525,251 @@ function ReceivePaymentModal({ txn, onClose, onSaved, modelPrefix = 'flipkart' }
   );
 }
 
+// ---- Edit Vendor Modal ---------------------------------------------------------------------------------------------------------------
+
+interface EditVendorModalProps { vendor: BillVendor; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditVendorModal({ vendor, onClose, onSaved, modelPrefix = 'flipkart' }: EditVendorModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: vendor.name, phone: vendor.phone || '', deduction_percent: String(vendor.deduction_percent), notes: vendor.notes || '' });
+  const inp = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.bill.payment.vendor`, [vendor.id], { name: form.name.trim(), phone: form.phone || false, deduction_percent: parseFloat(form.deduction_percent) || 0, notes: form.notes || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Vendor</h3><p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{vendor.name}</p></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div><label className='label text-[#5a6a8a]'>Name</label><input required value={form.name} onChange={e => inp('name', e.target.value)} className={`input ${base}`} /></div>
+          <div className='grid grid-cols-2 gap-3'>
+            <div><label className='label text-[#5a6a8a]'>Phone</label><input value={form.phone} onChange={e => inp('phone', e.target.value)} className={`input ${base}`} /></div>
+            <div><label className='label text-[#5a6a8a]'>Deduction %</label><input type='number' step='0.01' value={form.deduction_percent} onChange={e => inp('deduction_percent', e.target.value)} className={`input ${base}`} /></div>
+          </div>
+          <div><label className='label text-[#5a6a8a]'>Notes</label><textarea rows={2} value={form.notes} onChange={e => inp('notes', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---- Edit Vendor Transaction Modal ---------------------------------------------------------------------------------------------------
+
+interface EditVendorTxnModalProps { txn: BillTransaction; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditVendorTxnModal({ txn, onClose, onSaved, modelPrefix = 'flipkart' }: EditVendorTxnModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ date: txn.date, name: txn.name, transfer_amount: String(txn.transfer_amount), actual_cash_received: String(txn.actual_cash_received), payment_received: txn.payment_received, note: txn.note || '' });
+  const inp = (f: string, v: string | boolean) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.bill.payment.transaction`, [txn.id], { date: form.date, name: form.name, transfer_amount: parseFloat(form.transfer_amount) || 0, actual_cash_received: parseFloat(form.actual_cash_received) || 0, payment_received: form.payment_received, note: form.note || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Transaction</h3><p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{txn.name}</p></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div className='grid grid-cols-2 gap-3'>
+            <div><label className='label text-[#5a6a8a]'>Date</label><input type='date' required value={form.date} onChange={e => inp('date', e.target.value)} className={`input ${base}`} /></div>
+            <div><label className='label text-[#5a6a8a]'>Reference</label><input required value={form.name} onChange={e => inp('name', e.target.value)} className={`input ${base}`} /></div>
+          </div>
+          <div><label className='label text-[#5a6a8a]'>Transfer Amount</label><input type='number' step='0.01' value={form.transfer_amount} onChange={e => inp('transfer_amount', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Actual Cash Received</label><input type='number' min='0' step='0.01' value={form.actual_cash_received} onChange={e => inp('actual_cash_received', e.target.value)} className={`input ${base}`} /></div>
+          <label className='flex items-center gap-2 cursor-pointer'>
+            <input type='checkbox' checked={form.payment_received} onChange={e => inp('payment_received', e.target.checked)} className='w-4 h-4 rounded accent-[#7367f0]' />
+            <span className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Payment Received</span>
+          </label>
+          <div><label className='label text-[#5a6a8a]'>Note</label><textarea rows={2} value={form.note} onChange={e => inp('note', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---- Edit Associate Modal ------------------------------------------------------------------------------------------------------------
+
+interface EditAssociateModalProps { associate: MoneyAssociate; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditAssociateModal({ associate, onClose, onSaved, modelPrefix = 'flipkart' }: EditAssociateModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: associate.name, phone: associate.phone || '', notes: associate.notes || '' });
+  const inp = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.money.associate`, [associate.id], { name: form.name.trim(), phone: form.phone || false, notes: form.notes || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Associate</h3><p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{associate.name}</p></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div><label className='label text-[#5a6a8a]'>Name</label><input required value={form.name} onChange={e => inp('name', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Phone</label><input value={form.phone} onChange={e => inp('phone', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Notes</label><textarea rows={2} value={form.notes} onChange={e => inp('notes', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---- Edit Associate Ledger Entry Modal ------------------------------------------------------------------------------------------------
+
+interface EditAssocEntryModalProps { entry: AssociateLedger; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditAssocEntryModal({ entry, onClose, onSaved, modelPrefix = 'flipkart' }: EditAssocEntryModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ date: entry.date, entry_type: entry.entry_type, amount: String(entry.amount), reference: entry.reference || '', note: entry.note || '' });
+  const inp = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const entryTypes = ['cash_received', 'transfer_in', 'agent_payment', 'expense', 'transfer_out'];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.associate.ledger`, [entry.id], { date: form.date, entry_type: form.entry_type, amount: parseFloat(form.amount), reference: form.reference || false, note: form.note || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Ledger Entry</h3></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div className='grid grid-cols-2 gap-3'>
+            <div><label className='label text-[#5a6a8a]'>Date</label><input type='date' required value={form.date} onChange={e => inp('date', e.target.value)} className={`input ${base}`} /></div>
+            <div><label className='label text-[#5a6a8a]'>Entry Type</label><select value={form.entry_type} onChange={e => inp('entry_type', e.target.value)} className={`input ${base}`}>{entryTypes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></div>
+          </div>
+          <div><label className='label text-[#5a6a8a]'>Amount</label><input type='number' required min='0.01' step='0.01' value={form.amount} onChange={e => inp('amount', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Reference</label><input value={form.reference} onChange={e => inp('reference', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Note</label><textarea rows={2} value={form.note} onChange={e => inp('note', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---- Edit Agent Modal ----------------------------------------------------------------------------------------------------------------
+
+interface EditAgentModalProps { agent: CarryingAgent; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditAgentModal({ agent, onClose, onSaved, modelPrefix = 'flipkart' }: EditAgentModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: agent.name, contact_details: agent.contact_details || '' });
+  const inp = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.carrying.agent`, [agent.id], { name: form.name.trim(), contact_details: form.contact_details || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Agent</h3><p className={`text-xs mt-0.5 ${isDark ? 'text-[#5a6a8a]' : 'text-gray-400'}`}>{agent.name}</p></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div><label className='label text-[#5a6a8a]'>Name</label><input required value={form.name} onChange={e => inp('name', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Contact / Location Details</label><textarea rows={3} value={form.contact_details} onChange={e => inp('contact_details', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---- Edit Agent Ledger Entry Modal ---------------------------------------------------------------------------------------------------
+
+interface EditAgentEntryModalProps { entry: AgentLedger; onClose: () => void; onSaved: () => void; modelPrefix?: string; }
+function EditAgentEntryModal({ entry, onClose, onSaved, modelPrefix = 'flipkart' }: EditAgentEntryModalProps) {
+  const P = modelPrefix; const { isDark } = useTheme();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ date: entry.date, entry_type: entry.entry_type, amount_inr: String(entry.amount_inr), reference: entry.reference || '', notes: entry.notes || '' });
+  const inp = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }));
+  const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await writeRecord(`${P}.agent.ledger`, [entry.id], { date: form.date, entry_type: form.entry_type, amount_inr: parseFloat(form.amount_inr), reference: form.reference || false, notes: form.notes || false });
+      onSaved(); onClose();
+    } catch { } finally { setSaving(false); }
+  };
+  return (
+    <div className='fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in' onClick={onClose}>
+      <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden ${isDark ? 'bg-[#1e2440] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <div><h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Agent Entry</h3></div>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className='p-5 space-y-4'>
+          <div className='grid grid-cols-2 gap-3'>
+            <div><label className='label text-[#5a6a8a]'>Date</label><input type='date' required value={form.date} onChange={e => inp('date', e.target.value)} className={`input ${base}`} /></div>
+            <div><label className='label text-[#5a6a8a]'>Entry Type</label>
+              <select value={form.entry_type} onChange={e => inp('entry_type', e.target.value)} className={`input ${base}`}>
+                <option value='bill'>Bill (+)</option><option value='payment'>Payment (-)</option><option value='adjustment'>Adjustment</option>
+              </select>
+            </div>
+          </div>
+          <div><label className='label text-[#5a6a8a]'>Amount</label><input type='number' required min='0.01' step='0.01' value={form.amount_inr} onChange={e => inp('amount_inr', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Reference</label><input value={form.reference} onChange={e => inp('reference', e.target.value)} className={`input ${base}`} /></div>
+          <div><label className='label text-[#5a6a8a]'>Notes</label><textarea rows={2} value={form.notes} onChange={e => inp('notes', e.target.value)} className={`input resize-none ${base}`} /></div>
+          <div className='flex gap-2 pt-1'>
+            <button type='button' onClick={onClose} className='btn-secondary flex-1 justify-center text-xs py-2.5'>Cancel</button>
+            <button type='submit' disabled={saving} className='btn-primary flex-1 justify-center text-xs py-2.5'>{saving ? <RefreshCw size={13} className='animate-spin' /> : <Pencil size={13} />} Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ---- Right-Side Drawer ------------------------------------------------------------------------------------------------------------------
 
 interface DrawerProps {
@@ -596,6 +842,19 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
   const [agentLoading, setAgentLoading] = useState(false);
   const [addAgentEntry, setAddAgentEntry] = useState(false);
 
+  // Edit/delete state
+  const [editVendor, setEditVendor] = useState<BillVendor | null>(null);
+  const [editVendorTxn, setEditVendorTxn] = useState<BillTransaction | null>(null);
+  const [editAssociate, setEditAssociate] = useState<MoneyAssociate | null>(null);
+  const [editAssocEntry, setEditAssocEntry] = useState<AssociateLedger | null>(null);
+  const [editAgent, setEditAgent] = useState<CarryingAgent | null>(null);
+  const [editAgentEntry, setEditAgentEntry] = useState<AgentLedger | null>(null);
+
+  const handleDelete = async (model: string, id: number, refresh: () => void) => {
+    if (!window.confirm('Delete this entry? This cannot be undone.')) return;
+    try { await unlinkRecord(model, [id]); refresh(); } catch (e: any) { alert(e?.message || 'Delete failed'); }
+  };
+
   // Tab 4: Unified
   const [unified, setUnified] = useState<UnifiedSummary[]>([]);
   const [partyTypeFilter, setPartyTypeFilter] = useState('');
@@ -629,8 +888,8 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
     setSelectedVendor(vendor);
     setTxnsLoading(true);
     try {
-      const baseFields = ['id', 'name', 'date', 'transfer_amount', 'deduction_amount', 'payment_received', 'actual_cash_received', 'expected_cash_amount', 'note'];
-      const fields = P === 'flipkart' ? [...baseFields, 'agent_payment_source', 'agent_payment_amount'] : baseFields;
+      const baseFields = ['id', 'name', 'date', 'transfer_amount', 'deduction_amount', 'payment_received', 'actual_cash_received', 'expected_cash_amount', 'received_by_id', 'note', 'agent_payment_amount', 'carrying_agent_id', 'agent_payment_source'];
+      const fields = baseFields;
       const res = await searchRead<BillTransaction>(`${P}.bill.payment.transaction`, {
         domain: [['vendor_id', '=', vendor.id]],
         fields,
@@ -793,17 +1052,24 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                         <th className={`${thCls} text-right`}>Deduction %</th>
                         <th className={`${thCls} text-right`}>Balance</th>
                         <th className={`${thCls} text-center`}>Ledger</th>
+                        <th className={thCls}></th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y text-sm ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                       {filteredVendors.map(v => (
-                        <tr key={v.id} className={rowCls} onClick={() => openVendorDrawer(v)}>
+                        <tr key={v.id} className={`group ${rowCls}`} onClick={() => openVendorDrawer(v)}>
                           <td className={`py-3 px-4 font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{v.name}</td>
                           <td className={`py-3 px-4 text-xs ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`}>{v.phone}</td>
                           <td className='py-3 px-4 text-right text-xs'>{v.deduction_percent}%</td>
                           <td className='py-3 px-4 text-right'><BalanceCell value={v.balance} /></td>
                           <td className='py-3 px-4 text-center'>
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
+                          </td>
+                          <td className='py-3 px-4 text-right'>
+                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button onClick={e => { e.stopPropagation(); setEditVendor(v); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.bill.payment.vendor`, v.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -826,16 +1092,23 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                         <th className={thCls}>Phone</th>
                         <th className={`${thCls} text-right`}>Balance</th>
                         <th className={`${thCls} text-center`}>Ledger</th>
+                        <th className={thCls}></th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y text-sm ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                       {filteredAssociates.map(a => (
-                        <tr key={a.id} className={rowCls} onClick={() => openAssocDrawer(a)}>
+                        <tr key={a.id} className={`group ${rowCls}`} onClick={() => openAssocDrawer(a)}>
                           <td className={`py-3 px-4 font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{a.name}</td>
                           <td className={`py-3 px-4 text-xs ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`}>{a.phone}</td>
                           <td className='py-3 px-4 text-right'><BalanceCell value={a.balance} /></td>
                           <td className='py-3 px-4 text-center'>
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
+                          </td>
+                          <td className='py-3 px-4'>
+                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button onClick={e => { e.stopPropagation(); setEditAssociate(a); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.money.associate`, a.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -858,11 +1131,12 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                         <th className={thCls}>Contact / Location</th>
                         <th className={`${thCls} text-right`}>Outstanding Balance</th>
                         <th className={`${thCls} text-center`}>Ledger</th>
+                        <th className={thCls}></th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y text-sm ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                       {filteredAgents.map(a => (
-                        <tr key={a.id} className={rowCls} onClick={() => openAgentDrawer(a)}>
+                        <tr key={a.id} className={`group ${rowCls}`} onClick={() => openAgentDrawer(a)}>
                           <td className={`py-3 px-4 font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{a.name}</td>
                           <td className={`py-3 px-4 text-xs ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`}>{a.contact_details}</td>
                           <td className='py-3 px-4 text-right'>
@@ -872,6 +1146,12 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                           </td>
                           <td className='py-3 px-4 text-center'>
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
+                          </td>
+                          <td className='py-3 px-4'>
+                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button onClick={e => { e.stopPropagation(); setEditAgent(a); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.carrying.agent`, a.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -944,32 +1224,38 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
               <table className='w-full text-left border-collapse'>
                 <thead className={`border-b ${isDark ? 'border-white/5 bg-[#111827]/30' : 'border-gray-100 bg-gray-50'}`}>
                   <tr>
-                    {(P === 'flipkart' ? ['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Agent Paid', 'Paid?', ''] : ['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Paid?', '']).map(h => (
+                    {['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Agent Paid', 'Paid?', ''].map(h => (
                       <th key={h} className={`py-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className={`divide-y text-xs ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                   {vendorTxns.map(t => (
-                    <tr key={t.id} className={isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}>
+                    <tr key={t.id} className={`group ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                       <td className='py-2.5 px-3 font-mono'>{t.date}</td>
                       <td className={`py-2.5 px-3 font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{t.name}</td>
                       <td className='py-2.5 px-3 font-bold text-blue-400'>{fmt(t.transfer_amount)}</td>
                       <td className='py-2.5 px-3 text-amber-400'>{fmt(t.deduction_amount)}</td>
                       <td className='py-2.5 px-3 text-green-400'>{fmt(t.actual_cash_received)}</td>
-                      {P === 'flipkart' && <td className='py-2.5 px-3'>{t.agent_payment_amount > 0 ? fmt(t.agent_payment_amount) : '--'}</td>}
+                      <td className='py-2.5 px-3'>{t.agent_payment_amount > 0 ? fmt(t.agent_payment_amount) : '--'}</td>
                       <td className='py-2.5 px-3'>
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${t.payment_received ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                           {t.payment_received ? 'Yes' : 'No'}
                         </span>
                       </td>
                       <td className='py-2.5 px-3'>
-                        {!t.payment_received && (
-                          <button onClick={e => { e.stopPropagation(); setReceiveTxn(t); }}
-                            className='text-[10px] font-bold px-2 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 whitespace-nowrap'>
-                            Receive
-                          </button>
-                        )}
+                        <div className='flex items-center gap-1'>
+                          {!t.payment_received && (
+                            <button onClick={e => { e.stopPropagation(); setReceiveTxn(t); }}
+                              className='text-[10px] font-bold px-2 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 whitespace-nowrap'>
+                              Receive
+                            </button>
+                          )}
+                          <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+                            <button onClick={e => { e.stopPropagation(); setEditVendorTxn(t); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
+                            <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.bill.payment.transaction`, t.id, () => { openVendorDrawer(selectedVendor!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1001,11 +1287,17 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                 </thead>
                 <tbody className={`divide-y text-xs ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                   {assocLedger.map(l => (
-                    <tr key={l.id} className={isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}>
+                    <tr key={l.id} className={`group ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                       <td className='py-2.5 px-3 font-mono'>{l.date}</td>
                       <td className={`py-2.5 px-3 capitalize ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{l.entry_type.replace(/_/g, ' ')}</td>
                       <td className='py-2.5 px-3'>{l.reference || '--'}</td>
                       <td className='py-2.5 px-3 font-bold text-[#7367f0]'>{fmt(l.amount)}</td>
+                      <td className='py-2.5 px-3'>
+                        <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <button onClick={e => { e.stopPropagation(); setEditAssocEntry(l); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.associate.ledger`, l.id, () => { openAssocDrawer(selectedAssoc!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1036,12 +1328,18 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                 </thead>
                 <tbody className={`divide-y text-xs ${isDark ? 'divide-white/5' : 'divide-gray-100'}`}>
                   {agentLedger.map(l => (
-                    <tr key={l.id} className={isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}>
+                    <tr key={l.id} className={`group ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                       <td className='py-2.5 px-3 font-mono'>{l.date}</td>
                       <td className={`py-2.5 px-3 capitalize ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{l.entry_type}</td>
                       <td className='py-2.5 px-3'>{l.reference || '--'}</td>
                       <td className={`py-2.5 px-3 font-bold ${l.entry_type === 'bill' ? 'text-red-400' : l.entry_type === 'payment' ? 'text-green-400' : 'text-amber-400'}`}>
                         {fmt(l.amount_inr)}
+                      </td>
+                      <td className='py-2.5 px-3'>
+                        <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <button onClick={e => { e.stopPropagation(); setEditAgentEntry(l); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.agent.ledger`, l.id, () => { openAgentDrawer(selectedAgent!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1091,6 +1389,25 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
           onClose={() => setReceiveTxn(null)}
           onSaved={() => { setReceiveTxn(null); openVendorDrawer(selectedVendor); fetchAll(); }}
         />
+      )}
+
+      {editVendor && (
+        <EditVendorModal vendor={editVendor} modelPrefix={P} onClose={() => setEditVendor(null)} onSaved={() => { setEditVendor(null); fetchAll(); }} />
+      )}
+      {editVendorTxn && selectedVendor && (
+        <EditVendorTxnModal txn={editVendorTxn} modelPrefix={P} onClose={() => setEditVendorTxn(null)} onSaved={() => { setEditVendorTxn(null); openVendorDrawer(selectedVendor); fetchAll(); }} />
+      )}
+      {editAssociate && (
+        <EditAssociateModal associate={editAssociate} modelPrefix={P} onClose={() => setEditAssociate(null)} onSaved={() => { setEditAssociate(null); fetchAll(); }} />
+      )}
+      {editAssocEntry && selectedAssoc && (
+        <EditAssocEntryModal entry={editAssocEntry} modelPrefix={P} onClose={() => setEditAssocEntry(null)} onSaved={() => { setEditAssocEntry(null); openAssocDrawer(selectedAssoc); fetchAll(); }} />
+      )}
+      {editAgent && (
+        <EditAgentModal agent={editAgent} modelPrefix={P} onClose={() => setEditAgent(null)} onSaved={() => { setEditAgent(null); fetchAll(); }} />
+      )}
+      {editAgentEntry && selectedAgent && (
+        <EditAgentEntryModal entry={editAgentEntry} modelPrefix={P} onClose={() => setEditAgentEntry(null)} onSaved={() => { setEditAgentEntry(null); openAgentDrawer(selectedAgent); fetchAll(); }} />
       )}
 
       {/* Create entity modal */}

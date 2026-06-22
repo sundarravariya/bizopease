@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { searchRead, createRecord, odooCall } from '../../../services/odoo';
+import React, { useState, useEffect, useCallback } from 'react';
+import { searchRead, createRecord, writeRecord, unlinkRecord, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import {
   BookOpen, RefreshCw, PlusCircle,
   Users, Truck, Building2, UserCheck, Filter,
-  CheckCircle2, AlertCircle,
+  CheckCircle2, AlertCircle, Pencil, Trash2, X,
 } from 'lucide-react';
 
 type MainTab = 'summary' | 'create' | 'partner' | 'agent' | 'vendor' | 'associate';
@@ -111,6 +111,11 @@ export default function BizLedger() {
   const [entryType, setEntryType] = useState('bank_transfer');
   const [entryForm, setEntryForm] = useState<Record<string, any>>({ date: new Date().toISOString().slice(0, 10) });
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit state
+  const [editAgent, setEditAgent] = useState<AgentLine | null>(null);
+  const [editVendor, setEditVendor] = useState<VendorLine | null>(null);
+  const [editAssoc, setEditAssoc] = useState<AssociateLine | null>(null);
 
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
 
@@ -677,7 +682,7 @@ export default function BizLedger() {
               agentLines.map(r => [r.date, Array.isArray(r.agent_id) ? r.agent_id[1] : '', r.entry_type || '', r.reference || '', r.amount_inr || 0, r.notes || '']))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Agent', 'Type', 'Reference', 'Amount', 'Notes']}
+            columns={['Date', 'Agent', 'Type', 'Reference', 'Amount', 'Notes', '']}
             rows={agentLines.map(r => [
               r.date,
               Array.isArray(r.agent_id) ? r.agent_id[1] : '--',
@@ -685,10 +690,14 @@ export default function BizLedger() {
               r.reference || '--',
               <span className="font-semibold">{fmt(r.amount_inr)}</span>,
               r.notes || '--',
+              <div className="flex items-center gap-1">
+                <button onClick={() => setEditAgent(r)} className="p-1 rounded hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={12} /></button>
+                <button onClick={async () => { if (!confirm('Delete this entry?')) return; try { await unlinkRecord('biz.agent.ledger', [r.id]); loadAgentLines(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1 rounded hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={12} /></button>
+              </div>,
             ])}
             totals={['Totals', '', '', '',
               <span className="font-bold text-[#7367f0]">{fmt(agentLines.reduce((s, r) => s + (r.amount_inr || 0), 0))}</span>,
-              '',
+              '', '',
             ]}
           />
         </div>
@@ -707,7 +716,7 @@ export default function BizLedger() {
               vendorLines.map(r => [r.date, r.name || '', Array.isArray(r.vendor_id) ? r.vendor_id[1] : '', r.transfer_amount || 0, r.deduction_amount || 0, r.expected_cash_amount || 0, r.actual_cash_received || 0, Array.isArray(r.received_by_id) ? r.received_by_id[1] : '', TXN_STATE[r.state]?.label || r.state || '']))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Reference', 'Vendor', 'Bank Transfer', 'Deducted', 'Expected Cash', 'Actual Cash', 'Received By', 'Status']}
+            columns={['Date', 'Reference', 'Vendor', 'Bank Transfer', 'Deducted', 'Expected Cash', 'Actual Cash', 'Received By', 'Status', '']}
             rows={vendorLines.map(r => [
               r.date,
               <span className="font-mono text-[#7367f0]">{r.name || '--'}</span>,
@@ -718,13 +727,17 @@ export default function BizLedger() {
               <span className="text-green-400">{fmt(r.actual_cash_received)}</span>,
               Array.isArray(r.received_by_id) ? r.received_by_id[1] : '--',
               <StatusBadge state={r.state} />,
+              <div className="flex items-center gap-1">
+                <button onClick={() => setEditVendor(r)} className="p-1 rounded hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={12} /></button>
+                <button onClick={async () => { if (!confirm('Delete this entry?')) return; try { await unlinkRecord('biz.bill.payment.transaction', [r.id]); loadVendorLines(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1 rounded hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={12} /></button>
+              </div>,
             ])}
             totals={['Totals', '', '',
               <span className="text-blue-400 font-bold">{fmt(vendorLines.reduce((s, r) => s + (r.transfer_amount || 0), 0))}</span>,
               <span className="text-red-400 font-bold">{fmt(vendorLines.reduce((s, r) => s + (r.deduction_amount || 0), 0))}</span>,
               <span className="text-amber-400 font-bold">{fmt(vendorLines.reduce((s, r) => s + (r.expected_cash_amount || 0), 0))}</span>,
               <span className="text-green-400 font-bold">{fmt(vendorLines.reduce((s, r) => s + (r.actual_cash_received || 0), 0))}</span>,
-              '', '',
+              '', '', '',
             ]}
           />
         </div>
@@ -743,7 +756,7 @@ export default function BizLedger() {
               associateLines.map(r => [r.date, Array.isArray(r.associate_id) ? r.associate_id[1] : '', r.entry_type || '', r.amount || 0, r.reference || '', r.note || '']))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Associate', 'Type', 'Amount', 'Reference', 'Note']}
+            columns={['Date', 'Associate', 'Type', 'Amount', 'Reference', 'Note', '']}
             rows={associateLines.map(r => [
               r.date,
               Array.isArray(r.associate_id) ? r.associate_id[1] : '--',
@@ -751,13 +764,36 @@ export default function BizLedger() {
               <span className="font-semibold">{fmt(r.amount)}</span>,
               r.reference || '--',
               r.note || '--',
+              <div className="flex items-center gap-1">
+                <button onClick={() => setEditAssoc(r)} className="p-1 rounded hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={12} /></button>
+                <button onClick={async () => { if (!confirm('Delete this entry?')) return; try { await unlinkRecord('biz.associate.ledger', [r.id]); loadAssociateLines(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1 rounded hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={12} /></button>
+              </div>,
             ])}
             totals={['Totals', '', '',
               <span className="font-bold text-[#7367f0]">{fmt(associateLines.reduce((s, r) => s + (r.amount || 0), 0))}</span>,
-              '', '',
+              '', '', '',
             ]}
           />
         </div>
+      )}
+
+      {editAgent && (
+        <EditAgentLineModal isDark={isDark} entry={editAgent}
+          onClose={() => setEditAgent(null)}
+          onSaved={() => { setEditAgent(null); loadAgentLines(); showMsg(true, 'Entry updated.'); }}
+          onError={(m) => showMsg(false, m)} />
+      )}
+      {editVendor && (
+        <EditVendorLineModal isDark={isDark} entry={editVendor}
+          onClose={() => setEditVendor(null)}
+          onSaved={() => { setEditVendor(null); loadVendorLines(); showMsg(true, 'Entry updated.'); }}
+          onError={(m) => showMsg(false, m)} />
+      )}
+      {editAssoc && (
+        <EditAssocLineModal isDark={isDark} entry={editAssoc}
+          onClose={() => setEditAssoc(null)}
+          onSaved={() => { setEditAssoc(null); loadAssociateLines(); showMsg(true, 'Entry updated.'); }}
+          onError={(m) => showMsg(false, m)} />
       )}
     </div>
   );
@@ -838,5 +874,75 @@ function LedgerTable({ loading, isDark, cardBg, thCls, tdCls, columns, rows, tot
         {rows.length} record{rows.length !== 1 ? 's' : ''}
       </div>
     </div>
+  );
+}
+
+// ── Inline edit modals ──────────────────────────────────────────────────────
+function EditModal({ isDark, title, children, onClose }: { isDark: boolean; title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className={`w-full max-w-sm rounded-2xl shadow-2xl border ${isDark ? 'bg-[#161b2e] border-[#2a3250]' : 'bg-white border-gray-200'}`} onClick={e => e.stopPropagation()}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+          <h2 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</h2>
+          <button onClick={onClose} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function EditAgentLineModal({ isDark, entry, onClose, onSaved, onError }: { isDark: boolean; entry: AgentLine; onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
+  const [f, setF] = useState({ date: entry.date, amount_inr: entry.amount_inr, reference: entry.reference || '', notes: entry.notes || '' });
+  const [saving, setSaving] = useState(false);
+  const cls = `input text-sm py-2 w-full ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const save = async () => { setSaving(true); try { await writeRecord('biz.agent.ledger', [entry.id], { date: f.date, amount_inr: parseFloat(String(f.amount_inr) || '0'), reference: f.reference || false, notes: f.notes || false }); onSaved(); } catch (e: any) { onError(e?.message || 'Update failed'); } finally { setSaving(false); } };
+  return (
+    <EditModal isDark={isDark} title="Edit Agent Entry" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className={lbl}>Date</label><input type="date" value={f.date} onChange={e => setF(p => ({ ...p, date: e.target.value }))} className={cls} /></div>
+        <div><label className={lbl}>Amount (Rs.)</label><input type="number" step="0.01" value={f.amount_inr} onChange={e => setF(p => ({ ...p, amount_inr: Number(e.target.value) }))} className={cls} /></div>
+        <div><label className={lbl}>Reference</label><input value={f.reference} onChange={e => setF(p => ({ ...p, reference: e.target.value }))} className={cls} /></div>
+        <div><label className={lbl}>Notes</label><input value={f.notes} onChange={e => setF(p => ({ ...p, notes: e.target.value }))} className={cls} /></div>
+        <button onClick={save} disabled={saving} className="w-full mt-2 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg,#7367f0,#3d5af1)' }}>{saving ? <RefreshCw size={14} className="animate-spin" /> : null} Save</button>
+      </div>
+    </EditModal>
+  );
+}
+
+function EditVendorLineModal({ isDark, entry, onClose, onSaved, onError }: { isDark: boolean; entry: VendorLine; onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
+  const [f, setF] = useState({ date: entry.date, transfer_amount: entry.transfer_amount });
+  const [saving, setSaving] = useState(false);
+  const cls = `input text-sm py-2 w-full ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const save = async () => { setSaving(true); try { await writeRecord('biz.bill.payment.transaction', [entry.id], { date: f.date, transfer_amount: parseFloat(String(f.transfer_amount) || '0') }); onSaved(); } catch (e: any) { onError(e?.message || 'Update failed'); } finally { setSaving(false); } };
+  return (
+    <EditModal isDark={isDark} title="Edit Vendor Transaction" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className={lbl}>Date</label><input type="date" value={f.date} onChange={e => setF(p => ({ ...p, date: e.target.value }))} className={cls} /></div>
+        <div><label className={lbl}>Transfer Amount (Rs.)</label><input type="number" step="0.01" value={f.transfer_amount} onChange={e => setF(p => ({ ...p, transfer_amount: Number(e.target.value) }))} className={cls} /></div>
+        <button onClick={save} disabled={saving} className="w-full mt-2 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg,#7367f0,#3d5af1)' }}>{saving ? <RefreshCw size={14} className="animate-spin" /> : null} Save</button>
+      </div>
+    </EditModal>
+  );
+}
+
+function EditAssocLineModal({ isDark, entry, onClose, onSaved, onError }: { isDark: boolean; entry: AssociateLine; onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
+  const [f, setF] = useState({ date: entry.date, amount: entry.amount, reference: entry.reference || '', note: entry.note || '' });
+  const [saving, setSaving] = useState(false);
+  const cls = `input text-sm py-2 w-full ${isDark ? 'bg-[#1e2440] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const save = async () => { setSaving(true); try { await writeRecord('biz.associate.ledger', [entry.id], { date: f.date, amount: parseFloat(String(f.amount) || '0'), reference: f.reference || false, note: f.note || false }); onSaved(); } catch (e: any) { onError(e?.message || 'Update failed'); } finally { setSaving(false); } };
+  return (
+    <EditModal isDark={isDark} title="Edit Associate Entry" onClose={onClose}>
+      <div className="space-y-3">
+        <div><label className={lbl}>Date</label><input type="date" value={f.date} onChange={e => setF(p => ({ ...p, date: e.target.value }))} className={cls} /></div>
+        <div><label className={lbl}>Amount (Rs.)</label><input type="number" step="0.01" value={f.amount} onChange={e => setF(p => ({ ...p, amount: Number(e.target.value) }))} className={cls} /></div>
+        <div><label className={lbl}>Reference</label><input value={f.reference} onChange={e => setF(p => ({ ...p, reference: e.target.value }))} className={cls} /></div>
+        <div><label className={lbl}>Note</label><input value={f.note} onChange={e => setF(p => ({ ...p, note: e.target.value }))} className={cls} /></div>
+        <button onClick={save} disabled={saving} className="w-full mt-2 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg,#7367f0,#3d5af1)' }}>{saving ? <RefreshCw size={14} className="animate-spin" /> : null} Save</button>
+      </div>
+    </EditModal>
   );
 }

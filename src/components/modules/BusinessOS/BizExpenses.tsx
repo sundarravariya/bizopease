@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { searchRead, createRecord, unlinkRecord } from '../../../services/odoo';
+import { searchRead, createRecord, writeRecord, unlinkRecord } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import {
   Plus, RefreshCw, X, Download, TrendingDown,
   CheckCircle2, AlertCircle, ChevronRight, ChevronDown,
-  BarChart2, List, Users, Wallet, Trash2, Settings, UserPlus,
+  BarChart2, List, Users, Wallet, Trash2, Settings, UserPlus, Pencil,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -84,8 +84,9 @@ export default function BizExpenses() {
   const [preset,     setPreset]     = useState('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo,   setCustomTo]   = useState('');
-  const [addOpen,    setAddOpen]    = useState(false);
-  const [ownersOpen, setOwnersOpen] = useState(false);
+  const [addOpen,     setAddOpen]     = useState(false);
+  const [ownersOpen,  setOwnersOpen]  = useState(false);
+  const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const showMsg = (ok: boolean, msg: string) => {
@@ -361,10 +362,16 @@ export default function BizExpenses() {
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <span className="font-black text-sm" style={{ color: meta.color }}>{inr(e.amount)}</span>
                         {isAdmin && (
-                          <button onClick={() => deleteExpense(e.id)}
-                            className="p-1 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
+                          <>
+                            <button onClick={() => setEditExpense(e)}
+                              className="p-1 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => deleteExpense(e.id)}
+                              className="p-1 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors">
+                              <Trash2 size={13} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -417,6 +424,14 @@ export default function BizExpenses() {
         <ManageOwnersSheet isDark={isDark} owners={owners}
           onClose={() => setOwnersOpen(false)}
           onChanged={() => { loadRefs(); showMsg(true, 'Owners updated.'); }} />
+      )}
+
+      {editExpense && (
+        <EditExpenseModal isDark={isDark} expense={editExpense}
+          associates={associates} owners={owners} employees={employees}
+          onClose={() => setEditExpense(null)}
+          onSaved={() => { setEditExpense(null); loadExpenses(); showMsg(true, 'Expense updated.'); }}
+          onError={m => showMsg(false, m)} />
       )}
     </div>
   );
@@ -675,6 +690,99 @@ function AddExpenseSheet({ isDark, associates, owners, employees, onClose, onSav
             className="w-full py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
             {saving ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />} Save Expense
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditExpenseModal({ isDark, expense, associates, owners, employees, onClose, onSaved, onError }: {
+  isDark: boolean; expense: Expense; associates: Ref[]; owners: Ref[]; employees: Ref[];
+  onClose: () => void; onSaved: () => void; onError: (m: string) => void;
+}) {
+  const [form, setForm] = useState<Record<string, any>>({
+    date: expense.date, amount: expense.amount, category: expense.category,
+    description: expense.description || '', note: expense.note || '',
+    paid_by_id: expense.paid_by_id ? expense.paid_by_id[0] : '',
+    owner_id: expense.owner_id ? expense.owner_id[0] : '',
+    employee_id: expense.employee_id ? expense.employee_id[0] : '',
+  });
+  const [saving, setSaving] = useState(false);
+  const setF = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const field = `input text-sm py-2.5 w-full ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const border = isDark ? 'border-[#2a3250]' : 'border-gray-100';
+
+  const submit = async () => {
+    if (!form.amount || parseFloat(form.amount) <= 0) { onError('Enter a valid amount.'); return; }
+    setSaving(true);
+    try {
+      await writeRecord('biz.expense', [expense.id], {
+        date: form.date, amount: parseFloat(form.amount),
+        category: form.category, description: form.description?.trim() || false, note: form.note || false,
+        paid_by_id: form.paid_by_id ? Number(form.paid_by_id) : false,
+        owner_id: form.owner_id ? Number(form.owner_id) : false,
+        employee_id: form.employee_id ? Number(form.employee_id) : false,
+      });
+      onSaved();
+    } catch (e: any) { onError(e?.message || 'Update failed'); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className={`w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl ${isDark ? 'bg-[#161b2e]' : 'bg-white'} shadow-2xl`} onClick={e => e.stopPropagation()}>
+        <div className={`px-5 py-4 flex items-center justify-between border-b ${border}`}>
+          <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Expense</h2>
+          <button onClick={onClose} className={`p-1.5 rounded-xl ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lbl}>Date *</label><input type="date" value={form.date || ''} onChange={e => setF('date', e.target.value)} className={field} /></div>
+            <div><label className={lbl}>Amount (₹) *</label><input type="number" step="0.01" value={form.amount || ''} onChange={e => setF('amount', e.target.value)} className={field} /></div>
+          </div>
+          <div>
+            <label className={lbl}>Category</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {CATS.map(c => (
+                <button key={c.key} type="button" onClick={() => setF('category', c.key)}
+                  className={`py-2 px-1 rounded-xl border text-[10px] font-bold transition-all text-center leading-tight ${form.category === c.key ? 'border-transparent text-white' : isDark ? 'border-[#2a3250] text-[#6a7a9a]' : 'border-gray-200 text-gray-500'}`}
+                  style={form.category === c.key ? { background: c.color } : {}}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div><label className={lbl}>Description</label><input value={form.description || ''} onChange={e => setF('description', e.target.value)} className={field} /></div>
+          <div><label className={lbl}>Note</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} className={field} /></div>
+          <div>
+            <label className={lbl}>Paid By</label>
+            <select value={form.paid_by_id || ''} onChange={e => setF('paid_by_id', e.target.value)} className={field}>
+              <option value="">-- None --</option>
+              {associates.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          {form.category === 'withdrawal' && (
+            <div>
+              <label className={lbl}>Owner</label>
+              <select value={form.owner_id || ''} onChange={e => setF('owner_id', e.target.value)} className={field}>
+                <option value="">-- None --</option>
+                {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+          )}
+          {form.category === 'salary' && (
+            <div>
+              <label className={lbl}>Employee</label>
+              <select value={form.employee_id || ''} onChange={e => setF('employee_id', e.target.value)} className={field}>
+                <option value="">-- None --</option>
+                {employees.map(em => <option key={em.id} value={em.id}>{em.name}</option>)}
+              </select>
+            </div>
+          )}
+          <button onClick={submit} disabled={saving} className="w-full mt-2 py-3 rounded-2xl text-white font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
+            {saving ? <RefreshCw size={16} className="animate-spin" /> : null} Save Changes
           </button>
         </div>
       </div>
