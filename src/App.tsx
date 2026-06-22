@@ -262,12 +262,17 @@ function InnerApp() {
           <Route path="b2b/stock"     element={<Suspense fallback={<PageLoader />}><B2BStockAvailability /></Suspense>} />
           <Route path="b2b/invoices"  element={<Suspense fallback={<PageLoader />}><B2BInvoices /></Suspense>} />
 
-          {/* ─── Settlements ─── */}
+          {/* ─── Settlements (flipkart_os tenants) ─── */}
           <Route path="settlements/studio"     element={<Suspense fallback={<PageLoader />}><SettlementStudio /></Suspense>} />
           <Route path="settlements/expenses"   element={<Suspense fallback={<PageLoader />}><ExpenseManager /></Suspense>} />
           <Route path="settlements/vendors"    element={<Suspense fallback={<PageLoader />}><SettlementsConsole /></Suspense>} />
           <Route path="settlements/associates" element={<Suspense fallback={<PageLoader />}><SettlementsConsole /></Suspense>} />
           <Route path="settlements/agents"     element={<Suspense fallback={<PageLoader />}><SettlementsConsole /></Suspense>} />
+
+          {/* ─── Settlements (biz_money tenants) ─── */}
+          <Route path="biz/settlements/vendors"    element={<Suspense fallback={<PageLoader />}><SettlementsConsole modelPrefix="biz" /></Suspense>} />
+          <Route path="biz/settlements/associates" element={<Suspense fallback={<PageLoader />}><SettlementsConsole modelPrefix="biz" /></Suspense>} />
+          <Route path="biz/settlements/agents"     element={<Suspense fallback={<PageLoader />}><SettlementsConsole modelPrefix="biz" /></Suspense>} />
 
           {/* ─── AI ─── */}
           <Route path="ai" element={<Suspense fallback={<PageLoader />}><ComingSoon module="AI Assistant" description="Use the floating AI chat button at the bottom-right of your screen." /></Suspense>} />

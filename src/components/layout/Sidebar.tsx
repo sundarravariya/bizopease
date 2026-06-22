@@ -18,7 +18,7 @@ const MODULE_BY_ID: Record<string, string | string[]> = {
   'kiosk': 'robifel_hr', 'hr-settings': 'robifel_hr',
   // Native (non-Flipkart) Business OS modules
   'biz-os': 'biz_os', 'biz-money': 'biz_money', 'biz-expenses': 'biz_money',
-  'biz-create-entry': 'biz_money',
+  'biz-create-entry': 'biz_money', 'biz-settlements': 'biz_money',
 };
 import {
   LayoutDashboard, ShoppingCart, Package, Warehouse,
@@ -141,6 +141,16 @@ const NAV_ITEMS: NavItem[] = [
     path: '/biz/ledger',
     badge: 'QUICK',
     badgeColor: 'violet',
+  },
+  {
+    id: 'biz-settlements',
+    label: 'Settlements',
+    icon: ClipboardList,
+    children: [
+      { id: 'biz-settle-vendors',    label: 'Bill Vendors',     icon: Building2, path: '/biz/settlements/vendors' },
+      { id: 'biz-settle-associates', label: 'Money Associates', icon: UserCheck, path: '/biz/settlements/associates' },
+      { id: 'biz-settle-agents',     label: 'Carrying Agents',  icon: Truck,     path: '/biz/settlements/agents' },
+    ],
   },
   {
     id: 'biz-os',

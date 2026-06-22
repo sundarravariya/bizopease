@@ -110,9 +110,11 @@ interface AddTxnModalProps {
   vendor: BillVendor;
   onClose: () => void;
   onSaved: () => void;
+  modelPrefix?: string;
 }
 
-function AddVendorTxnModal({ vendor, onClose, onSaved }: AddTxnModalProps) {
+function AddVendorTxnModal({ vendor, onClose, onSaved, modelPrefix = 'flipkart' }: AddTxnModalProps) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -133,7 +135,7 @@ function AddVendorTxnModal({ vendor, onClose, onSaved }: AddTxnModalProps) {
     e.preventDefault();
     setSaving(true);
     try {
-      await createRecord('flipkart.bill.payment.transaction', {
+      await createRecord(`${P}.bill.payment.transaction`, {
         vendor_id: vendor.id,
         date: form.date,
         name: form.name,
@@ -213,9 +215,11 @@ interface AddAssocEntryProps {
   associate: MoneyAssociate;
   onClose: () => void;
   onSaved: () => void;
+  modelPrefix?: string;
 }
 
-function AddAssocEntryModal({ associate, onClose, onSaved }: AddAssocEntryProps) {
+function AddAssocEntryModal({ associate, onClose, onSaved, modelPrefix = 'flipkart' }: AddAssocEntryProps) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], entry_type: 'cash_received', amount: '', reference: '', note: '' });
@@ -225,7 +229,7 @@ function AddAssocEntryModal({ associate, onClose, onSaved }: AddAssocEntryProps)
     e.preventDefault();
     setSaving(true);
     try {
-      await createRecord('flipkart.associate.ledger', {
+      await createRecord(`${P}.associate.ledger`, {
         associate_id: associate.id,
         date: form.date,
         entry_type: form.entry_type,
@@ -293,9 +297,11 @@ interface AddAgentEntryProps {
   agent: CarryingAgent;
   onClose: () => void;
   onSaved: () => void;
+  modelPrefix?: string;
 }
 
-function AddAgentEntryModal({ agent, onClose, onSaved }: AddAgentEntryProps) {
+function AddAgentEntryModal({ agent, onClose, onSaved, modelPrefix = 'flipkart' }: AddAgentEntryProps) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], entry_type: 'bill', amount_inr: '', reference: '', notes: '' });
@@ -305,7 +311,7 @@ function AddAgentEntryModal({ agent, onClose, onSaved }: AddAgentEntryProps) {
     e.preventDefault();
     setSaving(true);
     try {
-      await createRecord('flipkart.agent.ledger', {
+      await createRecord(`${P}.agent.ledger`, {
         agent_id: agent.id,
         date: form.date,
         entry_type: form.entry_type,
@@ -373,9 +379,11 @@ function AddAgentEntryModal({ agent, onClose, onSaved }: AddAgentEntryProps) {
 interface UnifiedDrillProps {
   row: UnifiedSummary;
   onClose: () => void;
+  modelPrefix?: string;
 }
 
-function UnifiedDrillModal({ row, onClose }: UnifiedDrillProps) {
+function UnifiedDrillModal({ row, onClose, modelPrefix = 'flipkart' }: UnifiedDrillProps) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [lines, setLines] = useState<UnifiedLine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -384,7 +392,7 @@ function UnifiedDrillModal({ row, onClose }: UnifiedDrillProps) {
     (async () => {
       setLoading(true);
       try {
-        const res = await searchRead<UnifiedLine>('flipkart.unified.ledger.line', {
+        const res = await searchRead<UnifiedLine>(`${P}.unified.ledger.line`, {
           domain: [['party_type', '=', row.party_type], ['party_name', '=', row.party_name]],
           fields: ['id', 'date', 'party_name', 'entry_type', 'reference', 'details', 'debit', 'credit', 'balance'],
           order: 'date desc',
@@ -454,9 +462,11 @@ interface ReceivePaymentModalProps {
   txn: BillTransaction;
   onClose: () => void;
   onSaved: () => void;
+  modelPrefix?: string;
 }
 
-function ReceivePaymentModal({ txn, onClose, onSaved }: ReceivePaymentModalProps) {
+function ReceivePaymentModal({ txn, onClose, onSaved, modelPrefix = 'flipkart' }: ReceivePaymentModalProps) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [amount, setAmount] = useState(String(txn.expected_cash_amount || txn.transfer_amount || ''));
   const [saving, setSaving] = useState(false);
@@ -466,16 +476,16 @@ function ReceivePaymentModal({ txn, onClose, onSaved }: ReceivePaymentModalProps
     e.preventDefault();
     setSaving(true);
     try {
-      const wId = await createRecord('flipkart.bill.payment.entry.wizard', {
+      const wId = await createRecord(`${P}.bill.payment.entry.wizard`, {
         entry_type: 'receive_payment',
         transaction_id: txn.id,
         cash_received: parseFloat(amount) || 0,
       });
-      await odooCall('flipkart.bill.payment.entry.wizard', 'action_post', [[wId]], {});
+      await odooCall(`${P}.bill.payment.entry.wizard`, 'action_post', [[wId]], {});
       onSaved();
       onClose();
     } catch {
-      await writeRecord('flipkart.bill.payment.transaction', [txn.id], {
+      await writeRecord(`${P}.bill.payment.transaction`, [txn.id], {
         actual_cash_received: parseFloat(amount) || 0,
         payment_received: true,
       });
@@ -556,7 +566,8 @@ function Drawer({ title, subtitle, onClose, onAddEntry, children, loading }: Dra
 
 type ActiveTab = 'vendors' | 'associates' | 'agents' | 'unified';
 
-export default function SettlementsConsole() {
+export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { modelPrefix?: string }) {
+  const P = modelPrefix;
   const { isDark } = useTheme();
   const [tab, setTab] = useState<ActiveTab>('vendors');
   const [search, setSearch] = useState('');
@@ -600,10 +611,10 @@ export default function SettlementsConsole() {
     setLoading(true);
     try {
       const [v, a, ag, u] = await Promise.all([
-        searchRead<BillVendor>('flipkart.bill.payment.vendor', { fields: ['id', 'name', 'phone', 'deduction_percent', 'balance', 'notes'], limit: 0 }),
-        searchRead<MoneyAssociate>('flipkart.money.associate', { fields: ['id', 'name', 'phone', 'balance', 'notes'], limit: 0 }),
-        searchRead<CarryingAgent>('flipkart.carrying.agent', { fields: ['id', 'name', 'contact_details', 'outstanding_balance'], limit: 0 }),
-        searchRead<UnifiedSummary>('flipkart.unified.ledger.summary', { fields: ['id', 'party_type', 'party_name', 'debit', 'credit', 'balance'], limit: 0 }),
+        searchRead<BillVendor>(`${P}.bill.payment.vendor`, { fields: ['id', 'name', 'phone', 'deduction_percent', 'balance', 'notes'], limit: 0 }),
+        searchRead<MoneyAssociate>(`${P}.money.associate`, { fields: ['id', 'name', 'phone', 'balance', 'notes'], limit: 0 }),
+        searchRead<CarryingAgent>(`${P}.carrying.agent`, { fields: ['id', 'name', 'contact_details', 'outstanding_balance'], limit: 0 }),
+        searchRead<UnifiedSummary>(`${P}.unified.ledger.summary`, { fields: ['id', 'party_type', 'party_name', 'debit', 'credit', 'balance'], limit: 0 }),
       ]);
       setVendors(v || []);
       setAssociates(a || []);
@@ -618,9 +629,11 @@ export default function SettlementsConsole() {
     setSelectedVendor(vendor);
     setTxnsLoading(true);
     try {
-      const res = await searchRead<BillTransaction>('flipkart.bill.payment.transaction', {
+      const baseFields = ['id', 'name', 'date', 'transfer_amount', 'deduction_amount', 'payment_received', 'actual_cash_received', 'expected_cash_amount', 'note'];
+      const fields = P === 'flipkart' ? [...baseFields, 'agent_payment_source', 'agent_payment_amount'] : baseFields;
+      const res = await searchRead<BillTransaction>(`${P}.bill.payment.transaction`, {
         domain: [['vendor_id', '=', vendor.id]],
-        fields: ['id', 'name', 'date', 'transfer_amount', 'deduction_amount', 'payment_received', 'actual_cash_received', 'expected_cash_amount', 'agent_payment_source', 'agent_payment_amount', 'note'],
+        fields,
         order: 'date desc',
       });
       setVendorTxns(res || []);
@@ -631,7 +644,7 @@ export default function SettlementsConsole() {
     setSelectedAssoc(assoc);
     setAssocLoading(true);
     try {
-      const res = await searchRead<AssociateLedger>('flipkart.associate.ledger', {
+      const res = await searchRead<AssociateLedger>(`${P}.associate.ledger`, {
         domain: [['associate_id', '=', assoc.id]],
         fields: ['id', 'date', 'entry_type', 'amount', 'reference', 'note'],
         order: 'date desc',
@@ -644,7 +657,7 @@ export default function SettlementsConsole() {
     setSelectedAgent(agent);
     setAgentLoading(true);
     try {
-      const res = await searchRead<AgentLedger>('flipkart.agent.ledger', {
+      const res = await searchRead<AgentLedger>(`${P}.agent.ledger`, {
         domain: [['agent_id', '=', agent.id]],
         fields: ['id', 'date', 'entry_type', 'amount_inr', 'reference', 'notes'],
         order: 'date desc',
@@ -662,20 +675,20 @@ export default function SettlementsConsole() {
     setCreating(true);
     try {
       if (tab === 'vendors') {
-        await createRecord('flipkart.bill.payment.vendor', {
+        await createRecord(`${P}.bill.payment.vendor`, {
           name: cForm.name.trim(),
           phone: cForm.phone || false,
           deduction_percent: parseFloat(cForm.deduction_percent || 0) || 0,
           notes: cForm.notes || false,
         });
       } else if (tab === 'associates') {
-        await createRecord('flipkart.money.associate', {
+        await createRecord(`${P}.money.associate`, {
           name: cForm.name.trim(),
           phone: cForm.phone || false,
           notes: cForm.notes || false,
         });
       } else if (tab === 'agents') {
-        await createRecord('flipkart.carrying.agent', {
+        await createRecord(`${P}.carrying.agent`, {
           name: cForm.name.trim(),
           contact_details: cForm.contact_details || false,
         });
@@ -931,7 +944,7 @@ export default function SettlementsConsole() {
               <table className='w-full text-left border-collapse'>
                 <thead className={`border-b ${isDark ? 'border-white/5 bg-[#111827]/30' : 'border-gray-100 bg-gray-50'}`}>
                   <tr>
-                    {['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Agent Paid', 'Paid?', ''].map(h => (
+                    {(P === 'flipkart' ? ['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Agent Paid', 'Paid?', ''] : ['Date', 'Ref', 'Transfer', 'Deduction', 'Cash Rcvd', 'Paid?', '']).map(h => (
                       <th key={h} className={`py-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{h}</th>
                     ))}
                   </tr>
@@ -944,7 +957,7 @@ export default function SettlementsConsole() {
                       <td className='py-2.5 px-3 font-bold text-blue-400'>{fmt(t.transfer_amount)}</td>
                       <td className='py-2.5 px-3 text-amber-400'>{fmt(t.deduction_amount)}</td>
                       <td className='py-2.5 px-3 text-green-400'>{fmt(t.actual_cash_received)}</td>
-                      <td className='py-2.5 px-3'>{t.agent_payment_amount > 0 ? fmt(t.agent_payment_amount) : '--'}</td>
+                      {P === 'flipkart' && <td className='py-2.5 px-3'>{t.agent_payment_amount > 0 ? fmt(t.agent_payment_amount) : '--'}</td>}
                       <td className='py-2.5 px-3'>
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${t.payment_received ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                           {t.payment_received ? 'Yes' : 'No'}
@@ -1043,6 +1056,7 @@ export default function SettlementsConsole() {
       {addVendorTxn && selectedVendor && (
         <AddVendorTxnModal
           vendor={selectedVendor}
+          modelPrefix={P}
           onClose={() => setAddVendorTxn(false)}
           onSaved={() => { openVendorDrawer(selectedVendor); fetchAll(); }}
         />
@@ -1051,6 +1065,7 @@ export default function SettlementsConsole() {
       {addAssocEntry && selectedAssoc && (
         <AddAssocEntryModal
           associate={selectedAssoc}
+          modelPrefix={P}
           onClose={() => setAddAssocEntry(false)}
           onSaved={() => { openAssocDrawer(selectedAssoc); fetchAll(); }}
         />
@@ -1059,18 +1074,20 @@ export default function SettlementsConsole() {
       {addAgentEntry && selectedAgent && (
         <AddAgentEntryModal
           agent={selectedAgent}
+          modelPrefix={P}
           onClose={() => setAddAgentEntry(false)}
           onSaved={() => { openAgentDrawer(selectedAgent); fetchAll(); }}
         />
       )}
 
       {drillRow && (
-        <UnifiedDrillModal row={drillRow} onClose={() => setDrillRow(null)} />
+        <UnifiedDrillModal row={drillRow} modelPrefix={P} onClose={() => setDrillRow(null)} />
       )}
 
       {receiveTxn && selectedVendor && (
         <ReceivePaymentModal
           txn={receiveTxn}
+          modelPrefix={P}
           onClose={() => setReceiveTxn(null)}
           onSaved={() => { setReceiveTxn(null); openVendorDrawer(selectedVendor); fetchAll(); }}
         />
