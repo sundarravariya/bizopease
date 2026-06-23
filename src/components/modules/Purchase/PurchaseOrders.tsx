@@ -107,11 +107,11 @@ export default function PurchaseOrders() {
           order: 'id desc',
         });
       } catch (fieldErr: any) {
-        if (String(fieldErr?.message).includes('carrying_agent_id')) {
+        if (String(fieldErr?.message).includes('Invalid field')) {
           result = await searchRead<PurchaseOrder>('purchase.order', {
             domain: [['state', 'in', ['draft', 'sent', 'purchase', 'done', 'cancel']]],
             fields: ['id', 'name', 'partner_id', 'date_order', 'amount_total', 'state', 'receipt_status',
-              'invoice_status', 'total_inr', 'net_agent_liability_inr', 'currency_id'],
+              'invoice_status', 'currency_id'],
             limit: 0,
             order: 'id desc',
           });
@@ -205,10 +205,10 @@ export default function PurchaseOrders() {
               limit: 1,
             });
           } catch (e: any) {
-            if (String(e?.message).includes('carrying_agent_id')) {
+            if (String(e?.message).includes('Invalid field')) {
               return await searchRead<any>('purchase.order', {
                 domain: [['id', '=', po.id]],
-                fields: ['partner_id', 'date_order', 'currency_id', 'exchange_rate', 'deposit_paid', 'shipping_cost'],
+                fields: ['partner_id', 'date_order', 'currency_id'],
                 limit: 1,
               });
             }
