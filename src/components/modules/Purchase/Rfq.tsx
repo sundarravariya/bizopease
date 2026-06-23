@@ -134,14 +134,26 @@ export default function Rfq() {
     setLoading(true);
     try {
       const domain = stateFilter === 'rfq' ? [['state', 'in', ['draft', 'sent']]] : [['state', 'in', ['purchase', 'done']]];
-      const r = await searchRead<RfqRecord>('purchase.order', {
-        domain,
-        fields: ['id', 'name', 'partner_id', 'date_order', 'date_planned', 'amount_total', 'amount_untaxed',
-          'state', 'currency_id', 'carrying_agent_id', 'exchange_rate', 'deposit_paid',
-          'shipping_cost', 'total_inr', 'deposit_inr', 'net_agent_liability_inr', 'notes',
-          'partner_ref', 'l10n_in_gst_treatment', 'picking_type_id'],
-        limit: 0, order: 'id desc',
-      });
+      let r: RfqRecord[] | null = null;
+      try {
+        r = await searchRead<RfqRecord>('purchase.order', {
+          domain,
+          fields: ['id', 'name', 'partner_id', 'date_order', 'date_planned', 'amount_total', 'amount_untaxed',
+            'state', 'currency_id', 'carrying_agent_id', 'exchange_rate', 'deposit_paid',
+            'shipping_cost', 'total_inr', 'deposit_inr', 'net_agent_liability_inr', 'notes',
+            'partner_ref', 'l10n_in_gst_treatment', 'picking_type_id'],
+          limit: 0, order: 'id desc',
+        });
+      } catch (fieldErr: any) {
+        if (String(fieldErr?.message).includes('Invalid field')) {
+          r = await searchRead<RfqRecord>('purchase.order', {
+            domain,
+            fields: ['id', 'name', 'partner_id', 'date_order', 'date_planned', 'amount_total', 'amount_untaxed',
+              'state', 'currency_id', 'notes', 'partner_ref', 'l10n_in_gst_treatment', 'picking_type_id'],
+            limit: 0, order: 'id desc',
+          });
+        } else throw fieldErr;
+      }
       setRfqs(Array.isArray(r) ? r : []);
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
@@ -210,13 +222,27 @@ export default function Rfq() {
     setSubmitting(true);
     try {
       const [full, poLines] = await Promise.all([
-        searchRead<any>('purchase.order', {
-          domain: [['id', '=', r.id]],
-          fields: ['partner_id', 'date_order', 'date_planned', 'currency_id', 'picking_type_id',
-            'carrying_agent_id', 'exchange_rate', 'deposit_paid', 'shipping_cost',
-            'partner_ref', 'l10n_in_gst_treatment', 'notes'],
-          limit: 1,
-        }),
+        (async () => {
+          try {
+            return await searchRead<any>('purchase.order', {
+              domain: [['id', '=', r.id]],
+              fields: ['partner_id', 'date_order', 'date_planned', 'currency_id', 'picking_type_id',
+                'carrying_agent_id', 'exchange_rate', 'deposit_paid', 'shipping_cost',
+                'partner_ref', 'l10n_in_gst_treatment', 'notes'],
+              limit: 1,
+            });
+          } catch (e: any) {
+            if (String(e?.message).includes('Invalid field')) {
+              return await searchRead<any>('purchase.order', {
+                domain: [['id', '=', r.id]],
+                fields: ['partner_id', 'date_order', 'date_planned', 'currency_id', 'picking_type_id',
+                  'partner_ref', 'l10n_in_gst_treatment', 'notes'],
+                limit: 1,
+              });
+            }
+            throw e;
+          }
+        })(),
         searchRead<any>('purchase.order.line', {
           domain: [['order_id', '=', r.id]],
           fields: ['product_id', 'product_qty', 'price_unit', 'name'],
