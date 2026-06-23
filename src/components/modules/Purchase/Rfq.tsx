@@ -149,7 +149,7 @@ export default function Rfq() {
           r = await searchRead<RfqRecord>('purchase.order', {
             domain,
             fields: ['id', 'name', 'partner_id', 'date_order', 'date_planned', 'amount_total', 'amount_untaxed',
-              'state', 'currency_id', 'notes', 'partner_ref', 'l10n_in_gst_treatment', 'picking_type_id'],
+              'state', 'currency_id', 'notes', 'partner_ref', 'picking_type_id'],
             limit: 0, order: 'id desc',
           });
         } else throw fieldErr;
@@ -236,7 +236,7 @@ export default function Rfq() {
               return await searchRead<any>('purchase.order', {
                 domain: [['id', '=', r.id]],
                 fields: ['partner_id', 'date_order', 'date_planned', 'currency_id', 'picking_type_id',
-                  'partner_ref', 'l10n_in_gst_treatment', 'notes'],
+                  'partner_ref', 'notes'],
                 limit: 1,
               });
             }

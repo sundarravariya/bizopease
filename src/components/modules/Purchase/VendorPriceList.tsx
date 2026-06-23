@@ -165,12 +165,24 @@ export default function VendorPriceList() {
     setLoading(true);
     try {
       const domain: any[] = vendorFilter ? [['partner_id', '=', vendorFilter]] : [];
-      const r = await searchRead<SupplierInfo>('product.supplierinfo', {
-        fields: SI_FIELDS,
-        domain,
-        limit: 0,
-        order: 'partner_id asc, id asc',
-      });
+      let r: SupplierInfo[] | null = null;
+      try {
+        r = await searchRead<SupplierInfo>('product.supplierinfo', {
+          fields: SI_FIELDS,
+          domain,
+          limit: 0,
+          order: 'partner_id asc, id asc',
+        });
+      } catch (fieldErr: any) {
+        if (String(fieldErr?.message).includes('Invalid field')) {
+          r = await searchRead<SupplierInfo>('product.supplierinfo', {
+            fields: ['id', 'partner_id', 'product_tmpl_id', 'product_name', 'product_code', 'min_qty', 'price', 'currency_id', 'delay'],
+            domain,
+            limit: 0,
+            order: 'partner_id asc, id asc',
+          });
+        } else throw fieldErr;
+      }
       setItems(Array.isArray(r) ? r : []);
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
