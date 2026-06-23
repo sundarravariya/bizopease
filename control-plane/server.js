@@ -458,7 +458,7 @@ app.post('/api/queen/authenticate', loginLimiter, async (req, res) => {
     // who proved queenfinger credentials can reach queenfinger data.
     const token = jwt.sign(
       { role: 'queen', db: QUEEN_DB, uid: result.uid, email: login },
-      JWT_SECRET, { expiresIn: '7d' }
+      JWT_SECRET, { expiresIn: '365d' }
     );
     res.json({
       token,
@@ -589,7 +589,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
       const token = jwt.sign(
         { role: 'tenant', email: emailNorm, workspace: ws.tenant_id, odooDb, odooUid: uid },
-        JWT_SECRET, { expiresIn: '7d' }
+        JWT_SECRET, { expiresIn: '365d' }
       );
       console.log(`[Auth] Login: ${email} → workspace ${ws.tenant_id} (DB: ${odooDb}) UID: ${uid}`);
       res.json({ token, workspace: ws.tenant_id, workspaceName: ws.workspace_name, odooDb, odooSessionId, email: emailNorm });

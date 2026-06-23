@@ -97,13 +97,26 @@ export default function PurchaseOrders() {
   const syncData = async () => {
     setLoading(true);
     try {
-      const result = await searchRead<PurchaseOrder>('purchase.order', {
-        domain: [['state', 'in', ['draft', 'sent', 'purchase', 'done', 'cancel']]],
-        fields: ['id', 'name', 'partner_id', 'date_order', 'amount_total', 'state', 'receipt_status',
-          'invoice_status', 'carrying_agent_id', 'total_inr', 'net_agent_liability_inr', 'currency_id'],
-        limit: 0,
-        order: 'id desc',
-      });
+      let result: PurchaseOrder[] | null = null;
+      try {
+        result = await searchRead<PurchaseOrder>('purchase.order', {
+          domain: [['state', 'in', ['draft', 'sent', 'purchase', 'done', 'cancel']]],
+          fields: ['id', 'name', 'partner_id', 'date_order', 'amount_total', 'state', 'receipt_status',
+            'invoice_status', 'carrying_agent_id', 'total_inr', 'net_agent_liability_inr', 'currency_id'],
+          limit: 0,
+          order: 'id desc',
+        });
+      } catch (fieldErr: any) {
+        if (String(fieldErr?.message).includes('carrying_agent_id')) {
+          result = await searchRead<PurchaseOrder>('purchase.order', {
+            domain: [['state', 'in', ['draft', 'sent', 'purchase', 'done', 'cancel']]],
+            fields: ['id', 'name', 'partner_id', 'date_order', 'amount_total', 'state', 'receipt_status',
+              'invoice_status', 'total_inr', 'net_agent_liability_inr', 'currency_id'],
+            limit: 0,
+            order: 'id desc',
+          });
+        } else throw fieldErr;
+      }
       if (Array.isArray(result)) setItems(result);
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
@@ -184,11 +197,24 @@ export default function PurchaseOrders() {
     setSubmitting(true);
     try {
       const [full, poLines] = await Promise.all([
-        searchRead<any>('purchase.order', {
-          domain: [['id', '=', po.id]],
-          fields: ['partner_id', 'date_order', 'carrying_agent_id', 'currency_id', 'exchange_rate', 'deposit_paid', 'shipping_cost'],
-          limit: 1,
-        }),
+        (async () => {
+          try {
+            return await searchRead<any>('purchase.order', {
+              domain: [['id', '=', po.id]],
+              fields: ['partner_id', 'date_order', 'carrying_agent_id', 'currency_id', 'exchange_rate', 'deposit_paid', 'shipping_cost'],
+              limit: 1,
+            });
+          } catch (e: any) {
+            if (String(e?.message).includes('carrying_agent_id')) {
+              return await searchRead<any>('purchase.order', {
+                domain: [['id', '=', po.id]],
+                fields: ['partner_id', 'date_order', 'currency_id', 'exchange_rate', 'deposit_paid', 'shipping_cost'],
+                limit: 1,
+              });
+            }
+            throw e;
+          }
+        })(),
         searchRead<any>('purchase.order.line', {
           domain: [['order_id', '=', po.id]],
           fields: ['product_id', 'product_qty', 'price_unit'],

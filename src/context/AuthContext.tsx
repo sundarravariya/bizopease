@@ -22,6 +22,7 @@ interface AuthContextType {
   error: string | null;
   login: (username: string, password: string, db?: string) => Promise<void>;
   setAuthUser: (user: User) => void;
+  persistCredentials: (username: string, password: string, db: string) => void;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -84,6 +85,7 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
   login: async () => {},
   setAuthUser: () => {},
+  persistCredentials: () => {},
   logout: async () => {},
   clearError: () => {},
 });
@@ -95,9 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // On mount: verify stored session is still valid against Odoo
+  // On mount: verify stored session is still valid against Odoo.
+  // Queen tenants use a JWT (not an Odoo session) — skip this check for them.
   useEffect(() => {
     if (!user) return;
+    if (user.is_queen_tenant) return;
     odooGetSession()
       .then(async session => {
         if (!session?.uid) {
@@ -215,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('robifel-user', JSON.stringify(u));
   }, []);
 
+  const persistCredentials = useCallback((username: string, password: string, db: string) => {
+    saveCredentials(username, password, db);
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
@@ -225,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
       login,
       setAuthUser,
+      persistCredentials,
       logout,
       clearError,
     }}>

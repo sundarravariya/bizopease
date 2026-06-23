@@ -469,7 +469,8 @@ interface ReceivePaymentModalProps {
 function ReceivePaymentModal({ txn, onClose, onSaved, modelPrefix = 'flipkart' }: ReceivePaymentModalProps) {
   const P = modelPrefix;
   const { isDark } = useTheme();
-  const [amount, setAmount] = useState(String(txn.expected_cash_amount || txn.transfer_amount || ''));
+  const pendingAmt = Math.max((txn.expected_cash_amount || 0) - (txn.actual_cash_received || 0) - (txn.agent_payment_amount || 0), 0);
+  const [amount, setAmount] = useState(String(pendingAmt || txn.expected_cash_amount || txn.transfer_amount || ''));
   const [saving, setSaving] = useState(false);
   const base = isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : '';
 
@@ -480,14 +481,16 @@ function ReceivePaymentModal({ txn, onClose, onSaved, modelPrefix = 'flipkart' }
       const wId = await createRecord(`${P}.bill.payment.entry.wizard`, {
         entry_type: 'receive_payment',
         transaction_id: txn.id,
-        cash_received: parseFloat(amount) || 0,
+        actual_cash_received: parseFloat(amount) || 0,
       });
-      await odooCall(`${P}.bill.payment.entry.wizard`, 'action_post', [[wId]], {});
+      await odooCall(`${P}.bill.payment.entry.wizard`, 'action_apply', [[wId]], {});
       onSaved();
       onClose();
     } catch {
+      // fallback: write directly, accumulating on top of existing amount
+      const newTotal = (txn.actual_cash_received || 0) + (parseFloat(amount) || 0);
       await writeRecord(`${P}.bill.payment.transaction`, [txn.id], {
-        actual_cash_received: parseFloat(amount) || 0,
+        actual_cash_received: newTotal,
         payment_received: true,
       });
       onSaved();
@@ -855,6 +858,20 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
     try { await unlinkRecord(model, [id]); refresh(); } catch (e: any) { alert(e?.message || 'Delete failed'); }
   };
 
+  const handleDeleteVendorTxn = async (t: BillTransaction) => {
+    if (!window.confirm('Delete this transaction? Related ledger entries will also be removed.')) return;
+    try {
+      // Cascade: remove associate ledger entries referencing this transaction
+      try {
+        const rel = await searchRead<any>(`${P}.associate.ledger`, { domain: [['reference', '=', t.name]], fields: ['id'], limit: 0 });
+        if (rel?.length) await unlinkRecord(`${P}.associate.ledger`, rel.map((r: any) => r.id));
+      } catch {}
+      await unlinkRecord(`${P}.bill.payment.transaction`, [t.id]);
+      if (selectedVendor) openVendorDrawer(selectedVendor);
+      fetchAll();
+    } catch (e: any) { alert(e?.message || 'Delete failed'); }
+  };
+
   // Tab 4: Unified
   const [unified, setUnified] = useState<UnifiedSummary[]>([]);
   const [partyTypeFilter, setPartyTypeFilter] = useState('');
@@ -879,6 +896,10 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
       setAssociates(a || []);
       setAgents(ag || []);
       setUnified(u || []);
+      // Sync open drawer headers with fresh balances
+      setSelectedVendor(prev => prev ? ((v || []).find(x => x.id === prev.id) ?? prev) : null);
+      setSelectedAssoc(prev => prev ? ((a || []).find(x => x.id === prev.id) ?? prev) : null);
+      setSelectedAgent(prev => prev ? ((ag || []).find(x => x.id === prev.id) ?? prev) : null);
     } catch { } finally { setLoading(false); }
   }, []);
 
@@ -1066,9 +1087,9 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
                           </td>
                           <td className='py-3 px-4 text-right'>
-                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                              <button onClick={e => { e.stopPropagation(); setEditVendor(v); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
-                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.bill.payment.vendor`, v.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            <div className='flex items-center justify-end gap-1 flex'>
+                              <button onClick={e => { e.stopPropagation(); setEditVendor(v); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.bill.payment.vendor`, v.id, fetchAll); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={12} /></button>
                             </div>
                           </td>
                         </tr>
@@ -1105,9 +1126,9 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
                           </td>
                           <td className='py-3 px-4'>
-                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                              <button onClick={e => { e.stopPropagation(); setEditAssociate(a); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
-                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.money.associate`, a.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            <div className='flex items-center justify-end gap-1 flex'>
+                              <button onClick={e => { e.stopPropagation(); setEditAssociate(a); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.money.associate`, a.id, fetchAll); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={12} /></button>
                             </div>
                           </td>
                         </tr>
@@ -1148,9 +1169,9 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                             <ChevronRight size={14} className={isDark ? 'text-[#5a6a8a] mx-auto' : 'text-gray-400 mx-auto'} />
                           </td>
                           <td className='py-3 px-4'>
-                            <div className='flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                              <button onClick={e => { e.stopPropagation(); setEditAgent(a); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={12} /></button>
-                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.carrying.agent`, a.id, fetchAll); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={12} /></button>
+                            <div className='flex items-center justify-end gap-1 flex'>
+                              <button onClick={e => { e.stopPropagation(); setEditAgent(a); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={12} /></button>
+                              <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.carrying.agent`, a.id, fetchAll); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={12} /></button>
                             </div>
                           </td>
                         </tr>
@@ -1245,15 +1266,15 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                       </td>
                       <td className='py-2.5 px-3'>
                         <div className='flex items-center gap-1'>
-                          {!t.payment_received && (
+                          {Math.max((t.expected_cash_amount || 0) - (t.actual_cash_received || 0) - (t.agent_payment_amount || 0), 0) > 0.01 && (
                             <button onClick={e => { e.stopPropagation(); setReceiveTxn(t); }}
                               className='text-[10px] font-bold px-2 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 whitespace-nowrap'>
                               Receive
                             </button>
                           )}
-                          <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
-                            <button onClick={e => { e.stopPropagation(); setEditVendorTxn(t); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
-                            <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.bill.payment.transaction`, t.id, () => { openVendorDrawer(selectedVendor!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                          <div className='flex items-center gap-0.5 flex'>
+                            <button onClick={e => { e.stopPropagation(); setEditVendorTxn(t); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={11} /></button>
+                            <button onClick={e => { e.stopPropagation(); handleDeleteVendorTxn(t); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={11} /></button>
                           </div>
                         </div>
                       </td>
@@ -1293,9 +1314,9 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                       <td className='py-2.5 px-3'>{l.reference || '--'}</td>
                       <td className='py-2.5 px-3 font-bold text-[#7367f0]'>{fmt(l.amount)}</td>
                       <td className='py-2.5 px-3'>
-                        <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
-                          <button onClick={e => { e.stopPropagation(); setEditAssocEntry(l); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
-                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.associate.ledger`, l.id, () => { openAssocDrawer(selectedAssoc!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                        <div className='flex items-center gap-0.5 flex'>
+                          <button onClick={e => { e.stopPropagation(); setEditAssocEntry(l); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={11} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.associate.ledger`, l.id, () => { openAssocDrawer(selectedAssoc!); fetchAll(); }); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={11} /></button>
                         </div>
                       </td>
                     </tr>
@@ -1336,9 +1357,9 @@ export default function SettlementsConsole({ modelPrefix = 'flipkart' }: { model
                         {fmt(l.amount_inr)}
                       </td>
                       <td className='py-2.5 px-3'>
-                        <div className='flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity'>
-                          <button onClick={e => { e.stopPropagation(); setEditAgentEntry(l); }} className='p-1 rounded hover:bg-blue-500/10 text-blue-400' title='Edit'><Pencil size={11} /></button>
-                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.agent.ledger`, l.id, () => { openAgentDrawer(selectedAgent!); fetchAll(); }); }} className='p-1 rounded hover:bg-red-500/10 text-red-400' title='Delete'><Trash2 size={11} /></button>
+                        <div className='flex items-center gap-0.5 flex'>
+                          <button onClick={e => { e.stopPropagation(); setEditAgentEntry(l); }} className='p-1 rounded' style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title='Edit'><Pencil size={11} /></button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(`${P}.agent.ledger`, l.id, () => { openAgentDrawer(selectedAgent!); fetchAll(); }); }} className='p-1 rounded' style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title='Delete'><Trash2 size={11} /></button>
                         </div>
                       </td>
                     </tr>

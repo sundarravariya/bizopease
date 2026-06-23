@@ -6,7 +6,7 @@ import { registerWorkspaceLogins } from '../../../services/workspaceUsers';
 import {
   RefreshCw, Search, Eye, List, LayoutGrid,
   Mail, Phone, X, Users, UserCheck, CalendarOff, Building2,
-  UserPlus, Copy, Check, KeyRound, ShieldCheck, Trash2,
+  UserPlus, Copy, Check, KeyRound, ShieldCheck, Trash2, Pencil,
 } from 'lucide-react';
 
 function generatePassword(len = 12): string {
@@ -88,11 +88,44 @@ export default function Employees() {
   const [acctResult, setAcctResult] = useState<{ login: string; password: string; name: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
+  const [editEmp, setEditEmp] = useState<Employee | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', job_title: '', department: '', email: '', phone: '', state: 'active' as Employee['state'] });
+  const [editing, setEditing] = useState(false);
+
   const openCreate = () => {
     setForm({ ...blankForm });
     setAcct({ createLogin: true, password: generatePassword(), role: 'employee' });
     setAcctResult(null);
     setShowCreate(true);
+  };
+
+  const openEdit = (emp: Employee) => {
+    setEditForm({ name: emp.name, job_title: emp.job_title, department: emp.department, email: emp.email, phone: emp.phone, state: emp.state });
+    setEditEmp(emp);
+  };
+
+  const handleEditSave = async () => {
+    if (!editEmp || !editForm.name.trim()) { showToast('Full name is required.'); return; }
+    setEditing(true);
+    try {
+      const departmentId = await resolveDepartmentId(editForm.department);
+      await writeRecord('hr.employee', [editEmp.id], {
+        name: editForm.name.trim(),
+        job_title: editForm.job_title || false,
+        work_email: editForm.email || false,
+        work_phone: editForm.phone || false,
+        active: editForm.state !== 'suspended',
+        ...(departmentId ? { department_id: departmentId } : {}),
+      });
+      await syncData();
+      setEditEmp(null);
+      setDrawerEmp(null);
+      showToast('Employee updated successfully.');
+    } catch (e: any) {
+      showToast('Error: ' + (e?.message || 'Could not update employee'));
+    } finally {
+      setEditing(false);
+    }
   };
 
   const copyToClipboard = (text: string, key: string) => {
@@ -390,8 +423,9 @@ export default function Employees() {
                 <button onClick={() => setDrawerEmp(emp)} className='btn-secondary text-[10px] px-3 py-1.5 flex items-center gap-1 flex-1 justify-center'>
                   <Eye size={10} /> View Profile
                 </button>
-                <button className='btn-primary text-[10px] px-3 py-1.5 flex items-center gap-1 flex-1 justify-center'>
-                  <CalendarOff size={10} /> Request Leave
+                <button onClick={() => openEdit(emp)} title='Edit employee'
+                  className='text-[10px] px-2.5 py-1.5 rounded-lg flex items-center justify-center border border-[#7367f0]/30 text-[#7367f0] hover:bg-[#7367f0]/10'>
+                  <Pencil size={11} />
                 </button>
                 <button onClick={() => handleDelete(emp)} disabled={deletingId === emp.id} title='Delete employee'
                   className='text-[10px] px-2.5 py-1.5 rounded-lg flex items-center justify-center border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 disabled:opacity-40'>
@@ -455,6 +489,7 @@ export default function Employees() {
                       <td>
                         <div className='flex items-center justify-center gap-1'>
                           <button onClick={() => setDrawerEmp(emp)} title='View profile' className={`p-1.5 rounded-lg transition-colors ${isDark ? 'hover:bg-white/5 text-[#5a6a8a] hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}><Eye size={13} /></button>
+                          <button onClick={() => openEdit(emp)} title='Edit employee' className='p-1.5 rounded-lg transition-colors text-[#7367f0] hover:bg-[#7367f0]/10'><Pencil size={13} /></button>
                           <button onClick={() => handleDelete(emp)} disabled={deletingId === emp.id} title='Delete employee' className='p-1.5 rounded-lg transition-colors text-rose-400 hover:bg-rose-500/10 disabled:opacity-40'>
                             {deletingId === emp.id ? <RefreshCw size={13} className='animate-spin' /> : <Trash2 size={13} />}
                           </button>
@@ -479,7 +514,10 @@ export default function Employees() {
           <div className={`relative w-full max-w-md h-full overflow-y-auto p-6 space-y-5 shadow-2xl ${isDark ? 'bg-[#161b2e] border-l border-[#2a3250]' : 'bg-white border-l border-gray-200'}`}>
             <div className='flex items-center justify-between'>
               <h2 className={`font-black text-sm ${th}`}>Employee Profile</h2>
-              <button onClick={() => setDrawerEmp(null)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a] hover:text-white' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
+              <div className='flex items-center gap-1.5'>
+                <button onClick={() => openEdit(drawerEmp)} title='Edit employee' className={`p-1.5 rounded-lg text-[#7367f0] hover:bg-[#7367f0]/10`}><Pencil size={15} /></button>
+                <button onClick={() => setDrawerEmp(null)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a] hover:text-white' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
+              </div>
             </div>
             <div className='flex items-center gap-4'>
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-black text-xl bg-gradient-to-br ${DEPT_GRADIENTS[drawerEmp.department] || 'from-violet-500 to-indigo-600'}`}>
@@ -675,6 +713,59 @@ export default function Employees() {
                 <button onClick={() => { setShowCreate(false); setAcctResult(null); setForm({ ...blankForm }); syncData(); }} className='btn-primary text-xs px-4 py-2 w-full'>Done</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Employee Modal */}
+      {editEmp && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center p-4'>
+          <div className='absolute inset-0 bg-black/60 backdrop-blur-sm' onClick={() => setEditEmp(null)} />
+          <div className={`relative w-full max-w-lg rounded-2xl p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh] ${isDark ? 'bg-[#161b2e] border border-[#2a3250]' : 'bg-white border border-gray-200'}`}>
+            <div className='flex items-center justify-between'>
+              <h3 className={`font-black text-sm ${th}`}>Edit Employee</h3>
+              <button onClick={() => setEditEmp(null)} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={16} /></button>
+            </div>
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+              <div className='sm:col-span-2'>
+                <label className='label'>Full Name <span className='text-red-400'>*</span></label>
+                <input placeholder='Full name' value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={`${inp} w-full`} autoFocus />
+              </div>
+              <div>
+                <label className='label'>Job Title</label>
+                <input placeholder='e.g. Sales Executive' value={editForm.job_title} onChange={e => setEditForm(f => ({ ...f, job_title: e.target.value }))} className={`${inp} w-full`} />
+              </div>
+              <div>
+                <label className='label'>Department</label>
+                <select value={editForm.department} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} className={`${inp} w-full`}>
+                  <option value=''>— Select —</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className='label'>Email</label>
+                <input type='email' placeholder='name@company.in' value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={`${inp} w-full`} />
+              </div>
+              <div>
+                <label className='label'>Phone</label>
+                <input type='tel' placeholder='+91 98765 43210' value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} className={`${inp} w-full`} />
+              </div>
+              <div className='sm:col-span-2'>
+                <label className='label'>Status</label>
+                <select value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value as Employee['state'] }))} className={`${inp} w-full`}>
+                  <option value='active'>Active</option>
+                  <option value='on_leave'>On Leave</option>
+                  <option value='suspended'>Suspended</option>
+                </select>
+              </div>
+            </div>
+            <div className='flex gap-2 pt-1'>
+              <button onClick={handleEditSave} disabled={editing || !editForm.name.trim()}
+                className='btn-primary text-xs px-4 py-2 flex-1 flex items-center justify-center gap-1.5 disabled:opacity-50'>
+                {editing ? <><RefreshCw size={12} className='animate-spin' /> Saving…</> : <><Pencil size={12} /> Save Changes</>}
+              </button>
+              <button onClick={() => setEditEmp(null)} className='btn-secondary text-xs px-4 py-2'>Cancel</button>
+            </div>
           </div>
         </div>
       )}

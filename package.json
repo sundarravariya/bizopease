@@ -16,7 +16,7 @@
     "cap:add:ios": "npx cap add ios",
     "kiosk:build": "vite build --config vite.kiosk.config.ts",
     "kiosk:sync": "npm run kiosk:build && npx cap sync --config capacitor-kiosk.config.ts",
-    "deploy": "npm run build:web && scp -r dist/* root@82.180.144.9:/var/www/bizopease-portal/"
+    "deploy": "npm run build:web && scp -r dist/assets root@82.180.144.9:/var/www/bizopease/portal/ && scp dist/index.html root@82.180.144.9:/var/www/bizopease/index.html"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",

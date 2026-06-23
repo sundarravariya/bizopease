@@ -31,6 +31,9 @@ interface LedgerItem {
   direction: 'in' | 'out' | 'neutral';
   status?: string;
   detail?: { label: string; value: number; tone: string }[];
+  isVirtual?: boolean;
+  parentId?: number;
+  virtualType?: 'cash_received' | 'agent_payment';
 }
 
 interface Ref { id: number; name: string; }
@@ -104,6 +107,13 @@ export default function BizMoneyManager() {
       setVendorsRef(v.map(x => ({ id: x.id, name: x.name })));
       setAssociatesRef(a.map(x => ({ id: x.id, name: x.name })));
       setAgentsRef(g.map(x => ({ id: x.id, name: x.name })));
+      // Sync the open ledger sheet's party with fresh balance data
+      setActiveParty(prev => {
+        if (!prev) return null;
+        const freshList = prev.type === 'vendor' ? v : prev.type === 'associate' ? a : g;
+        const fresh = freshList.find(p => p.id === prev.party.id);
+        return fresh ? { type: prev.type, party: fresh } : prev;
+      });
     } catch (e: any) { showMsg(false, e.message); }
     finally { setLoading(false); }
   }, []);
@@ -155,8 +165,9 @@ export default function BizMoneyManager() {
             items.push({
               id: r.id * 10000 + 1, date: r.date,
               title: 'Cash Received',
-              subtitle: rcvBy ? `Collected by ${rcvBy}` : `For ${r.name || 'transaction'}`,
+              subtitle: rcvBy ? `Collected by ${rcvBy} · ${r.name || ''}` : `For ${r.name || 'transaction'}`,
               amount: received, direction: 'in' as const,
+              parentId: r.id, virtualType: 'cash_received' as const,
             });
           }
 
@@ -169,6 +180,7 @@ export default function BizMoneyManager() {
               subtitle: `Paid by ${agentName} ${src} · ${r.name || ''}`.trim(),
               amount: agentPaid, direction: 'in' as const,
               status: 'agent_paid',
+              parentId: r.id, virtualType: 'agent_payment' as const,
             });
           }
         }
@@ -304,9 +316,9 @@ export default function BizMoneyManager() {
               <p className={`font-black text-sm ${p.balance > 0 ? (tab === 'agent' ? 'text-rose-500' : 'text-emerald-500') : p.balance < 0 ? 'text-amber-400' : sub}`}>{inr(p.balance)}</p>
               <p className={`text-[10px] font-semibold uppercase tracking-wider ${sub}`}>{p.balance > 0 ? (tab === 'agent' ? 'To Pay' : 'To Collect') : p.balance < 0 ? 'Advance' : 'Settled'}</p>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setEditPartyData({ type: tab, party: p })} className="p-1.5 rounded-xl hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={14} /></button>
-              <button onClick={async () => { if (!confirm('Delete this party?')) return; try { await unlinkRecord(TABS.find(t => t.key === tab)!.model, [p.id]); fetchAll(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1.5 rounded-xl hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={14} /></button>
+            <div className="flex items-center gap-1 flex" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setEditPartyData({ type: tab, party: p })} className="p-1.5 rounded-xl" style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title="Edit"><Pencil size={14} /></button>
+              <button onClick={async () => { if (!confirm('Delete this party?')) return; try { await unlinkRecord(TABS.find(t => t.key === tab)!.model, [p.id]); fetchAll(); } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); } }} className="p-1.5 rounded-xl" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={14} /></button>
             </div>
             <ChevronRight size={16} className={sub} />
           </div>
@@ -346,10 +358,25 @@ export default function BizMoneyManager() {
           onEditEntry={item => setEditEntryData(item)}
           onDeleteEntry={async item => {
             if (!confirm('Delete this entry?')) return;
-            const model = activeParty.type === 'vendor' ? 'biz.bill.payment.transaction'
-              : activeParty.type === 'associate' ? 'biz.associate.ledger' : 'biz.agent.ledger';
-            try { await unlinkRecord(model, [item.id]); openLedger(activeParty.type, activeParty.party); fetchAll(); }
-            catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
+            try {
+              if (item.virtualType === 'cash_received') {
+                await writeRecord('biz.bill.payment.transaction', [item.parentId!], { actual_cash_received: 0, payment_received: false });
+              } else if (item.virtualType === 'agent_payment') {
+                await writeRecord('biz.bill.payment.transaction', [item.parentId!], { agent_payment_amount: 0, carrying_agent_id: false });
+              } else {
+                const model = activeParty.type === 'vendor' ? 'biz.bill.payment.transaction'
+                  : activeParty.type === 'associate' ? 'biz.associate.ledger' : 'biz.agent.ledger';
+                if (activeParty.type === 'vendor') {
+                  try {
+                    const rel = await searchRead<any>('biz.associate.ledger', { domain: [['reference', '=', item.title]], fields: ['id'], limit: 0 });
+                    if (rel?.length) await unlinkRecord('biz.associate.ledger', rel.map((r: any) => r.id));
+                  } catch {}
+                }
+                await unlinkRecord(model, [item.id]);
+              }
+              openLedger(activeParty.type, activeParty.party);
+              fetchAll();
+            } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
           }}
         />
       )}
@@ -457,13 +484,16 @@ function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry
           ) : ledger.length === 0 ? (
             <div className={`py-12 text-center text-sm ${sub}`}>No transactions yet for this {type}.</div>
           ) : ledger.map(l => (
-            <div key={l.id} className={`group rounded-2xl p-3.5 ${itemBg}`}>
+            <div key={l.id} className={`rounded-2xl p-3.5 ${itemBg}`}>
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className={`font-bold text-sm ${txt}`}>{l.title}</p>
                     {l.status && TXN_STATE[l.status] && (
                       <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${TXN_STATE[l.status].cls}`}>{TXN_STATE[l.status].label}</span>
+                    )}
+                    {l.isVirtual && (
+                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${isDark ? 'bg-white/5 text-[#5a6a8a]' : 'bg-gray-100 text-gray-400'}`}>auto</span>
                     )}
                   </div>
                   <p className={`text-xs mt-0.5 truncate ${sub}`}>{l.subtitle}</p>
@@ -476,9 +506,9 @@ function LedgerSheet({ isDark, party, type, ledger, loading, onClose, onNewEntry
                     <p className={`text-[10px] ${sub}`}>{l.date}</p>
                   </div>
                   {(onEditEntry || onDeleteEntry) && (
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {onEditEntry && <button onClick={() => onEditEntry(l)} className="p-1 rounded-lg hover:bg-blue-500/10 text-blue-400" title="Edit"><Pencil size={13} /></button>}
-                      {onDeleteEntry && <button onClick={() => onDeleteEntry(l)} className="p-1 rounded-lg hover:bg-red-500/10 text-red-400" title="Delete"><Trash2 size={13} /></button>}
+                    <div className="flex items-center gap-0.5">
+                      {onEditEntry && !l.parentId && <button onClick={() => onEditEntry(l)} className="p-1 rounded-lg" style={{ color: '#6b7280', background: 'rgba(107,114,128,0.12)' }} title="Edit"><Pencil size={13} /></button>}
+                      {onDeleteEntry && <button onClick={() => onDeleteEntry(l)} className="p-1 rounded-lg" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={13} /></button>}
                     </div>
                   )}
                 </div>
@@ -646,7 +676,7 @@ function AddPartySheet({ isDark, type, onClose, onSaved, onError }: {
 const TAB_ENTRY_MAP: Record<PartyType, { key: string; label: string }[]> = {
   vendor:    [{ key: 'bank_transfer', label: 'Bank Transfer' }, { key: 'receive_payment', label: 'Receive Cash' }],
   associate: [{ key: 'associate_transfer', label: 'Assoc. Transfer' }],
-  agent:     [{ key: 'agent_payment', label: 'Agent Payment' }],
+  agent:     [{ key: 'agent_payment', label: 'Agent Payment' }, { key: 'agent_bill', label: '+Bill' }],
 };
 
 const AMOUNT_FIELD: Record<string, { field: string; label: string }> = {
@@ -655,6 +685,7 @@ const AMOUNT_FIELD: Record<string, { field: string; label: string }> = {
   agent_payment: { field: 'agent_payment_amount', label: 'Agent Payment' },
   expense: { field: 'expense_amount', label: 'Expense Amount' },
   associate_transfer: { field: 'transfer_amount', label: 'Transfer Amount' },
+  agent_bill: { field: 'agent_bill_amount', label: 'Bill Amount' },
 };
 
 function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, onClose, onSaved, onError }: {
@@ -665,7 +696,7 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, onCl
   const [entryType, setEntryType] = useState(tabTypes[0].key);
   const amt = AMOUNT_FIELD[entryType] || AMOUNT_FIELD.bank_transfer;
   const [form, setForm] = useState<Record<string, any>>({ date: new Date().toISOString().slice(0, 10) });
-  const [vendorTxns, setVendorTxns] = useState<Array<{ id: number; name: string; expectedCash: number; received: number; remaining: number }>>([]);
+  const [vendorTxns, setVendorTxns] = useState<Array<{ id: number; name: string; expectedCash: number; received: number; agentPaid: number; remaining: number }>>([]);
   const [saving, setSaving] = useState(false);
   const setF = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
 
@@ -675,15 +706,17 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, onCl
   const loadTxns = async (vendorId: number) => {
     try {
       const r = await searchRead<any>('biz.bill.payment.transaction', {
-        fields: ['id', 'name', 'expected_cash_amount', 'actual_cash_received', 'state'],
-        domain: [['vendor_id', '=', vendorId]],
-        order: 'date desc, id desc', limit: 0,
+        fields: ['id', 'name', 'expected_cash_amount', 'actual_cash_received', 'agent_payment_amount', 'state'],
+        domain: [['vendor_id', '=', vendorId], ['state', 'in', ['pending', 'partial']]],
+        order: 'date asc, id asc', limit: 0,
       });
       const open = (r || [])
         .map((row: any) => {
           const expectedCash = row.expected_cash_amount || 0;
           const received = row.actual_cash_received || 0;
-          return { id: row.id, name: row.name, expectedCash, received, remaining: Math.max(expectedCash - received, 0) };
+          const agentPaid = row.agent_payment_amount || 0;
+          const remaining = Math.max(expectedCash - received - agentPaid, 0);
+          return { id: row.id, name: row.name, expectedCash, received, agentPaid, remaining };
         })
         .filter(t => t.remaining > 0.01);
       setVendorTxns(open);
@@ -704,8 +737,20 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, onCl
       else if (entryType === 'agent_payment') { vals.vendor_id = form.vendor_id; if (form.transaction_id) vals.transaction_id = form.transaction_id; vals.agent_payment_source = form.agent_payment_source || 'vendor'; vals.carrying_agent_id = form.carrying_agent_id; vals.agent_payment_amount = parseFloat(form.agent_payment_amount || 0); if ((form.agent_payment_source || 'vendor') === 'associate') vals.received_by_id = form.received_by_id; }
       else if (entryType === 'expense') { vals.received_by_id = form.received_by_id; vals.actual_cash_received = parseFloat(form.expense_amount || 0); }
       else if (entryType === 'associate_transfer') { vals.received_by_id = form.from_associate_id; vals.to_associate_id = form.to_associate_id; vals.actual_cash_received = parseFloat(form.transfer_amount || 0); }
-      const wid = await createRecord('biz.bill.payment.entry.wizard', vals);
-      await odooCall('biz.bill.payment.entry.wizard', 'action_apply', [[wid]], {});
+
+      if (entryType === 'agent_bill') {
+        await createRecord('biz.agent.ledger', {
+          agent_id: form.agent_id,
+          date: form.date,
+          entry_type: 'bill',
+          amount_inr: parseFloat(form.agent_bill_amount || 0),
+          reference: form.reference || '',
+          notes: form.note || '',
+        });
+      } else {
+        const wid = await createRecord('biz.bill.payment.entry.wizard', vals);
+        await odooCall('biz.bill.payment.entry.wizard', 'action_apply', [[wid]], {});
+      }
       onSaved();
     } catch (e: any) { onError('Failed: ' + (e?.message || 'error')); }
     finally { setSaving(false); }
@@ -818,6 +863,12 @@ function CreateEntrySheet({ isDark, activeTab, vendors, associates, agents, onCl
         {entryType === 'associate_transfer' && <>
           <Sel label="From Associate *" value={form.from_associate_id} onChange={v => setF('from_associate_id', v)} options={associates} placeholder="Select associate" />
           <Sel label="To Associate *" value={form.to_associate_id} onChange={v => setF('to_associate_id', v)} options={associates} placeholder="Select associate" />
+        </>}
+
+        {entryType === 'agent_bill' && <>
+          <Sel label="Carrying Agent *" value={form.agent_id} onChange={v => setF('agent_id', v)} options={agents} placeholder="Select agent" />
+          <div><label className={lbl}>Reference</label><input value={form.reference || ''} onChange={e => setF('reference', e.target.value)} className={field} /></div>
+          <div><label className={lbl}>Note</label><input value={form.note || ''} onChange={e => setF('note', e.target.value)} className={field} /></div>
         </>}
       </div>
 

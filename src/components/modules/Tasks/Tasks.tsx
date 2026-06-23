@@ -93,7 +93,18 @@ export default function Tasks() {
   // Non-Flipkart tenants run biz_tasks (biz.task); Flipkart tenants run flipkart_os
   // (robifel.task). Resolve once; '' until known so loaders wait for the right model.
   const [taskModel, setTaskModel] = useState<string>('');
-  useEffect(() => { isModuleInstalled('biz_tasks').then(b => setTaskModel(b ? 'biz.task' : 'robifel.task')); }, []);
+  useEffect(() => { isModuleInstalled('biz_tasks').then(b => setTaskModel(b ? 'biz.task' : 'robifel.task')).catch(() => setTaskModel('robifel.task')); }, []);
+
+  // Operations department employees can also assign tasks to any user
+  const [isOpsEmployee, setIsOpsEmployee] = useState(false);
+  useEffect(() => {
+    if (isManager || !uid) return;
+    searchRead<any>('hr.employee', { domain: [['user_id', '=', uid]], fields: ['department_id'], limit: 1 })
+      .then(r => { if (r[0]?.department_id?.[1] === 'Operations') setIsOpsEmployee(true); })
+      .catch(() => {});
+  }, [uid, isManager]);
+
+  const canAssign = isManager || isOpsEmployee;
 
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
 
@@ -102,7 +113,7 @@ export default function Tasks() {
     setLoading(true);
     try {
       const baseDomain: any[] = [];
-      if (isManager && empFilter !== 'all') baseDomain.push(['assignee_id', '=', empFilter]);
+      if (canAssign && empFilter !== 'all') baseDomain.push(['assignee_id', '=', empFilter]);
 
       const todayDomain = [...baseDomain, ['task_date', '=', today()]];
       const currentDomain = dateFilter === 'today' ? todayDomain : baseDomain;
@@ -121,7 +132,7 @@ export default function Tasks() {
       setOverdueItems(Array.isArray(overdueRows) ? overdueRows : []);
     } catch (e: any) { showMsg(false, e.message); }
     finally { setLoading(false); }
-  }, [isManager, empFilter, dateFilter, taskModel]);
+  }, [canAssign, empFilter, dateFilter, taskModel]);
 
   const loadLeaders = useCallback(async () => {
     if (!taskModel) return;
@@ -185,7 +196,7 @@ export default function Tasks() {
   useEffect(() => { loadTasks(); }, [loadTasks]);
   useEffect(() => { if (view === 'leaderboard') loadLeaders(); }, [view, loadLeaders]);
   useEffect(() => { if (view === 'monthly') loadMonthlyLeaders(); }, [view, loadMonthlyLeaders]);
-  useEffect(() => { if (isManager) listInternalUsers().then(setUsers); }, [isManager]);
+  useEffect(() => { if (canAssign) listInternalUsers().then(setUsers); }, [canAssign]);
 
   // ── task actions ────────────────────────────────────────────────────────────
   const setTaskState = async (t: Task, state: Task['state']) => {
@@ -210,9 +221,9 @@ export default function Tasks() {
 
   // ── derived ─────────────────────────────────────────────────────────────────
   const myTasks = tasks.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
-  const scopeTasks = isManager ? tasks : myTasks;
+  const scopeTasks = (isManager || isOpsEmployee) ? tasks : myTasks;
   const myOverdue = overdueItems.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
-  const scopeOverdue = isManager ? overdueItems : myOverdue;
+  const scopeOverdue = (isManager || isOpsEmployee) ? overdueItems : myOverdue;
   const doneCount = scopeTasks.filter(t => t.state === 'done').length;
   const total = scopeTasks.length;
   const progress = total ? Math.round((doneCount / total) * 100) : 0;
@@ -253,8 +264,8 @@ export default function Tasks() {
           <div className="relative">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-xs font-semibold flex items-center gap-1.5"><ListChecks size={14} /> {isManager ? 'Team Tasks' : 'My Tasks'}</p>
-                <p className="text-2xl font-black mt-1">{isManager ? `${doneCount}/${total} done today` : `Hello, ${(user?.name || '').split(' ')[0]} 👋`}</p>
+                <p className="text-white/80 text-xs font-semibold flex items-center gap-1.5"><ListChecks size={14} /> {canAssign ? 'Team Tasks' : 'My Tasks'}</p>
+                <p className="text-2xl font-black mt-1">{canAssign ? `${doneCount}/${total} done today` : `Hello, ${(user?.name || '').split(' ')[0]} 👋`}</p>
               </div>
               <button onClick={() => { loadTasks(); if (view === 'leaderboard') loadLeaders(); if (view === 'monthly') loadMonthlyLeaders(); }} className="p-2 rounded-xl bg-white/15 hover:bg-white/25"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
             </div>
@@ -291,7 +302,7 @@ export default function Tasks() {
                 {d === 'today' ? 'Today' : 'All'}
               </button>
             ))}
-            {isManager && (
+            {canAssign && (
               <div className="relative">
                 <select value={empFilter} onChange={e => setEmpFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                   className={`appearance-none text-xs font-bold pl-3 pr-7 py-1.5 rounded-full border ${border} ${cardBg} ${txt}`}>
@@ -326,7 +337,7 @@ export default function Tasks() {
                     </div>
                     <div className="space-y-2.5">
                       {scopeOverdue.map(t => (
-                        <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager} busy={busy === t.id}
+                        <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
                           selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
                           daysOverdue={daysOverdue(t.task_date)}
                           onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} />
@@ -337,7 +348,7 @@ export default function Tasks() {
 
                 {/* Regular columns */}
                 {scopeTasks.length === 0 && scopeOverdue.length === 0 ? (
-                  <div className={`py-16 text-center text-sm ${sub}`}>No tasks {dateFilter === 'today' ? 'for today' : 'yet'}. {isManager ? 'Tap + to assign one.' : 'Enjoy your day!'}</div>
+                  <div className={`py-16 text-center text-sm ${sub}`}>No tasks {dateFilter === 'today' ? 'for today' : 'yet'}. {canAssign ? 'Tap + to assign one.' : 'Enjoy your day!'}</div>
                 ) : COLUMNS.map(col => {
                   const colTasks = scopeTasks.filter(t => t.state === col.key);
                   if (colTasks.length === 0) return null;
@@ -350,7 +361,7 @@ export default function Tasks() {
                       </div>
                       <div className="space-y-2.5">
                         {colTasks.map(t => (
-                          <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager} busy={busy === t.id}
+                          <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
                             selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
                             onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} />
                         ))}
@@ -378,7 +389,7 @@ export default function Tasks() {
       </button>
 
       {createOpen && (
-        <CreateTask isDark={isDark} isManager={isManager} users={users} meUid={uid}
+        <CreateTask isDark={isDark} canAssign={canAssign} users={users} meUid={uid} taskModel={taskModel || 'robifel.task'}
           onClose={() => setCreateOpen(false)}
           onSaved={() => { setCreateOpen(false); loadTasks(); showMsg(true, 'Task created.'); }}
           onError={m => showMsg(false, m)} />
@@ -592,8 +603,8 @@ function MonthlyReport({ leaders, month, isDark, meUid, onPrev, onNext }: {
 }
 
 // ── Create task sheet ────────────────────────────────────────────────────────
-function CreateTask({ isDark, isManager, users, meUid, onClose, onSaved, onError }: {
-  isDark: boolean; isManager: boolean; users: UserRef[]; meUid: number;
+function CreateTask({ isDark, canAssign, users, meUid, taskModel, onClose, onSaved, onError }: {
+  isDark: boolean; canAssign: boolean; users: UserRef[]; meUid: number; taskModel: string;
   onClose: () => void; onSaved: () => void; onError: (m: string) => void;
 }) {
   const [f, setF] = useState<Record<string, any>>({ category: 'general', priority: '1', points: 10, task_date: today(), assignee_id: meUid });
@@ -606,10 +617,10 @@ function CreateTask({ isDark, isManager, users, meUid, onClose, onSaved, onError
     if (!f.name?.trim()) { onError('Task name is required.'); return; }
     setSaving(true);
     try {
-      await createRecord(taskModel || 'robifel.task', {
+      await createRecord(taskModel, {
         name: f.name.trim(),
         description: f.description || false,
-        assignee_id: isManager ? (f.assignee_id || meUid) : meUid,
+        assignee_id: canAssign ? (f.assignee_id || meUid) : meUid,
         category: f.category,
         priority: f.priority,
         points: parseInt(f.points) || 10,
@@ -632,7 +643,7 @@ function CreateTask({ isDark, isManager, users, meUid, onClose, onSaved, onError
         <div className="overflow-y-auto px-5 py-4 space-y-3">
           <div><label className={lbl}>Task *</label><input value={f.name || ''} onChange={e => setF(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Pack consignment 204528558" className={field} autoFocus /></div>
           <div><label className={lbl}>Details</label><textarea rows={2} value={f.description || ''} onChange={e => setF(p => ({ ...p, description: e.target.value }))} className={`${field} resize-none`} /></div>
-          {isManager && (
+          {canAssign && (
             <div><label className={lbl}>Assign To</label>
               <select value={f.assignee_id} onChange={e => setF(p => ({ ...p, assignee_id: Number(e.target.value) }))} className={field}>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.id === meUid ? ' (me)' : ''}</option>)}

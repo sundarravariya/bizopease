@@ -560,22 +560,18 @@ class FlipkartBillPaymentEntryWizard(models.TransientModel):
             tx = self.transaction_id
             if self.entry_type == 'agent_payment' and self.agent_payment_source == 'associate' and not tx and not self.vendor_id:
                 return self._create_standalone_associate_agent_payment()
+
+            # receive_payment with no specific transaction: distribute oldest-first
+            if self.entry_type == 'receive_payment' and not tx:
+                return self._distribute_receive_payment()
+
             if not tx:
-                domain = [('vendor_id', '=', self.vendor_id.id), ('payment_received', '=', False)]
+                domain = [('vendor_id', '=', self.vendor_id.id), ('state', 'in', ['pending', 'partial'])]
                 if self.entry_type == 'agent_payment':
                     domain = [('vendor_id', '=', self.vendor_id.id)]
                 tx = Transaction.search(domain, order='date asc, id asc', limit=1)
             if not tx:
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': _('No Bank Transfer Found'),
-                        'message': _('No matching bank transfer was found for this vendor.'),
-                        'type': 'warning',
-                        'sticky': False,
-                    }
-                }
+                raise UserError(_('No matching bank transfer was found for this vendor.'))
             vals = {'note': self.note or tx.note}
             if self.entry_type == 'receive_payment':
                 new_total = (tx.actual_cash_received or 0.0) + (self.actual_cash_received or 0.0)
@@ -603,6 +599,50 @@ class FlipkartBillPaymentEntryWizard(models.TransientModel):
             'res_id': tx.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    def _distribute_receive_payment(self):
+        """Settle cash across pending/partial transactions oldest-first, carrying remainder forward."""
+        self.ensure_one()
+        if not self.vendor_id:
+            raise UserError(_('Please select a vendor.'))
+        cash = self.actual_cash_received or 0.0
+        if cash <= 0:
+            raise UserError(_('Please enter a cash amount to receive.'))
+        if not self.received_by_id:
+            raise UserError(_('Please select who received the cash.'))
+
+        Transaction = self.env['flipkart.bill.payment.transaction']
+        txns = Transaction.search(
+            [('vendor_id', '=', self.vendor_id.id), ('state', 'in', ['pending', 'partial'])],
+            order='date asc, id asc',
+        )
+        if not txns:
+            raise UserError(_('No pending transactions found for this vendor.'))
+
+        remaining = cash
+        for txn in txns:
+            if remaining <= 0.001:
+                break
+            pending = max((txn.expected_cash_amount or 0.0) - (txn.actual_cash_received or 0.0), 0.0)
+            if pending <= 0.001:
+                continue
+            apply = min(remaining, pending)
+            txn.write({
+                'payment_received': True,
+                'received_date': self.date,
+                'received_by_id': self.received_by_id.id,
+                'actual_cash_received': (txn.actual_cash_received or 0.0) + apply,
+                'note': self.note or txn.note,
+            })
+            remaining -= apply
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Transactions'),
+            'res_model': 'flipkart.bill.payment.transaction',
+            'view_mode': 'list,form',
+            'domain': [('vendor_id', '=', self.vendor_id.id)],
         }
 
     def _create_expense(self):

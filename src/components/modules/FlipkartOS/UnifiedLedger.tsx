@@ -1,10 +1,10 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { searchRead, createRecord, odooCall } from '../../../services/odoo';
+import { searchRead, createRecord, unlinkRecord, odooCall } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
 import {
   BookOpen, RefreshCw, PlusCircle,
   TrendingUp, TrendingDown, Users, Truck, Building2, UserCheck,
-  CheckCircle2, AlertCircle, Filter
+  CheckCircle2, AlertCircle, Filter, Trash2
 } from 'lucide-react';
 
 type MainTab = 'summary' | 'create' | 'partner' | 'agent' | 'vendor' | 'associate';
@@ -140,6 +140,20 @@ export default function UnifiedLedger() {
   const showMsg = (ok: boolean, msg: string) => {
     setToast({ ok, msg });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const deleteRow = async (model: string, id: number, reload: () => void, cascadeAssocRef?: string) => {
+    if (!confirm('Delete this entry? This cannot be undone.')) return;
+    try {
+      if (cascadeAssocRef) {
+        try {
+          const rel = await searchRead<any>('flipkart.associate.ledger', { domain: [['reference', '=', cascadeAssocRef]], fields: ['id'], limit: 0 });
+          if (rel?.length) await unlinkRecord('flipkart.associate.ledger', rel.map((r: any) => r.id));
+        } catch {}
+      }
+      await unlinkRecord(model, [id]);
+      reload();
+    } catch (e: any) { showMsg(false, e?.message || 'Delete failed'); }
   };
 
   // Load reference lists on mount
@@ -670,7 +684,7 @@ export default function UnifiedLedger() {
               partnerLines.map(r => [r.date, r.name||'', r.ref||'', r.debit||0, r.credit||0, r.balance||0]))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Description', 'Ref', 'Debit', 'Credit', 'Running Balance']}
+            columns={['Date', 'Description', 'Ref', 'Debit', 'Credit', 'Running Balance', '']}
             rows={(() => {
               let running = 0;
               return partnerLines.map(r => {
@@ -682,6 +696,7 @@ export default function UnifiedLedger() {
                   <span className="text-red-400">{r.debit > 0 ? fmt(r.debit) : '--'}</span>,
                   <span className="text-green-400">{r.credit > 0 ? fmt(r.credit) : '--'}</span>,
                   fmtBalance(running, isDark),
+                  <button onClick={() => deleteRow('business.ledger', r.id, loadPartnerLines)} className="p-1 rounded" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={12} /></button>,
                 ];
               });
             })()}
@@ -689,6 +704,7 @@ export default function UnifiedLedger() {
               <span className="text-red-400 font-bold">{fmt(partnerLines.reduce((s,r)=>s+(r.debit||0),0))}</span>,
               <span className="text-green-400 font-bold">{fmt(partnerLines.reduce((s,r)=>s+(r.credit||0),0))}</span>,
               fmtBalance(partnerLines.reduce((s,r)=>s+(r.debit||0)-(r.credit||0),0), isDark),
+              '',
             ]}
           />
         </div>
@@ -706,7 +722,7 @@ export default function UnifiedLedger() {
               agentLines.map(r => [r.date, Array.isArray(r.agent_id)?r.agent_id[1]:'', r.entry_type||'', r.reference||'', r.amount_inr||0, r.notes||'']))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Agent', 'Type', 'Reference', 'Amount', 'Notes']}
+            columns={['Date', 'Agent', 'Type', 'Reference', 'Amount', 'Notes', '']}
             rows={agentLines.map(r => [
               r.date,
               Array.isArray(r.agent_id) ? r.agent_id[1] : '--',
@@ -714,8 +730,9 @@ export default function UnifiedLedger() {
               r.reference || '--',
               <span className="font-semibold">{fmt(r.amount_inr)}</span>,
               r.notes || '--',
+              <button onClick={() => deleteRow('flipkart.agent.ledger', r.id, loadAgentLines)} className="p-1 rounded" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={12} /></button>,
             ])}
-            totals={['Totals', '', '', '', <span className="font-bold text-[#7367f0]">{fmt(agentLines.reduce((s,r)=>s+(r.amount_inr||0),0))}</span>, '']}
+            totals={['Totals', '', '', '', <span className="font-bold text-[#7367f0]">{fmt(agentLines.reduce((s,r)=>s+(r.amount_inr||0),0))}</span>, '', '']}
           />
         </div>
       )}
@@ -732,7 +749,7 @@ export default function UnifiedLedger() {
               vendorLines.map(r => [r.date, r.name||'', Array.isArray(r.vendor_id)?r.vendor_id[1]:'', r.transfer_amount||0, r.deduction_amount||0, r.expected_cash_amount||0, r.actual_cash_received||0, Array.isArray(r.received_by_id)?r.received_by_id[1]:'', (TXN_STATE[r.state]?.label||r.state||'')]))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Reference', 'Vendor', 'Bank Transfer', 'Deducted', 'Expected Cash', 'Actual Cash', 'Received By', 'Status']}
+            columns={['Date', 'Reference', 'Vendor', 'Bank Transfer', 'Deducted', 'Expected Cash', 'Actual Cash', 'Received By', 'Status', '']}
             rows={vendorLines.map(r => [
               r.date,
               <span className="font-mono text-[#7367f0]">{r.name || '--'}</span>,
@@ -743,13 +760,14 @@ export default function UnifiedLedger() {
               <span className="text-green-400">{fmt(r.actual_cash_received)}</span>,
               Array.isArray(r.received_by_id) ? r.received_by_id[1] : '--',
               <StatusBadge state={r.state} />,
+              <button onClick={() => deleteRow('flipkart.bill.payment.transaction', r.id, loadVendorLines, r.name || '')} className="p-1 rounded" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={12} /></button>,
             ])}
             totals={['Totals', '', '',
               <span className="text-blue-400 font-bold">{fmt(vendorLines.reduce((s,r)=>s+(r.transfer_amount||0),0))}</span>,
               <span className="text-red-400 font-bold">{fmt(vendorLines.reduce((s,r)=>s+(r.deduction_amount||0),0))}</span>,
               <span className="text-amber-400 font-bold">{fmt(vendorLines.reduce((s,r)=>s+(r.expected_cash_amount||0),0))}</span>,
               <span className="text-green-400 font-bold">{fmt(vendorLines.reduce((s,r)=>s+(r.actual_cash_received||0),0))}</span>,
-              '', '',
+              '', '', '',
             ]}
           />
         </div>
@@ -767,7 +785,7 @@ export default function UnifiedLedger() {
               associateLines.map(r => [r.date, Array.isArray(r.associate_id)?r.associate_id[1]:'', r.entry_type||'', r.amount||0, r.reference||'', r.note||'']))}
           />
           <LedgerTable loading={loading} isDark={isDark} cardBg={cardBg} thCls={thCls} tdCls={tdCls}
-            columns={['Date', 'Associate', 'Type', 'Amount', 'Reference', 'Note']}
+            columns={['Date', 'Associate', 'Type', 'Amount', 'Reference', 'Note', '']}
             rows={associateLines.map(r => [
               r.date,
               Array.isArray(r.associate_id) ? r.associate_id[1] : '--',
@@ -775,8 +793,9 @@ export default function UnifiedLedger() {
               <span className="font-semibold">{fmt(r.amount)}</span>,
               r.reference || '--',
               r.note || '--',
+              <button onClick={() => deleteRow('flipkart.associate.ledger', r.id, loadAssociateLines)} className="p-1 rounded" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.15)' }} title="Delete"><Trash2 size={12} /></button>,
             ])}
-            totals={['Totals', '', '', <span className="font-bold text-[#7367f0]">{fmt(associateLines.reduce((s,r)=>s+(r.amount||0),0))}</span>, '', '']}
+            totals={['Totals', '', '', <span className="font-bold text-[#7367f0]">{fmt(associateLines.reduce((s,r)=>s+(r.amount||0),0))}</span>, '', '', '']}
           />
         </div>
       )}

@@ -19,7 +19,7 @@ interface FoundWorkspace {
 }
 
 export default function Login() {
-  const { login, isLoading, error, clearError, setAuthUser } = useAuth();
+  const { login, isLoading, error, clearError, setAuthUser, persistCredentials } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   const [step, setStep] = useState<Step>('email');
@@ -135,6 +135,8 @@ export default function Login() {
         };
 
         if (isAdmin) {
+          // Credentials verified — save now so auto re-login works after session expiry.
+          persistCredentials(email.trim().toLowerCase(), password, workspace.odooDb);
           // Admin + OTP enabled → send code, hold user pending OTP
           setPendingUser(userData);
           setPendingEmail(userData.email || email);
@@ -151,6 +153,7 @@ export default function Login() {
           setStep('otp');
         } else {
           // Non-admin: OTP not required, complete login immediately
+          persistCredentials(email.trim().toLowerCase(), password, workspace.odooDb);
           setAuthUser(userData);
         }
       } catch (err: any) {
@@ -181,6 +184,7 @@ export default function Login() {
         session_id: `odoo-${result.uid}-${Date.now()}`,
         is_queen_tenant: workspace.isQueenTenant ?? false,
       };
+      persistCredentials(email.trim().toLowerCase(), password, workspace.odooDb);
       setAuthUser(userData);
     } catch (err: any) {
       setLookupError(err.message || 'Authentication failed');

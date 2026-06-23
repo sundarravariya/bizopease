@@ -31,13 +31,16 @@ class BizBillPaymentVendor(models.Model):
         'transaction_ids.payment_received',
         'transaction_ids.actual_cash_received',
         'transaction_ids.expected_cash_amount',
+        'transaction_ids.agent_payment_source',
+        'transaction_ids.agent_payment_amount',
     )
     def _compute_balance(self):
         for vendor in self:
             balance = 0.0
             for tx in vendor.transaction_ids:
                 cash_received = tx.actual_cash_received if tx.payment_received else 0.0
-                balance += tx.transfer_amount - tx.deduction_amount - cash_received
+                agent_paid = tx.agent_payment_amount if tx.agent_payment_source == 'vendor' else 0.0
+                balance += tx.transfer_amount - tx.deduction_amount - cash_received - agent_paid
             vendor.balance = balance
 
     def action_view_transactions(self):
@@ -82,7 +85,7 @@ class BizMoneyAssociate(models.Model):
             for line in associate.ledger_ids:
                 if line.entry_type in ('cash_received', 'transfer_in'):
                     balance += line.amount
-                elif line.entry_type in ('expense', 'transfer_out'):
+                elif line.entry_type in ('agent_payment', 'expense', 'transfer_out'):
                     balance -= line.amount
             associate.balance = balance
 
@@ -117,6 +120,14 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
     received_by_id = fields.Many2one('biz.money.associate', string='Received By')
     received_date = fields.Date(string='Received Date')
     actual_cash_received = fields.Float(string='Actual Cash Received')
+    agent_payment_amount = fields.Float(string='Paid to Carrying Agent')
+    agent_payment_source = fields.Selection([
+        ('none', 'No Agent Payment'),
+        ('vendor', 'Business Paid Agent'),
+        ('associate', 'Associate Paid Agent'),
+    ], string='Agent Payment Source', default='none', required=True)
+    carrying_agent_id = fields.Many2one('biz.carrying.agent', string='Carrying Agent')
+    agent_ledger_id = fields.Many2one('biz.agent.ledger', string='Agent Ledger Entry', copy=False)
     note = fields.Text(string='Notes')
     filter_date_from = fields.Date(string='From', store=False)
     filter_date_to = fields.Date(string='To', store=False)
@@ -124,6 +135,7 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
         ('pending', 'Pending Cash'),
         ('partial', 'Partial Payment'),
         ('received', 'Cash Received'),
+        ('agent_paid', 'Agent Paid'),
     ], string='Status', compute='_compute_state', store=True)
 
     vendor_ledger_ids = fields.One2many('biz.bill.vendor.ledger', 'transaction_id', string='Vendor Ledger')
@@ -154,10 +166,12 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
             rec.deduction_amount = rec.transfer_amount * percent / 100.0
             rec.expected_cash_amount = rec.transfer_amount - rec.deduction_amount
 
-    @api.depends('payment_received', 'actual_cash_received', 'expected_cash_amount')
+    @api.depends('payment_received', 'agent_payment_amount', 'actual_cash_received', 'expected_cash_amount')
     def _compute_state(self):
         for rec in self:
-            if rec.payment_received:
+            if rec.agent_payment_amount:
+                rec.state = 'agent_paid'
+            elif rec.payment_received:
                 if rec.actual_cash_received and rec.actual_cash_received < rec.expected_cash_amount:
                     rec.state = 'partial'
                 else:
@@ -172,7 +186,8 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
     def _compute_vendor_amounts(self):
         for rec in self:
             cash_received = rec.actual_cash_received if rec.payment_received else 0.0
-            rec.vendor_settled_amount = rec.deduction_amount + cash_received
+            agent_paid = rec.agent_payment_amount if rec.agent_payment_source == 'vendor' else 0.0
+            rec.vendor_settled_amount = rec.deduction_amount + cash_received + agent_paid
             rec.vendor_balance_amount = rec.transfer_amount - rec.vendor_settled_amount
 
     def _statement_balance_field(self):
@@ -211,6 +226,9 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
     def unlink(self):
         self.mapped('vendor_ledger_ids').unlink()
         self.mapped('associate_ledger_ids').unlink()
+        for rec in self:
+            if rec.agent_ledger_id:
+                rec.agent_ledger_id.unlink()
         return super().unlink()
 
     def action_mark_cash_received(self):
@@ -246,6 +264,10 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
         for rec in self:
             rec.vendor_ledger_ids.unlink()
             rec.associate_ledger_ids.unlink()
+            if rec.agent_ledger_id:
+                agent_ledger = rec.agent_ledger_id
+                rec.with_context(skip_bill_payment_sync=True).agent_ledger_id = False
+                agent_ledger.unlink()
 
             if rec.payment_received:
                 received_amount = rec.actual_cash_received or rec.expected_cash_amount
@@ -259,6 +281,30 @@ class BizBillPaymentTransaction(models.Model, LedgerStatementMixin):
                         'reference': rec.name,
                         'note': _('Collected from %s') % rec.vendor_id.name,
                     })
+
+            if rec.agent_payment_amount and rec.carrying_agent_id:
+                source_name = rec.vendor_id.name
+                if rec.agent_payment_source == 'associate' and rec.received_by_id:
+                    source_name = rec.received_by_id.name
+                    self.env['biz.associate.ledger'].create({
+                        'transaction_id': rec.id,
+                        'associate_id': rec.received_by_id.id,
+                        'date': rec.date,
+                        'entry_type': 'agent_payment',
+                        'amount': rec.agent_payment_amount,
+                        'reference': rec.name,
+                        'note': _('Paid to carrying agent %s') % rec.carrying_agent_id.name,
+                    })
+
+                agent_ledger = self.env['biz.agent.ledger'].create({
+                    'agent_id': rec.carrying_agent_id.id,
+                    'date': rec.date,
+                    'entry_type': 'payment',
+                    'amount_inr': rec.agent_payment_amount,
+                    'reference': rec.name,
+                    'notes': _('Direct payment by %s') % source_name,
+                })
+                rec.with_context(skip_bill_payment_sync=True).agent_ledger_id = agent_ledger.id
 
 
 class BizBillVendorLedger(models.Model):
@@ -304,6 +350,7 @@ class BizAssociateLedger(models.Model, LedgerStatementMixin):
     date = fields.Date(string='Date', required=True)
     entry_type = fields.Selection([
         ('cash_received', 'Cash Received'),
+        ('agent_payment', 'Agent Payment'),
         ('expense', 'Expenses'),
         ('transfer_in', 'Transfer In'),
         ('transfer_out', 'Transfer Out'),
@@ -366,7 +413,8 @@ class BizBillVendorLedgerSummary(models.Model):
                         vendor_id,
                         transfer_amount as debit,
                         deduction_amount
-                            + CASE WHEN payment_received THEN COALESCE(NULLIF(actual_cash_received, 0), expected_cash_amount) ELSE 0 END as credit
+                            + CASE WHEN payment_received THEN COALESCE(NULLIF(actual_cash_received, 0), expected_cash_amount) ELSE 0 END
+                            + CASE WHEN agent_payment_source = 'vendor' THEN COALESCE(agent_payment_amount, 0) ELSE 0 END as credit
                     FROM biz_bill_payment_transaction
                 ) tx
                 WHERE vendor_id IS NOT NULL
@@ -405,7 +453,7 @@ class BizAssociateLedgerSummary(models.Model):
                     associate_id as id,
                     associate_id as associate_id,
                     SUM(CASE WHEN entry_type IN ('cash_received', 'transfer_in') THEN amount ELSE 0 END) as debit,
-                    SUM(CASE WHEN entry_type IN ('expense', 'transfer_out') THEN amount ELSE 0 END) as credit,
+                    SUM(CASE WHEN entry_type IN ('agent_payment', 'expense', 'transfer_out') THEN amount ELSE 0 END) as credit,
                     SUM(CASE WHEN entry_type IN ('cash_received', 'transfer_in') THEN amount ELSE -amount END) as balance
                 FROM biz_associate_ledger
                 WHERE associate_id IS NOT NULL
@@ -439,7 +487,7 @@ class BizBillPaymentEntryWizard(models.TransientModel):
     transaction_id = fields.Many2one(
         'biz.bill.payment.transaction',
         string='Bank Transfer',
-        domain="[('vendor_id', '=', vendor_id), ('state', 'in', ['pending', 'partial'])]",
+        domain="[('vendor_id', '=', vendor_id), ('state', 'in', ['pending', 'partial', 'received'])]",
     )
     date = fields.Date(string='Date', required=True, default=fields.Date.context_today)
     vendor_id = fields.Many2one('biz.bill.payment.vendor', string='Bill/Payment Vendor')
@@ -500,37 +548,49 @@ class BizBillPaymentEntryWizard(models.TransientModel):
                 'deduction_percent': self.deduction_percent,
                 'note': self.note,
             })
-        elif self.entry_type == 'agent_payment':
-            return self._create_agent_payment()
         elif self.entry_type == 'expense':
             return self._create_expense()
         elif self.entry_type == 'associate_transfer':
             return self._create_associate_transfer()
         else:
             tx = self.transaction_id
+            if self.entry_type == 'agent_payment' and self.agent_payment_source == 'associate' and not tx and not self.vendor_id:
+                return self._create_standalone_associate_agent_payment()
+
+            # receive_payment with no specific transaction: distribute oldest-first
+            if self.entry_type == 'receive_payment' and not tx:
+                return self._distribute_receive_payment()
+
             if not tx:
-                tx = Transaction.search(
-                    [('vendor_id', '=', self.vendor_id.id), ('payment_received', '=', False)],
-                    order='date asc, id asc', limit=1)
+                domain = [('vendor_id', '=', self.vendor_id.id), ('state', 'in', ['pending', 'partial'])]
+                if self.entry_type == 'agent_payment':
+                    domain = [('vendor_id', '=', self.vendor_id.id)]
+                tx = Transaction.search(domain, order='date asc, id asc', limit=1)
             if not tx:
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': _('No Bank Transfer Found'),
-                        'message': _('No matching bank transfer was found for this vendor.'),
-                        'type': 'warning',
-                        'sticky': False,
-                    }
-                }
-            new_total = (tx.actual_cash_received or 0.0) + (self.actual_cash_received or 0.0)
-            tx.write({
-                'note': self.note or tx.note,
-                'payment_received': True,
-                'received_date': self.date,
-                'received_by_id': self.received_by_id.id,
-                'actual_cash_received': new_total,
-            })
+                raise UserError(_('No matching bank transfer was found for this vendor.'))
+            vals = {'note': self.note or tx.note}
+            if self.entry_type == 'receive_payment':
+                new_total = (tx.actual_cash_received or 0.0) + (self.actual_cash_received or 0.0)
+                vals.update({
+                    'payment_received': True,
+                    'received_date': self.date,
+                    'received_by_id': self.received_by_id.id,
+                    'actual_cash_received': new_total,
+                })
+            else:  # agent_payment
+                if not self.carrying_agent_id:
+                    raise UserError(_('Please select the carrying agent.'))
+                if not self.agent_payment_amount:
+                    raise UserError(_('Please enter the amount paid to the agent.'))
+                if self.agent_payment_source == 'associate' and not self.received_by_id:
+                    raise UserError(_('Please select the associate who paid the carrying agent.'))
+                vals.update({
+                    'agent_payment_source': self.agent_payment_source or 'vendor',
+                    'carrying_agent_id': self.carrying_agent_id.id,
+                    'agent_payment_amount': self.agent_payment_amount,
+                    'received_by_id': self.received_by_id.id if self.agent_payment_source == 'associate' else (tx.received_by_id.id if tx.received_by_id else False),
+                })
+            tx.write(vals)
 
         return {
             'name': _('Bill/Payment Transaction'),
@@ -539,6 +599,50 @@ class BizBillPaymentEntryWizard(models.TransientModel):
             'res_id': tx.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    def _distribute_receive_payment(self):
+        """Settle cash across pending/partial transactions oldest-first, carrying remainder forward."""
+        self.ensure_one()
+        if not self.vendor_id:
+            raise UserError(_('Please select a vendor.'))
+        cash = self.actual_cash_received or 0.0
+        if cash <= 0:
+            raise UserError(_('Please enter a cash amount to receive.'))
+        if not self.received_by_id:
+            raise UserError(_('Please select who received the cash.'))
+
+        Transaction = self.env['biz.bill.payment.transaction']
+        txns = Transaction.search(
+            [('vendor_id', '=', self.vendor_id.id), ('state', 'in', ['pending', 'partial'])],
+            order='date asc, id asc',
+        )
+        if not txns:
+            raise UserError(_('No pending transactions found for this vendor.'))
+
+        remaining = cash
+        for txn in txns:
+            if remaining <= 0.001:
+                break
+            pending = max((txn.expected_cash_amount or 0.0) - (txn.actual_cash_received or 0.0), 0.0)
+            if pending <= 0.001:
+                continue
+            apply = min(remaining, pending)
+            txn.write({
+                'payment_received': True,
+                'received_date': self.date,
+                'received_by_id': self.received_by_id.id,
+                'actual_cash_received': (txn.actual_cash_received or 0.0) + apply,
+                'note': self.note or txn.note,
+            })
+            remaining -= apply
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Transactions'),
+            'res_model': 'biz.bill.payment.transaction',
+            'view_mode': 'list,form',
+            'domain': [('vendor_id', '=', self.vendor_id.id)],
         }
 
     def _create_expense(self):
@@ -565,36 +669,31 @@ class BizBillPaymentEntryWizard(models.TransientModel):
             'target': 'current',
         }
 
-    def _create_agent_payment(self):
+    def _create_standalone_associate_agent_payment(self):
+        """Standalone agent payment when no vendor transaction exists — associate paid agent directly."""
         self.ensure_one()
-        if not self.carrying_agent_id:
-            raise UserError(_('Please select the carrying agent.'))
-        if not self.agent_payment_amount:
-            raise UserError(_('Please enter the amount paid to the agent.'))
+        if not self.received_by_id:
+            raise UserError(_('Please select the associate who paid the carrying agent.'))
+        if not self.carrying_agent_id or not self.agent_payment_amount:
+            raise UserError(_('Please select the carrying agent and payment amount.'))
 
-        # Money leaving to the carrying agent reduces their outstanding balance.
+        self.env['biz.associate.ledger'].create({
+            'associate_id': self.received_by_id.id,
+            'date': self.date,
+            'entry_type': 'agent_payment',
+            'amount': self.agent_payment_amount,
+            'reference': _('Direct Agent Payment'),
+            'note': _('Paid to carrying agent %s') % self.carrying_agent_id.name,
+        })
+
         agent_line = self.env['biz.agent.ledger'].create({
             'agent_id': self.carrying_agent_id.id,
             'date': self.date,
             'entry_type': 'payment',
             'amount_inr': self.agent_payment_amount,
-            'reference': _('Agent Payment'),
-            'notes': self.note or _('Payment to carrying agent'),
+            'reference': _('Direct Agent Payment'),
+            'notes': _('Paid by %s') % self.received_by_id.name,
         })
-
-        # If an associate fronted the cash, debit it from that associate too.
-        if self.agent_payment_source == 'associate':
-            if not self.received_by_id:
-                raise UserError(_('Please select the associate who paid the agent.'))
-            self.env['biz.associate.ledger'].create({
-                'associate_id': self.received_by_id.id,
-                'date': self.date,
-                'entry_type': 'transfer_out',
-                'amount': self.agent_payment_amount,
-                'reference': _('Agent Payment'),
-                'note': _('Paid to carrying agent %s') % self.carrying_agent_id.name,
-            })
-
         return {
             'name': _('Agent Ledger'),
             'type': 'ir.actions.act_window',

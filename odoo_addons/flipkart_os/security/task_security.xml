@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Employees: strictly only tasks assigned to them. -->
+    <!-- Employees: own tasks only. Operations dept employees see all tasks. -->
     <record id="rule_robifel_task_own" model="ir.rule">
         <field name="name">Robifel Task: own tasks</field>
         <field name="model_id" ref="model_robifel_task"/>
-        <field name="domain_force">[('assignee_id', '=', user.id)]</field>
+        <field name="domain_force">[(1, '=', 1)] if any(e.department_id.name == 'Operations' for e in user.employee_ids) else [('assignee_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
