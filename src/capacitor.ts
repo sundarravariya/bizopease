@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { initPushNotifications } from './services/pushNotifications';
 
 export const isNative = Capacitor.isNativePlatform();
 export const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
@@ -16,6 +17,9 @@ export async function initCapacitor(): Promise<void> {
     const { SplashScreen } = await import('@capacitor/splash-screen');
     await SplashScreen.hide({ fadeOutDuration: 300 });
   } catch (_) {}
+
+  // Initialise push + local notification channels (FCM registration happens here)
+  initPushNotifications().catch(() => {});
 }
 
 export function setupBackButtonHandler(onBack: () => void): void {
