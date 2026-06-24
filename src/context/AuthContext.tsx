@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
 import { odooLogin, odooLogout, odooGetSession, userIsManager, odooCall } from '../services/odoo';
 import { getOdooDb } from '../config/tenant';
 
@@ -231,18 +231,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
+  // Memoized so consumers (~60 screens) don't re-render unless auth state actually
+  // changes. All callbacks below are useCallback-stable, so the memo holds steady.
+  const value = useMemo(() => ({
+    user,
+    isAuthenticated: !!user,
+    isLoading,
+    error,
+    login,
+    setAuthUser,
+    persistCredentials,
+    logout,
+    clearError,
+  }), [user, isLoading, error, login, setAuthUser, persistCredentials, logout, clearError]);
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated: !!user,
-      isLoading,
-      error,
-      login,
-      setAuthUser,
-      persistCredentials,
-      logout,
-      clearError,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

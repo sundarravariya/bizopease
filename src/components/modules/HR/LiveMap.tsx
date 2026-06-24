@@ -62,7 +62,14 @@ export default function LiveMap() {
     } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    load();
+    // Refresh every 30s only while visible; refresh on return to foreground.
+    const tick = () => { if (document.visibilityState === 'visible') load(); };
+    const t = setInterval(tick, 30_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+  }, [load]);
 
   // init map
   useEffect(() => {

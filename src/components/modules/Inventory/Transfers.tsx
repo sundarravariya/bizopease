@@ -46,7 +46,9 @@ export default function Transfers() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_admin;
   const [selIds, setSelIds] = useState<Set<number>>(new Set());
-  const [items, setItems] = useState<Transfer[]>([]);
+  const [items, setItems] = useState<Transfer[]>(() => {
+    try { const c = localStorage.getItem('portal_inventory_transfers'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
@@ -84,7 +86,10 @@ export default function Transfers() {
         fields: ['id', 'name', 'origin', 'location_id', 'location_dest_id', 'scheduled_date', 'state', 'picking_type_code'],
         limit: 0, order: 'id desc',
       });
-      if (Array.isArray(r)) setItems(r);
+      if (Array.isArray(r)) {
+        setItems(r);
+        try { localStorage.setItem('portal_inventory_transfers', JSON.stringify(r)); } catch { /* quota */ }
+      }
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
   };

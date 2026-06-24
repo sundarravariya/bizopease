@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord, writeRecord, unlinkRecord } from '../../../services/odoo';
@@ -173,13 +173,15 @@ export default function Employees() {
   useEffect(() => { syncData(); }, []);
   useEffect(() => { localStorage.setItem('portal_employees', JSON.stringify(employees)); }, [employees]);
 
-  const filtered = employees.filter(e => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    const matchSearch = !search || e.name.toLowerCase().includes(q) || e.job_title.toLowerCase().includes(q) || e.email.toLowerCase().includes(q);
-    const matchDept = deptFilter === 'all' || e.department === deptFilter;
-    const matchState = stateFilter === 'all' || e.state === stateFilter;
-    return matchSearch && matchDept && matchState;
-  });
+    return employees.filter(e => {
+      const matchSearch = !search || e.name.toLowerCase().includes(q) || e.job_title.toLowerCase().includes(q) || e.email.toLowerCase().includes(q);
+      const matchDept = deptFilter === 'all' || e.department === deptFilter;
+      const matchState = stateFilter === 'all' || e.state === stateFilter;
+      return matchSearch && matchDept && matchState;
+    });
+  }, [employees, search, deptFilter, stateFilter]);
 
   // One action: create (or update) the employee AND, optionally, a linked login
   // account. Idempotent by email — if an employee or user with that email exists,

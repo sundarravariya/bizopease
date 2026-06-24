@@ -11,15 +11,19 @@ interface AppLockCtx {
   resetPin: () => void;
 }
 
-const AppLockContext = createContext<AppLockCtx>({
+// Stable, immutable value — hoisted so it is never re-allocated per render and
+// never triggers consumer re-renders (the lock is a no-op passthrough).
+const APP_LOCK_VALUE: AppLockCtx = {
   isLocked: false,
   unlock: () => {},
   resetPin: () => {},
-});
+};
+
+const AppLockContext = createContext<AppLockCtx>(APP_LOCK_VALUE);
 
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   return (
-    <AppLockContext.Provider value={{ isLocked: false, unlock: () => {}, resetPin: () => {} }}>
+    <AppLockContext.Provider value={APP_LOCK_VALUE}>
       {children}
     </AppLockContext.Provider>
   );

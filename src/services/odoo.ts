@@ -34,8 +34,35 @@ api.interceptors.request.use((cfg) => {
 let _reqId = 1;
 const nextId = () => _reqId++;
 
+// ---------- In-flight read dedup ----------
+// Collapse *concurrent identical* read-only requests into one shared promise so two
+// components mounting at once don't double-hit Odoo. This is NOT a time cache: every
+// entry is deleted the instant its request settles, so it can never return stale
+// data. Mutations (create/write/unlink/action_*) are never deduped — Odoo stays the
+// single source of truth.
+const _READ_METHODS = new Set(['search_read', 'read', 'read_group', 'search_count']);
+const _inflight = new Map<string, Promise<any>>();
+
+function _isDedupable(endpoint: string, params: Record<string, any>): boolean {
+  if (endpoint === '/web/session/get_session_info') return true;
+  if (endpoint === '/web/dataset/call_kw') return _READ_METHODS.has(params?.method);
+  return false;
+}
+
 // ---------- Core JSON-RPC ----------
 async function jsonRpc<T>(endpoint: string, params: Record<string, any>): Promise<T> {
+  if (!_isDedupable(endpoint, params)) {
+    return jsonRpcRaw<T>(endpoint, params);
+  }
+  const key = `${getActiveDb()}|${endpoint}|${JSON.stringify(params)}`;
+  const existing = _inflight.get(key);
+  if (existing) return existing as Promise<T>;
+  const p = jsonRpcRaw<T>(endpoint, params).finally(() => { _inflight.delete(key); });
+  _inflight.set(key, p);
+  return p as Promise<T>;
+}
+
+async function jsonRpcRaw<T>(endpoint: string, params: Record<string, any>): Promise<T> {
   // Queen tenants: route all model (call_kw) traffic through the secured queen
   // proxy so every screen reads/writes the queenfinger DB, never robifel.
   if (endpoint === '/web/dataset/call_kw' && isQueenSession()) {

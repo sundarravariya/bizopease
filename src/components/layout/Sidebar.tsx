@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -334,16 +334,23 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   // B2B Portal shows wherever b2b_os is installed. Non-queen workspaces run B2B
   // against their OWN Odoo DB (see queenCall in services/queen.ts); only the
   // dedicated queen tenant proxies to the shared Queenfinger DB.
-  const items = baseItems
-    .filter(it => hasModule(it.id))
-    .map(it => {
-      const path = prefixPath(it.path);
-      const children = it.children
-        ? it.children.filter(c => hasModule(c.id)).map(c => ({ ...c, path: prefixPath(c.path) }))
-        : undefined;
-      return { ...it, path, children };
-    })
-    .filter(it => !it.children || it.children.length > 0 || !!it.path);
+  // Memoized: depends only on role + installed modules + tenant DB, NOT on the
+  // current route — so navigation no longer rebuilds the whole nav tree.
+  const items = useMemo(() =>
+    baseItems
+      .filter(it => hasModule(it.id))
+      .map(it => {
+        const path = prefixPath(it.path);
+        const children = it.children
+          ? it.children.filter(c => hasModule(c.id)).map(c => ({ ...c, path: prefixPath(c.path) }))
+          : undefined;
+        return { ...it, path, children };
+      })
+      .filter(it => !it.children || it.children.length > 0 || !!it.path),
+    // hasModule/prefixPath are pure closures over (installed, user.db); listing
+    // their inputs keeps the memo correct without recomputing every render.
+    [baseItems, installed, user?.db], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     // Auto-open the group containing the active path
     const active = new Set<string>();
@@ -355,13 +362,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return active;
   });
 
-  const toggleGroup = (id: string) => {
+  const toggleGroup = useCallback((id: string) => {
     setOpenGroups(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const isChildActive = (item: NavItem) =>
     item.children?.some(c => location.pathname.startsWith(c.path || '')) ?? false;

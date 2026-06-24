@@ -31,7 +31,9 @@ const URGENCY_LABEL: Record<string, string> = { critical: 'Critical', moderate: 
 
 export default function Reordering() {
   const { isDark } = useTheme();
-  const [rules, setRules] = useState<ReorderRule[]>([]);
+  const [rules, setRules] = useState<ReorderRule[]>(() => {
+    try { const c = localStorage.getItem('portal_reorder_rules'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const [schedulerRunning, setSchedulerRunning] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -66,7 +68,10 @@ export default function Reordering() {
         fields: ['id', 'product_id', 'warehouse_id', 'location_id', 'product_min_qty', 'product_max_qty', 'qty_on_hand', 'qty_to_order'],
         limit: 0, order: 'id desc',
       });
-      if (Array.isArray(r)) setRules(r);
+      if (Array.isArray(r)) {
+        setRules(r);
+        try { localStorage.setItem('portal_reorder_rules', JSON.stringify(r)); } catch { /* quota */ }
+      }
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
   };

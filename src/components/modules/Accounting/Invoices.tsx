@@ -51,7 +51,9 @@ export default function Invoices() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_admin;
   const [selIds, setSelIds] = useState<Set<number>>(new Set());
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    try { const c = localStorage.getItem('portal_invoices'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -113,7 +115,9 @@ export default function Invoices() {
         fields: ['id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'state', 'payment_state', 'journal_id', 'narration'],
         limit: 0, order: 'invoice_date desc',
       });
-      setInvoices(Array.isArray(r) ? r : []);
+      const rows = Array.isArray(r) ? r : [];
+      setInvoices(rows);
+      try { localStorage.setItem('portal_invoices', JSON.stringify(rows)); } catch { /* quota */ }
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
   };

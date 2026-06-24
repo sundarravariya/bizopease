@@ -47,7 +47,9 @@ export default function Bills() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_admin;
   const [selIds, setSelIds] = useState<Set<number>>(new Set());
-  const [bills, setBills] = useState<Bill[]>([]);
+  const [bills, setBills] = useState<Bill[]>(() => {
+    try { const c = localStorage.getItem('portal_bills'); return c ? JSON.parse(c) : []; } catch { return []; }
+  });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [payFilter, setPayFilter] = useState('all');
@@ -93,7 +95,9 @@ export default function Bills() {
         fields: ['id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due', 'amount_total', 'amount_residual', 'payment_state', 'state', 'journal_id', 'ref', 'narration'],
         limit: 0, order: 'id desc',
       });
-      setBills(Array.isArray(r) ? r : []);
+      const rows = Array.isArray(r) ? r : [];
+      setBills(rows);
+      try { localStorage.setItem('portal_bills', JSON.stringify(rows)); } catch { /* quota */ }
     } catch (e: any) { showMsg(false, 'Sync failed: ' + e.message); }
     finally { setLoading(false); }
   };

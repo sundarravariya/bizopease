@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord, writeRecord, unlinkRecord, odooCall, readGroup, listInternalUsers, isModuleInstalled } from '../../../services/odoo';
@@ -118,7 +118,7 @@ export default function Tasks() {
 
   const canAssign = isManager || isOpsEmployee;
 
-  const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
+  const showMsg = useCallback((ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); }, []);
 
   const loadTasks = useCallback(async (silent = false) => {
     if (!taskModel) return;
@@ -213,11 +213,15 @@ export default function Tasks() {
   // Keep createOpenRef in sync so the interval can check it without a dependency
   useEffect(() => { createOpenRef.current = createOpen; }, [createOpen]);
 
-  // Auto-refresh every 30 seconds — skip if create dialog is open
+  // Auto-refresh every 30 seconds — skip if create dialog is open, and only while
+  // the tab/app is visible (no wasted polling in the background). Refresh once on
+  // returning to the foreground so data is never stale when the user is looking.
   useEffect(() => {
     if (!taskModel) return;
-    const id = setInterval(() => { if (!createOpenRef.current) loadTasks(true); }, 30_000);
-    return () => clearInterval(id);
+    const tick = () => { if (document.visibilityState === 'visible' && !createOpenRef.current) loadTasks(true); };
+    const id = setInterval(tick, 30_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); };
   }, [loadTasks, taskModel]);
 
   // Detect newly assigned tasks and send push notification + sound
@@ -237,8 +241,8 @@ export default function Tasks() {
     notifyInitializedRef.current = true;
   }, [tasks, uid]);
 
-  // ── task actions ────────────────────────────────────────────────────────────
-  const setTaskState = async (t: Task, state: Task['state']) => {
+  // ── task actions (stable identities so memoized TaskCards don't re-render) ────
+  const setTaskState = useCallback(async (t: Task, state: Task['state']) => {
     setBusy(t.id);
     try {
       const method = state === 'done' ? 'action_done' : state === 'in_progress' ? 'action_start' : 'action_reset';
@@ -247,26 +251,40 @@ export default function Tasks() {
       if (state === 'done') showMsg(true, `+${t.points} points • "${t.name}" done`);
     } catch (e: any) { showMsg(false, e.message); }
     finally { setBusy(null); }
-  };
+  }, [taskModel, loadTasks, showMsg]);
 
-  const toggleDone = (t: Task) => setTaskState(t, t.state === 'done' ? 'todo' : 'done');
+  const toggleDone = useCallback((t: Task) => setTaskState(t, t.state === 'done' ? 'todo' : 'done'), [setTaskState]);
+  const startTask = useCallback((t: Task) => setTaskState(t, 'in_progress'), [setTaskState]);
 
-  const removeTask = async (t: Task) => {
+  const removeTask = useCallback(async (t: Task) => {
     setBusy(t.id);
     try { await unlinkRecord(taskModel, [t.id]); await loadTasks(); }
     catch (e: any) { showMsg(false, e.message); }
     finally { setBusy(null); }
-  };
+  }, [taskModel, loadTasks, showMsg]);
 
-  // ── derived ─────────────────────────────────────────────────────────────────
-  const myTasks = tasks.filter(t => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)));
-  const scopeTasks = (isManager || isOpsEmployee) ? tasks : myTasks;
-  const myOverdue = overdueItems.filter(t => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)));
-  const scopeOverdue = (isManager || isOpsEmployee) ? overdueItems : myOverdue;
-  const doneCount = scopeTasks.filter(t => t.state === 'done').length;
+  // ── derived (memoized: pure functions of tasks/overdue/uid/role) ─────────────
+  const isMine = useCallback(
+    (t: Task) => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)),
+    [uid],
+  );
+  const myTasks = useMemo(() => tasks.filter(isMine), [tasks, isMine]);
+  const scopeTasks = useMemo(
+    () => (isManager || isOpsEmployee) ? tasks : myTasks,
+    [isManager, isOpsEmployee, tasks, myTasks],
+  );
+  const myOverdue = useMemo(() => overdueItems.filter(isMine), [overdueItems, isMine]);
+  const scopeOverdue = useMemo(
+    () => (isManager || isOpsEmployee) ? overdueItems : myOverdue,
+    [isManager, isOpsEmployee, overdueItems, myOverdue],
+  );
+  const doneCount = useMemo(() => scopeTasks.filter(t => t.state === 'done').length, [scopeTasks]);
   const total = scopeTasks.length;
   const progress = total ? Math.round((doneCount / total) * 100) : 0;
-  const myPoints = myTasks.filter(t => t.state === 'done').reduce((s, t) => s + (t.points || 0), 0);
+  const myPoints = useMemo(
+    () => myTasks.filter(t => t.state === 'done').reduce((s, t) => s + (t.points || 0), 0),
+    [myTasks],
+  );
 
   const allScopeIds = useMemo(() => [...scopeTasks, ...scopeOverdue].map(t => t.id), [scopeTasks, scopeOverdue]);
   const allSelected = allScopeIds.length > 0 && allScopeIds.every(id => selIds.has(id));
@@ -275,7 +293,9 @@ export default function Tasks() {
     if (allSelected) setSelIds(new Set());
     else setSelIds(new Set(allScopeIds));
   };
-  const toggleSelect = (id: number) => setSelIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelect = useCallback((id: number) => setSelIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }), []);
+  // Stable (task-arg) adapters so TaskCard handler props keep a constant identity.
+  const onCardToggleSelect = useCallback((t: Task) => toggleSelect(t.id), [toggleSelect]);
 
   const txt = isDark ? 'text-white' : 'text-gray-900';
   const sub = isDark ? 'text-[#5a6a8a]' : 'text-gray-400';
@@ -377,9 +397,9 @@ export default function Tasks() {
                     <div className="space-y-2.5">
                       {scopeOverdue.map(t => (
                         <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
-                          selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
+                          selected={selIds.has(t.id)} onToggleSelect={onCardToggleSelect}
                           daysOverdue={daysOverdue(t.task_date)}
-                          onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} onEdit={() => setEditTask(t)} />
+                          onToggle={toggleDone} onStart={startTask} onDelete={removeTask} onEdit={setEditTask} />
                       ))}
                     </div>
                   </div>
@@ -401,8 +421,8 @@ export default function Tasks() {
                       <div className="space-y-2.5">
                         {colTasks.map(t => (
                           <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
-                            selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
-                            onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} onEdit={() => setEditTask(t)} />
+                            selected={selIds.has(t.id)} onToggleSelect={onCardToggleSelect}
+                            onToggle={toggleDone} onStart={startTask} onDelete={removeTask} onEdit={setEditTask} />
                         ))}
                       </div>
                     </div>
@@ -452,11 +472,11 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-// ── Task card ────────────────────────────────────────────────────────────────
-function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onToggle, onStart, onDelete, onEdit, daysOverdue: overdueDays }: {
+// ── Task card (memoized: re-renders only when its own props change) ───────────
+const TaskCard = memo(function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onToggle, onStart, onDelete, onEdit, daysOverdue: overdueDays }: {
   t: Task; isDark: boolean; isManager: boolean; busy: boolean;
-  selected?: boolean; onToggleSelect?: () => void;
-  onToggle: () => void; onStart: () => void; onDelete: () => void; onEdit: () => void;
+  selected?: boolean; onToggleSelect?: (t: Task) => void;
+  onToggle: (t: Task) => void; onStart: (t: Task) => void; onDelete: (t: Task) => void; onEdit: (t: Task) => void;
   daysOverdue?: number;
 }) {
   const txt = isDark ? 'text-white' : 'text-gray-900';
@@ -471,7 +491,7 @@ function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onTogg
   return (
     <div className={`relative flex gap-2.5 p-3 rounded-2xl border ${isOverdue ? 'border-rose-500/40' : border} ${cardBg} ${done ? 'opacity-70' : ''} overflow-hidden`}>
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${isOverdue ? 'bg-rose-500' : prio.bar}`} />
-      <button onClick={onToggle} disabled={busy} className="flex-shrink-0 mt-0.5">
+      <button onClick={() => onToggle(t)} disabled={busy} className="flex-shrink-0 mt-0.5">
         {busy ? <RefreshCw size={20} className="animate-spin text-[#7367f0]" /> : done
           ? <CheckCircle2 size={22} className="text-emerald-500" />
           : <Circle size={22} className={isOverdue ? 'text-rose-400' : sub} />}
@@ -499,18 +519,18 @@ function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onTogg
       </div>
       <div className="flex flex-col gap-1.5 flex-shrink-0">
         {onToggleSelect && (
-          <input type="checkbox" className="rounded" checked={!!selected} onChange={onToggleSelect} title="Select" />
+          <input type="checkbox" className="rounded" checked={!!selected} onChange={() => onToggleSelect(t)} title="Select" />
         )}
-        {!done && t.state === 'todo' && <button onClick={onStart} title="Start" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-amber-400`}><Play size={13} /></button>}
-        <button onClick={onEdit} title="Edit" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-[#7367f0]`}><Pencil size={13} /></button>
-        {isManager && <button onClick={onDelete} title="Delete" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-rose-400`}><Trash2 size={13} /></button>}
+        {!done && t.state === 'todo' && <button onClick={() => onStart(t)} title="Start" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-amber-400`}><Play size={13} /></button>}
+        <button onClick={() => onEdit(t)} title="Edit" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-[#7367f0]`}><Pencil size={13} /></button>
+        {isManager && <button onClick={() => onDelete(t)} title="Delete" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-rose-400`}><Trash2 size={13} /></button>}
       </div>
     </div>
   );
-}
+});
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
-function Leaderboard({ leaders, behind, isDark, meUid }: { leaders: LeaderRow[]; behind: BehindRow[]; isDark: boolean; meUid: number }) {
+const Leaderboard = memo(function Leaderboard({ leaders, behind, isDark, meUid }: { leaders: LeaderRow[]; behind: BehindRow[]; isDark: boolean; meUid: number }) {
   const txt = isDark ? 'text-white' : 'text-gray-900';
   const sub = isDark ? 'text-[#5a6a8a]' : 'text-gray-400';
   const cardBg = isDark ? 'bg-[#161b2e]' : 'bg-white';
@@ -571,10 +591,10 @@ function Leaderboard({ leaders, behind, isDark, meUid }: { leaders: LeaderRow[];
       )}
     </div>
   );
-}
+});
 
 // ── Monthly Report ──────────────────────────────────────────────────────────
-function MonthlyReport({ leaders, month, isDark, meUid, onPrev, onNext }: {
+const MonthlyReport = memo(function MonthlyReport({ leaders, month, isDark, meUid, onPrev, onNext }: {
   leaders: LeaderRow[]; month: string; isDark: boolean; meUid: number;
   onPrev: () => void; onNext: () => void;
 }) {
@@ -646,7 +666,7 @@ function MonthlyReport({ leaders, month, isDark, meUid, onPrev, onNext }: {
       )}
     </div>
   );
-}
+});
 
 // ── Create task sheet ────────────────────────────────────────────────────────
 function CreateTask({ isDark, canAssign, users, meUid, taskModel, onClose, onSaved, onError }: {
