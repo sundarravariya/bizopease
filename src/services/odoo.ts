@@ -49,6 +49,41 @@ function _isDedupable(endpoint: string, params: Record<string, any>): boolean {
   return false;
 }
 
+// ---------- Session-expiry auto-recovery ----------
+// Odoo sessions can be dropped server-side (multi-DB routing, restarts, GC). When a
+// request comes back "Session expired", transparently re-authenticate with the stored
+// credentials and retry the request ONCE, instead of failing the screen. This mirrors
+// the silent re-login AuthContext already performs on startup, but makes it work mid-
+// session for every screen (fixes the employee "Couldn't Verify Access" lockout).
+const CRED_KEY = 'biz_ak';
+let _reauthPromise: Promise<boolean> | null = null;
+
+function _isSessionExpired(err: any): boolean {
+  if (!err) return false;
+  if (err.code === 100) return true;                       // Odoo SessionExpiredException
+  const name = err.data?.name || '';
+  const msg = err.data?.message || err.message || '';
+  return /SessionExpired/i.test(name) || /session expired/i.test(msg);
+}
+
+async function _tryReauth(): Promise<boolean> {
+  if (isQueenSession()) return false;                      // queen uses a JWT, not an Odoo session
+  if (_reauthPromise) return _reauthPromise;               // single-flight: one re-login for all callers
+  _reauthPromise = (async () => {
+    try {
+      const raw = localStorage.getItem(CRED_KEY);
+      if (!raw) return false;
+      const { username, password, db } = JSON.parse(atob(raw));
+      if (!username || !password) return false;
+      const r = await odooLogin(username, password, db);
+      return !!r?.uid;
+    } catch { return false; }
+  })();
+  const ok = await _reauthPromise;
+  _reauthPromise = null;
+  return ok;
+}
+
 // ---------- Core JSON-RPC ----------
 async function jsonRpc<T>(endpoint: string, params: Record<string, any>): Promise<T> {
   if (!_isDedupable(endpoint, params)) {
@@ -62,7 +97,7 @@ async function jsonRpc<T>(endpoint: string, params: Record<string, any>): Promis
   return p as Promise<T>;
 }
 
-async function jsonRpcRaw<T>(endpoint: string, params: Record<string, any>): Promise<T> {
+async function jsonRpcRaw<T>(endpoint: string, params: Record<string, any>, allowReauth = true): Promise<T> {
   // Queen tenants: route all model (call_kw) traffic through the secured queen
   // proxy so every screen reads/writes the queenfinger DB, never robifel.
   if (endpoint === '/web/dataset/call_kw' && isQueenSession()) {
@@ -97,6 +132,11 @@ async function jsonRpcRaw<T>(endpoint: string, params: Record<string, any>): Pro
   };
   const { data } = await api.post<{ result?: T; error?: any }>(endpoint, payload);
   if (data.error) {
+    // Session dropped server-side → silently re-login with stored creds and retry once.
+    if (allowReauth && endpoint !== '/web/session/authenticate' && _isSessionExpired(data.error)) {
+      const ok = await _tryReauth();
+      if (ok) return jsonRpcRaw<T>(endpoint, params, false);
+    }
     const msg = data.error?.data?.message || data.error?.message || 'Odoo error';
     throw new Error(msg);
   }
