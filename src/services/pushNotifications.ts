@@ -69,10 +69,25 @@ export async function initPushNotifications() {
 
       PushNotifications.addListener('registrationError', () => {});
 
-      // Foreground push received — also play our priority tone
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      // Foreground push received — play tone + show local notification in panel
+      PushNotifications.addListener('pushNotificationReceived', async (notification) => {
         const priority = notification.data?.priority || '1';
         playTone(priority);
+        try {
+          const { LocalNotifications } = await import('@capacitor/local-notifications');
+          const ch = PRIORITY_CHANNEL[priority] || PRIORITY_CHANNEL['1'];
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: Date.now() & 0x7fffffff,
+              title: notification.title || 'New Task',
+              body: notification.body || '',
+              channelId: ch.id,
+              smallIcon: 'ic_stat_icon_config_sample',
+              iconColor: priority === '3' ? '#ef4444' : priority === '2' ? '#f59e0b' : '#7367f0',
+              schedule: { at: new Date(Date.now() + 100) },
+            }],
+          });
+        } catch { /* local notifications unavailable */ }
       });
 
       // User tapped on a push notification

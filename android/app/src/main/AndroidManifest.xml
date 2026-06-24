@@ -39,6 +39,14 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- FCM: default channel for notifications received while the app is in
+             background / killed. Ensures Android 8+ always has a valid channel to
+             render the system-tray notification even if the payload channel is
+             unavailable at delivery time. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="tasks_high" />
     </application>
 
     <!-- Permissions -->

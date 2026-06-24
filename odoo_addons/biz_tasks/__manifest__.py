@@ -12,7 +12,7 @@
         Flipkart coupling.
     """,
     'author': 'Robifel',
-    'depends': ['base', 'mail'],
+    'depends': ['base', 'mail', 'hr'],
     'data': [
         'security/ir.model.access.csv',
         'security/task_security.xml',

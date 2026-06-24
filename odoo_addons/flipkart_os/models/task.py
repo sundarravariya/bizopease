@@ -15,6 +15,9 @@ class RobifelTask(models.Model):
     assignee_id = fields.Many2one(
         'res.users', string='Assigned To', required=True, index=True,
         default=lambda self: self.env.user)
+    assignee_ids = fields.Many2many(
+        'res.users', 'robifel_task_co_assignee_rel', 'task_id', 'user_id',
+        string='Co-Assignees')
     assigned_by_id = fields.Many2one(
         'res.users', string='Assigned By', readonly=True,
         default=lambda self: self.env.user)
@@ -66,18 +69,23 @@ class RobifelTask(models.Model):
         self.write({'state': 'todo', 'done_date': False})
 
     def _fcm_notify_assignee(self, rec, prev_uid=None):
-        """Fire FCM when a task is assigned / re-assigned. Best-effort — never raises."""
+        """Fire FCM to all assignees on create/re-assign. Best-effort — never raises."""
         try:
-            new_uid = rec.assignee_id.id
-            if not new_uid or new_uid == prev_uid or new_uid == self.env.user.id:
+            targets = set()
+            if rec.assignee_id.id and rec.assignee_id.id != self.env.user.id and rec.assignee_id.id != prev_uid:
+                targets.add(rec.assignee_id.id)
+            for u in rec.assignee_ids:
+                if u.id != self.env.user.id:
+                    targets.add(u.id)
+            if not targets:
                 return
-            emp = self.env['hr.employee'].sudo().search(
-                [('user_id', '=', new_uid)], limit=1)
-            if not emp or not emp.fcm_token:
+            emps = self.env['hr.employee'].sudo().search([('user_id', 'in', list(targets))])
+            tokens = [e.fcm_token for e in emps if e.fcm_token]
+            if not tokens:
                 return
             prio = _PRIORITY_LABEL.get(rec.priority or '1', 'Normal')
             self.env['robifel.hr.settings']._send_fcm_push(
-                [emp.fcm_token],
+                tokens,
                 f'New Task — {prio} Priority',
                 rec.name,
                 {'taskId': str(rec.id), 'priority': rec.priority or '1',

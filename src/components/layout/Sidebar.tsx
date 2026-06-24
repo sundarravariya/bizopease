@@ -288,6 +288,7 @@ interface SidebarProps {
 // Employees see a focused workspace: their tasks, consignment operations, leaderboard.
 const EMPLOYEE_NAV: NavItem[] = [
   { id: 'tasks', label: 'My Tasks', icon: ListChecks, path: '/tasks', groupLabel: 'WORKSPACE' },
+  { id: 'attendance', label: 'My Attendance', icon: CalendarDays, path: '/hr/attendance', groupLabel: 'HR' },
   { id: 'consignments', label: 'Consignments', icon: PackageSearch, path: '/flipkart/consignments' },
   { id: 'daily-orders', label: 'Daily Orders', icon: ScanLine, path: '/flipkart/scanner' },
   { id: 'returns', label: 'Returns', icon: RefreshCcw, path: '/flipkart/returns' },

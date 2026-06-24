@@ -73,7 +73,7 @@ export default function Attendance() {
       }
     } catch (e: any) { showToast(false, e.message || 'Load failed'); }
     finally { setLoading(false); }
-  }, [monthStart, monthEnd]); // eslint-disable-line
+  }, [monthStart, monthEnd, uid, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 

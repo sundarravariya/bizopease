@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
-import { searchRead, createRecord, unlinkRecord, odooCall, readGroup, listInternalUsers, isModuleInstalled } from '../../../services/odoo';
+import { searchRead, createRecord, writeRecord, unlinkRecord, odooCall, readGroup, listInternalUsers, isModuleInstalled } from '../../../services/odoo';
 import { notifyTask, requestWebNotificationPermission } from '../../../services/pushNotifications';
 import BulkDeleteBar from '../../ui/BulkDeleteBar';
 import {
   CheckCircle2, Circle, Plus, X, RefreshCw, Trophy, Flame, Target,
   Trash2, Clock, Play, ListChecks, Medal, ChevronDown, AlertCircle, CalendarDays,
-  AlertTriangle, BarChart3, Users, ChevronLeft, ChevronRight,
+  AlertTriangle, BarChart3, Users, ChevronLeft, ChevronRight, Pencil,
 } from 'lucide-react';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ interface Task {
   name: string;
   description: string;
   assignee_id: [number, string] | false;
+  assignee_ids: number[];
   assigned_by_id: [number, string] | false;
   category: string;
   priority: string;
@@ -65,7 +66,7 @@ const prevMonth = (ym: string) => { const d = new Date(ym + '-01'); d.setMonth(d
 const nextMonth = (ym: string) => { const d = new Date(ym + '-01'); d.setMonth(d.getMonth() + 1); return d.toISOString().slice(0, 7); };
 const isCurrentMonth = (ym: string) => ym === today().slice(0, 7);
 
-const TASK_FIELDS = ['id', 'name', 'description', 'assignee_id', 'assigned_by_id', 'category', 'priority', 'state', 'task_date', 'deadline', 'done_date', 'points'];
+const TASK_FIELDS = ['id', 'name', 'description', 'assignee_id', 'assignee_ids', 'assigned_by_id', 'category', 'priority', 'state', 'task_date', 'deadline', 'done_date', 'points'];
 
 
 type ViewType = 'tasks' | 'leaderboard' | 'monthly';
@@ -92,6 +93,7 @@ export default function Tasks() {
   const [busy, setBusy] = useState<number | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTask, setEditTask] = useState<Task | null>(null);
   // Non-Flipkart tenants run biz_tasks (biz.task); Flipkart tenants run flipkart_os
   // (robifel.task). Resolve once; '' until known so loaders wait for the right model.
   const [taskModel, setTaskModel] = useState<string>('');
@@ -118,12 +120,12 @@ export default function Tasks() {
 
   const showMsg = (ok: boolean, msg: string) => { setToast({ ok, msg }); setTimeout(() => setToast(null), 4000); };
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (silent = false) => {
     if (!taskModel) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const baseDomain: any[] = [];
-      if (canAssign && empFilter !== 'all') baseDomain.push(['assignee_id', '=', empFilter]);
+      if (canAssign && empFilter !== 'all') baseDomain.push('|', ['assignee_id', '=', empFilter], ['assignee_ids', 'in', [empFilter]]);
 
       const todayDomain = [...baseDomain, ['task_date', '=', today()]];
       const currentDomain = dateFilter === 'today' ? todayDomain : baseDomain;
@@ -140,8 +142,8 @@ export default function Tasks() {
       ]);
       setTasks(Array.isArray(rows) ? rows : []);
       setOverdueItems(Array.isArray(overdueRows) ? overdueRows : []);
-    } catch (e: any) { showMsg(false, e.message); }
-    finally { setLoading(false); }
+    } catch (e: any) { if (!silent) showMsg(false, e.message); }
+    finally { if (!silent) setLoading(false); }
   }, [canAssign, empFilter, dateFilter, taskModel]);
 
   const loadLeaders = useCallback(async () => {
@@ -214,17 +216,22 @@ export default function Tasks() {
   // Auto-refresh every 30 seconds — skip if create dialog is open
   useEffect(() => {
     if (!taskModel) return;
-    const id = setInterval(() => { if (!createOpenRef.current) loadTasks(); }, 30_000);
+    const id = setInterval(() => { if (!createOpenRef.current) loadTasks(true); }, 30_000);
     return () => clearInterval(id);
   }, [loadTasks, taskModel]);
 
   // Detect newly assigned tasks and send push notification + sound
   useEffect(() => {
     if (!uid) return;
-    const myTasks = tasks.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
+    const myTasks = tasks.filter(t => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)));
     const currentIds = new Set(myTasks.map(t => t.id));
     if (notifyInitializedRef.current) {
-      myTasks.forEach(t => { if (!prevMyTaskIdsRef.current.has(t.id)) notifyTask(t).catch(() => {}); });
+      myTasks.forEach(t => {
+        if (!prevMyTaskIdsRef.current.has(t.id)) {
+          notifyTask(t).catch(() => {});
+          showMsg(true, `New task assigned: "${t.name}"`);
+        }
+      });
     }
     prevMyTaskIdsRef.current = currentIds;
     notifyInitializedRef.current = true;
@@ -252,9 +259,9 @@ export default function Tasks() {
   };
 
   // ── derived ─────────────────────────────────────────────────────────────────
-  const myTasks = tasks.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
+  const myTasks = tasks.filter(t => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)));
   const scopeTasks = (isManager || isOpsEmployee) ? tasks : myTasks;
-  const myOverdue = overdueItems.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
+  const myOverdue = overdueItems.filter(t => (t.assignee_ids?.includes(uid) || (Array.isArray(t.assignee_id) && t.assignee_id[0] === uid)));
   const scopeOverdue = (isManager || isOpsEmployee) ? overdueItems : myOverdue;
   const doneCount = scopeTasks.filter(t => t.state === 'done').length;
   const total = scopeTasks.length;
@@ -372,7 +379,7 @@ export default function Tasks() {
                         <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
                           selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
                           daysOverdue={daysOverdue(t.task_date)}
-                          onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} />
+                          onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} onEdit={() => setEditTask(t)} />
                       ))}
                     </div>
                   </div>
@@ -395,7 +402,7 @@ export default function Tasks() {
                         {colTasks.map(t => (
                           <TaskCard key={t.id} t={t} isDark={isDark} isManager={isManager || isOpsEmployee} busy={busy === t.id}
                             selected={selIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)}
-                            onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} />
+                            onToggle={() => toggleDone(t)} onStart={() => setTaskState(t, 'in_progress')} onDelete={() => removeTask(t)} onEdit={() => setEditTask(t)} />
                         ))}
                       </div>
                     </div>
@@ -426,6 +433,12 @@ export default function Tasks() {
           onSaved={() => { setCreateOpen(false); loadTasks(); showMsg(true, 'Task created.'); }}
           onError={m => showMsg(false, m)} />
       )}
+      {editTask && (
+        <EditTask isDark={isDark} canAssign={canAssign} users={users} task={editTask} taskModel={taskModel || 'robifel.task'}
+          onClose={() => setEditTask(null)}
+          onSaved={() => { setEditTask(null); loadTasks(); showMsg(true, 'Task updated.'); }}
+          onError={m => showMsg(false, m)} />
+      )}
     </div>
   );
 }
@@ -440,10 +453,10 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 }
 
 // ── Task card ────────────────────────────────────────────────────────────────
-function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onToggle, onStart, onDelete, daysOverdue: overdueDays }: {
+function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onToggle, onStart, onDelete, onEdit, daysOverdue: overdueDays }: {
   t: Task; isDark: boolean; isManager: boolean; busy: boolean;
   selected?: boolean; onToggleSelect?: () => void;
-  onToggle: () => void; onStart: () => void; onDelete: () => void;
+  onToggle: () => void; onStart: () => void; onDelete: () => void; onEdit: () => void;
   daysOverdue?: number;
 }) {
   const txt = isDark ? 'text-white' : 'text-gray-900';
@@ -489,6 +502,7 @@ function TaskCard({ t, isDark, isManager, busy, selected, onToggleSelect, onTogg
           <input type="checkbox" className="rounded" checked={!!selected} onChange={onToggleSelect} title="Select" />
         )}
         {!done && t.state === 'todo' && <button onClick={onStart} title="Start" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-amber-400`}><Play size={13} /></button>}
+        <button onClick={onEdit} title="Edit" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-[#7367f0]`}><Pencil size={13} /></button>
         {isManager && <button onClick={onDelete} title="Delete" className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'} text-rose-400`}><Trash2 size={13} /></button>}
       </div>
     </div>
@@ -639,23 +653,31 @@ function CreateTask({ isDark, canAssign, users, meUid, taskModel, onClose, onSav
   isDark: boolean; canAssign: boolean; users: UserRef[]; meUid: number; taskModel: string;
   onClose: () => void; onSaved: () => void; onError: (m: string) => void;
 }) {
-  const [f, setF] = useState<Record<string, any>>({ category: 'general', priority: '1', points: 10, task_date: today(), assignee_id: meUid });
+  const [f, setF] = useState<Record<string, any>>({ category: 'general', priority: '1', points: 10, task_date: today() });
+  const [assigneeIds, setAssigneeIds] = useState<number[]>(canAssign ? [] : [meUid]);
   const [saving, setSaving] = useState(false);
   const field = `input text-sm py-2.5 w-full ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
   const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
   const border = isDark ? 'border-[#2a3250]' : 'border-gray-100';
 
+  const toggleAssignee = (id: number) => {
+    setAssigneeIds(prev => prev.includes(id) ? (prev.length > 1 ? prev.filter(x => x !== id) : prev) : [...prev, id]);
+  };
+
   const save = async () => {
     if (!f.name?.trim()) { onError('Task name is required.'); return; }
+    if (canAssign && assigneeIds.length === 0) { onError('Select at least one employee to assign.'); return; }
     setSaving(true);
     try {
+      const targets = canAssign ? assigneeIds : [meUid];
       await createRecord(taskModel, {
         name: f.name.trim(),
         description: f.description || false,
-        assignee_id: canAssign ? (f.assignee_id || meUid) : meUid,
+        assignee_id: targets[0],
+        assignee_ids: [[6, 0, targets]],
         category: f.category,
         priority: f.priority,
-        points: parseInt(f.points) || 10,
+        points: canAssign ? (parseInt(f.points) || 10) : 10,
         task_date: f.task_date,
         deadline: f.deadline ? `${f.task_date} ${f.deadline}:00` : false,
       });
@@ -676,10 +698,16 @@ function CreateTask({ isDark, canAssign, users, meUid, taskModel, onClose, onSav
           <div><label className={lbl}>Task *</label><input value={f.name || ''} onChange={e => setF(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Pack consignment 204528558" className={field} autoFocus /></div>
           <div><label className={lbl}>Details</label><textarea rows={2} value={f.description || ''} onChange={e => setF(p => ({ ...p, description: e.target.value }))} className={`${field} resize-none`} /></div>
           {canAssign && (
-            <div><label className={lbl}>Assign To</label>
-              <select value={f.assignee_id} onChange={e => setF(p => ({ ...p, assignee_id: Number(e.target.value) }))} className={field}>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.id === meUid ? ' (me)' : ''}</option>)}
-              </select>
+            <div>
+              <label className={lbl}>Assign To {assigneeIds.length > 1 && <span className="text-[#7367f0]">({assigneeIds.length} selected)</span>}</label>
+              <div className={`rounded-xl border ${isDark ? 'border-[#2a3250] bg-[#12172a]' : 'border-gray-200 bg-gray-50'} max-h-36 overflow-y-auto`}>
+                {users.map(u => (
+                  <label key={u.id} className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'}`}>
+                    <input type="checkbox" checked={assigneeIds.includes(u.id)} onChange={() => toggleAssignee(u.id)} className="accent-[#7367f0]" />
+                    <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{u.name}{u.id === meUid ? ' (me)' : ''}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -697,12 +725,124 @@ function CreateTask({ isDark, canAssign, users, meUid, taskModel, onClose, onSav
           <div className="grid grid-cols-3 gap-3">
             <div><label className={lbl}><CalendarDays size={11} className="inline mr-0.5" /> Date</label><input type="date" value={f.task_date} onChange={e => setF(p => ({ ...p, task_date: e.target.value }))} className={field} /></div>
             <div><label className={lbl}>Time</label><input type="time" value={f.deadline || ''} onChange={e => setF(p => ({ ...p, deadline: e.target.value }))} className={field} /></div>
-            <div><label className={lbl}>Points</label><input type="number" min="0" value={f.points} onChange={e => setF(p => ({ ...p, points: e.target.value }))} className={field} /></div>
+            <div>
+              <label className={lbl}>Points</label>
+              {canAssign
+                ? <input type="number" min="0" value={f.points} onChange={e => setF(p => ({ ...p, points: e.target.value }))} className={field} />
+                : <div className={`input text-sm py-2.5 w-full ${isDark ? 'bg-[#0d1120] border-[#2a3250] text-[#4a5a7a]' : 'bg-gray-100 border-gray-200 text-gray-400'} cursor-not-allowed select-none`}>10</div>
+              }
+            </div>
           </div>
         </div>
         <div className={`p-4 border-t ${border}`}>
           <button onClick={save} disabled={saving || !f.name?.trim()} className="w-full py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
-            {saving ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />} Create Task
+            {saving ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />}
+            Create Task
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditTask({ isDark, canAssign, users, task, taskModel, onClose, onSaved, onError }: {
+  isDark: boolean; canAssign: boolean; users: UserRef[]; task: Task; taskModel: string;
+  onClose: () => void; onSaved: () => void; onError: (m: string) => void;
+}) {
+  const initAssignee = Array.isArray(task.assignee_id) ? task.assignee_id[0] : 0;
+  const initAssignees = task.assignee_ids?.length ? task.assignee_ids : (initAssignee ? [initAssignee] : []);
+  const [f, setF] = useState<Record<string, any>>({
+    name: task.name,
+    description: task.description || '',
+    category: task.category,
+    priority: task.priority,
+    points: task.points ?? 10,
+    task_date: task.task_date,
+    deadline: task.deadline ? String(task.deadline).slice(11, 16) : '',
+  });
+  const [assigneeIds, setAssigneeIds] = useState<number[]>(initAssignees);
+  const [saving, setSaving] = useState(false);
+  const field = `input text-sm py-2.5 w-full ${isDark ? 'bg-[#12172a] border-[#2a3250] text-white' : ''}`;
+  const lbl = `text-[11px] font-semibold block mb-1 ${isDark ? 'text-[#6a7a9a]' : 'text-gray-500'}`;
+  const border = isDark ? 'border-[#2a3250]' : 'border-gray-100';
+
+  const toggleAssignee = (id: number) => {
+    setAssigneeIds(prev => prev.includes(id) ? (prev.length > 1 ? prev.filter(x => x !== id) : prev) : [...prev, id]);
+  };
+
+  const save = async () => {
+    if (!f.name?.trim()) { onError('Task name is required.'); return; }
+    setSaving(true);
+    try {
+      const targets = canAssign ? (assigneeIds.length ? assigneeIds : [initAssignee]) : [initAssignee];
+      await writeRecord(taskModel, [task.id], {
+        name: f.name.trim(),
+        description: f.description || false,
+        assignee_id: targets[0],
+        assignee_ids: [[6, 0, targets]],
+        category: f.category,
+        priority: f.priority,
+        points: canAssign ? (parseInt(f.points) || 10) : (task.points ?? 10),
+        task_date: f.task_date,
+        deadline: f.deadline ? `${f.task_date} ${f.deadline}:00` : false,
+      });
+      onSaved();
+    } catch (e: any) { onError(e?.message || 'Update failed'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className={`w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl ${isDark ? 'bg-[#161b2e]' : 'bg-white'} shadow-2xl animate-slide-up`} onClick={e => e.stopPropagation()}>
+        <div className="pt-2.5 flex justify-center sm:hidden"><div className="w-10 h-1 rounded-full bg-gray-400/40" /></div>
+        <div className={`px-5 py-4 flex items-center justify-between border-b ${border}`}>
+          <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-gray-900'}`}>Edit Task</h2>
+          <button onClick={onClose} className={`p-1.5 rounded-xl ${isDark ? 'hover:bg-white/5 text-[#5a6a8a]' : 'hover:bg-gray-100 text-gray-400'}`}><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4 space-y-3">
+          <div><label className={lbl}>Task *</label><input value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} className={field} autoFocus /></div>
+          <div><label className={lbl}>Details</label><textarea rows={2} value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} className={`${field} resize-none`} /></div>
+          {canAssign && (
+            <div>
+              <label className={lbl}>Assign To {assigneeIds.length > 1 && <span className="text-[#7367f0]">({assigneeIds.length} selected)</span>}</label>
+              <div className={`rounded-xl border ${isDark ? 'border-[#2a3250] bg-[#12172a]' : 'border-gray-200 bg-gray-50'} max-h-36 overflow-y-auto`}>
+                {users.map(u => (
+                  <label key={u.id} className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'}`}>
+                    <input type="checkbox" checked={assigneeIds.includes(u.id)} onChange={() => toggleAssignee(u.id)} className="accent-[#7367f0]" />
+                    <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-800'}`}>{u.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lbl}>Category</label>
+              <select value={f.category} onChange={e => setF(p => ({ ...p, category: e.target.value }))} className={field}>
+                {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+            </div>
+            <div><label className={lbl}>Priority</label>
+              <select value={f.priority} onChange={e => setF(p => ({ ...p, priority: e.target.value }))} className={field}>
+                {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><label className={lbl}><CalendarDays size={11} className="inline mr-0.5" /> Date</label><input type="date" value={f.task_date} onChange={e => setF(p => ({ ...p, task_date: e.target.value }))} className={field} /></div>
+            <div><label className={lbl}>Time</label><input type="time" value={f.deadline} onChange={e => setF(p => ({ ...p, deadline: e.target.value }))} className={field} /></div>
+            <div>
+              <label className={lbl}>Points</label>
+              {canAssign
+                ? <input type="number" min="0" value={f.points} onChange={e => setF(p => ({ ...p, points: e.target.value }))} className={field} />
+                : <div className={`input text-sm py-2.5 w-full ${isDark ? 'bg-[#0d1120] border-[#2a3250] text-[#4a5a7a]' : 'bg-gray-100 border-gray-200 text-gray-400'} cursor-not-allowed select-none`}>{task.points ?? 10}</div>
+              }
+            </div>
+          </div>
+        </div>
+        <div className={`p-4 border-t ${border}`}>
+          <button onClick={save} disabled={saving || !f.name?.trim()} className="w-full py-3 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: 'linear-gradient(135deg, #7367f0, #3d5af1)' }}>
+            {saving ? <RefreshCw size={16} className="animate-spin" /> : <Pencil size={16} />}
+            Save Changes
           </button>
         </div>
       </div>

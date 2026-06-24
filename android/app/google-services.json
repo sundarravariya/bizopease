@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "11062151187",
+    "project_id": "bizopease",
+    "storage_bucket": "bizopease.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:11062151187:android:819c16b8b11ab0935597e6",
+        "android_client_info": {
+          "package_name": "in.robifel.portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZNR36DGj2WJXXitv08d_oDtsS5i6pvS4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
