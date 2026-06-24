@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api
 
+_PRIORITY_LABEL = {'0': 'Low', '1': 'Normal', '2': 'High', '3': 'Urgent'}
+
 
 class RobifelTask(models.Model):
     _name = 'robifel.task'
@@ -62,3 +64,39 @@ class RobifelTask(models.Model):
 
     def action_reset(self):
         self.write({'state': 'todo', 'done_date': False})
+
+    def _fcm_notify_assignee(self, rec, prev_uid=None):
+        """Fire FCM when a task is assigned / re-assigned. Best-effort — never raises."""
+        try:
+            new_uid = rec.assignee_id.id
+            if not new_uid or new_uid == prev_uid or new_uid == self.env.user.id:
+                return
+            emp = self.env['hr.employee'].sudo().search(
+                [('user_id', '=', new_uid)], limit=1)
+            if not emp or not emp.fcm_token:
+                return
+            prio = _PRIORITY_LABEL.get(rec.priority or '1', 'Normal')
+            self.env['robifel.hr.settings']._send_fcm_push(
+                [emp.fcm_token],
+                f'New Task — {prio} Priority',
+                rec.name,
+                {'taskId': str(rec.id), 'priority': rec.priority or '1',
+                 'model': self._name},
+            )
+        except Exception:
+            pass
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for rec in records:
+            self._fcm_notify_assignee(rec)
+        return records
+
+    def write(self, vals):
+        prev = {rec.id: rec.assignee_id.id for rec in self} if 'assignee_id' in vals else {}
+        result = super().write(vals)
+        if prev:
+            for rec in self:
+                self._fcm_notify_assignee(rec, prev.get(rec.id))
+        return result

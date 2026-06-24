@@ -30,11 +30,15 @@ class RobifelHrSettings(models.Model):
         ('qr', 'QR Code'),
     ], string='Attendance Method', default='gps_selfie')
 
-    # QR attendance — 2-minute rotating token
+    # QR attendance — rotating or fixed token
+    qr_fixed = fields.Boolean(string='Fixed QR (no rotation)', default=False)
     qr_daily_token = fields.Char(string='QR Token (current)', readonly=True)
     qr_token_date = fields.Date(string='QR Token Date', readonly=True)
     qr_token_at = fields.Datetime(string='QR Token Generated At', readonly=True)
     qr_token_prev = fields.Char(string='QR Token (previous)', readonly=True)
+
+    # FCM push — service account JSON for HTTP v1 API (admin-only)
+    fcm_service_account = fields.Text(string='FCM Service Account JSON', groups='base.group_system')
     # Registered workplace NFC tag UIDs (comma-separated hex).
     nfc_tag_ids = fields.Char(string='Registered NFC Tags', default='')
     # Kiosk fallback: admin device scans an employee's personal NFC badge.
@@ -71,11 +75,13 @@ class RobifelHrSettings(models.Model):
             'attendance_mode': rec.attendance_mode or 'gps_selfie',
             'nfc_tag_ids': (rec.nfc_tag_ids or '') if is_admin else '',
             'kiosk_enabled': rec.kiosk_enabled,
+            'qr_fixed': rec.qr_fixed,
             'geofence_enabled': rec.geofence_enabled,
             # Don't leak the exact workplace coordinates to non-admins.
             'geofence_lat': rec.geofence_lat if is_admin else 0.0,
             'geofence_lng': rec.geofence_lng if is_admin else 0.0,
             'geofence_radius': rec.geofence_radius or 150,
+            'fcm_service_account_set': bool(rec.sudo().fcm_service_account) if is_admin else False,
             # Server-authoritative date (respects the user's timezone), so the
             # gate doesn't mis-match on a device with a skewed clock/timezone.
             'today': fields.Date.to_string(fields.Date.context_today(self)),
@@ -93,7 +99,8 @@ class RobifelHrSettings(models.Model):
         rec.write({k: v for k, v in vals.items() if k in (
             'work_start', 'work_end', 'enforce_work_hours', 'weekly_off',
             'ping_interval', 'attendance_mode', 'nfc_tag_ids', 'kiosk_enabled',
-            'geofence_enabled', 'geofence_lat', 'geofence_lng', 'geofence_radius')})
+            'qr_fixed', 'geofence_enabled', 'geofence_lat', 'geofence_lng',
+            'geofence_radius', 'fcm_service_account')})
         return self.get_settings()
 
     @staticmethod
@@ -165,12 +172,16 @@ class RobifelHrSettings(models.Model):
         rec = self._singleton()
         now = datetime.now()
         today = fields.Date.context_today(self)
-        needs_rotate = (
-            not rec.qr_daily_token
-            or not rec.qr_token_at
-            or rec.qr_token_date != today
-            or (now - rec.qr_token_at).total_seconds() >= 120
-        )
+        if rec.qr_fixed:
+            # Fixed mode: generate once, never rotate
+            needs_rotate = not rec.qr_daily_token
+        else:
+            needs_rotate = (
+                not rec.qr_daily_token
+                or not rec.qr_token_at
+                or rec.qr_token_date != today
+                or (now - rec.qr_token_at).total_seconds() >= 120
+            )
         if needs_rotate:
             rec.write({
                 'qr_token_prev': rec.qr_daily_token,
@@ -197,3 +208,110 @@ class RobifelHrSettings(models.Model):
         if not emp:
             raise UserError(_("No employee record is linked to your account."))
         return self.env['robifel.attendance.day'].punch(emp.id, 'auto', lat, lng, selfie)
+
+    @api.model
+    def save_fcm_token(self, token):
+        """Any logged-in user can register their device's FCM push token."""
+        if not token:
+            return False
+        emp = self.env['hr.employee'].sudo().search(
+            [('user_id', '=', self.env.user.id)], limit=1)
+        if emp:
+            emp.write({'fcm_token': token.strip()})
+        return True
+
+    @api.model
+    def _fcm_oauth_token(self):
+        """Mint a short-lived OAuth2 bearer token for FCM HTTP v1 using the stored
+        service account JSON.  Returns None if the service account is not configured
+        or if any step fails."""
+        import json as _json, time as _time, base64 as _b64
+        try:
+            import requests as _req
+            from cryptography.hazmat.primitives import hashes as _h, serialization as _ser
+            from cryptography.hazmat.primitives.asymmetric import padding as _pad
+        except ImportError:
+            return None
+
+        rec = self._singleton()
+        sa_raw = rec.sudo().fcm_service_account
+        if not sa_raw:
+            return None
+        try:
+            sa = _json.loads(sa_raw)
+            client_email = sa['client_email']
+            private_key_pem = sa['private_key']
+
+            def _b64u(data):
+                if isinstance(data, str):
+                    data = data.encode()
+                return _b64.urlsafe_b64encode(data).rstrip(b'=').decode()
+
+            now = int(_time.time())
+            header = _b64u(_json.dumps({"alg": "RS256", "typ": "JWT"}))
+            claim = _b64u(_json.dumps({
+                "iss": client_email,
+                "scope": "https://www.googleapis.com/auth/firebase.messaging",
+                "aud": "https://oauth2.googleapis.com/token",
+                "iat": now,
+                "exp": now + 3600,
+            }))
+            signing_input = f"{header}.{claim}".encode()
+            pk = _ser.load_pem_private_key(private_key_pem.encode(), password=None)
+            sig = pk.sign(signing_input, _pad.PKCS1v15(), _h.SHA256())
+            jwt = f"{header}.{claim}.{_b64u(sig)}"
+
+            resp = _req.post(
+                "https://oauth2.googleapis.com/token",
+                data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                      "assertion": jwt},
+                timeout=10,
+            )
+            return resp.json().get("access_token")
+        except Exception:
+            return None
+
+    _FCM_PRIORITY_CHANNEL = {
+        '3': 'tasks_urgent', '2': 'tasks_high', '1': 'tasks_normal', '0': 'tasks_low',
+    }
+
+    @api.model
+    def _send_fcm_push(self, tokens, title, body, data=None):
+        """Send an FCM push via HTTP v1 API (service account OAuth2).
+        tokens — list of FCM registration tokens.
+        Silent no-op when service account not configured or any error occurs."""
+        if not tokens:
+            return
+        clean = [t for t in (tokens if isinstance(tokens, list) else [tokens]) if t]
+        if not clean:
+            return
+        rec = self._singleton()
+        if not rec.sudo().fcm_service_account:
+            return
+        bearer = self._fcm_oauth_token()
+        if not bearer:
+            return
+        try:
+            import json as _json
+            import requests as _req
+            sa = _json.loads(rec.sudo().fcm_service_account)
+            project_id = sa.get('project_id', 'bizopease')
+            d = data or {}
+            channel_id = self._FCM_PRIORITY_CHANNEL.get(str(d.get('priority', '1')), 'tasks_normal')
+            url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+            headers = {"Authorization": f"Bearer {bearer}", "Content-Type": "application/json"}
+            for token in clean:
+                payload = {
+                    "message": {
+                        "token": token,
+                        "notification": {"title": title, "body": body},
+                        "data": {k: str(v) for k, v in d.items()},
+                        "android": {
+                            "priority": "high",
+                            "notification": {"channel_id": channel_id},
+                        },
+                    }
+                }
+                _req.post(url, json=payload, headers=headers, timeout=8)
+        except Exception:
+            pass

@@ -5,7 +5,7 @@ import { scanNfc, nfcStatus, cancelNfc, getPosition } from '../../../services/na
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Clock, CheckCircle2, RefreshCw, Nfc, MapPin, Trash2, AlertCircle, CalendarOff,
-  CreditCard, Users, Check, LocateFixed, QrCode,
+  CreditCard, Users, Check, LocateFixed, QrCode, Bell,
 } from 'lucide-react';
 
 interface Emp { id: number; name: string; robifel_nfc_badge?: string | false; }
@@ -35,6 +35,8 @@ export default function HrSettings() {
   const [emps, setEmps] = useState<Emp[]>([]);
   const [badgeBusy, setBadgeBusy] = useState<number | null>(null);
   const [badgeMsg, setBadgeMsg] = useState<string | null>(null);
+  const [fcmServiceAccount, setFcmServiceAccount] = useState('');
+  const [fcmServiceAccountSet, setFcmServiceAccountSet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -63,7 +65,9 @@ export default function HrSettings() {
           setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6');
           const m = s.attendance_mode || 'gps_selfie';
           setMode(m); setTags(parseTags(s.nfc_tag_ids));
-          setKioskEnabled(s.kiosk_enabled !== false); setQrFixed(!!s.qr_fixed); setGeoEnabled(!!s.geofence_enabled);
+          setKioskEnabled(s.kiosk_enabled !== false); setQrFixed(!!s.qr_fixed);
+          setFcmServiceAccountSet(!!s.fcm_service_account_set);
+          setGeoEnabled(!!s.geofence_enabled);
           setGeoLat(s.geofence_lat ? String(s.geofence_lat) : '');
           setGeoLng(s.geofence_lng ? String(s.geofence_lng) : '');
           setGeoRadius(String(s.geofence_radius || 150));
@@ -87,6 +91,7 @@ export default function HrSettings() {
         nfc_tag_ids: tags.join(','),
         kiosk_enabled: kioskEnabled,
         qr_fixed: qrFixed,
+        fcm_service_account: fcmServiceAccount || undefined,
         geofence_enabled: geoEnabled,
         geofence_lat: parseFloat(geoLat) || 0,
         geofence_lng: parseFloat(geoLng) || 0,
@@ -314,6 +319,28 @@ export default function HrSettings() {
                   {emps.length === 0 && <p className={`text-[11px] ${sub}`}>No employees yet.</p>}
                 </div>
               )}
+            </div>
+
+            {/* Push Notifications (FCM v1) */}
+            <div className={`border-t pt-4 space-y-3 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>
+              <h3 className={`font-bold text-sm flex items-center gap-2 ${txt}`}><Bell size={15} className="text-[#7367f0]" /> Push Notifications (FCM)</h3>
+              <p className={`text-xs ${sub}`}>Paste your Firebase Service Account JSON to enable server-side task push notifications. Get it from Firebase Console → Project Settings → Service Accounts → Generate new private key.</p>
+              {fcmServiceAccountSet && !fcmServiceAccount && (
+                <p className="text-[11px] text-emerald-500 flex items-center gap-1"><Check size={11} /> Service account configured — push is active. Paste again to replace.</p>
+              )}
+              <div>
+                <label className="label">Service Account JSON {fcmServiceAccountSet ? '(leave blank to keep existing)' : ''}</label>
+                <textarea
+                  rows={4}
+                  value={fcmServiceAccount}
+                  onChange={e => setFcmServiceAccount(e.target.value)}
+                  placeholder={'{\n  "type": "service_account",\n  "project_id": "bizopease",\n  …\n}'}
+                  className={`${inp} w-full font-mono text-[11px] resize-none`}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {!fcmServiceAccountSet && !fcmServiceAccount && <p className={`text-[11px] mt-1 flex items-center gap-1.5 text-amber-500`}><AlertCircle size={11} /> No service account — server-side push disabled. Device tokens are still collected.</p>}
+              </div>
             </div>
 
             <div className={`border-t pt-4 space-y-2 ${isDark ? 'border-[#2a3250]' : 'border-gray-100'}`}>

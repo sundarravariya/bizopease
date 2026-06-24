@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { odooLogin, odooLogout, odooGetSession, userIsManager } from '../services/odoo';
 import { getOdooDb } from '../config/tenant';
+import { syncFcmTokenToOdoo } from '../services/pushNotifications';
 
 interface User {
   uid: number;
@@ -183,6 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       localStorage.setItem('robifel-user', JSON.stringify(userData));
       saveCredentials(username, password, db);
+
+      // Sync any stored FCM token to the newly authenticated session
+      syncFcmTokenToOdoo();
 
       // Confirm manager role via group membership (authoritative).
       try {

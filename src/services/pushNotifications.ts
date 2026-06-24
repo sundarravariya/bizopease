@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { odooCall } from './odoo';
 
 // ── Priority tone frequencies for Web Audio API (web/browser fallback) ───────
 function playTone(priority: string) {
@@ -64,8 +65,10 @@ export async function initPushNotifications() {
 
       PushNotifications.addListener('registration', ({ value }) => {
         _fcmToken = value;
-        // Store locally so odoo service can send it on next API call
         try { localStorage.setItem('biz_fcm_token', value); } catch {}
+        // Best-effort: save token to Odoo immediately. If not logged in yet,
+        // syncFcmTokenToOdoo() will be called again after login.
+        odooCall('robifel.hr.settings', 'save_fcm_token', [value], {}).catch(() => {});
       });
 
       PushNotifications.addListener('registrationError', () => {});
@@ -120,6 +123,16 @@ export async function notifyTask(task: { id: number; name: string; description?:
       } catch { /* blocked */ }
     }
   }
+}
+
+// ── Sync stored FCM token to Odoo after login ────────────────────────────────
+export function syncFcmTokenToOdoo() {
+  try {
+    const token = localStorage.getItem('biz_fcm_token');
+    if (token) {
+      odooCall('robifel.hr.settings', 'save_fcm_token', [token], {}).catch(() => {});
+    }
+  } catch { /* localStorage unavailable */ }
 }
 
 // ── Request web notification permission (web-only) ───────────────────────────

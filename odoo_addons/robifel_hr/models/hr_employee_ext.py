@@ -11,6 +11,7 @@ class HrEmployee(models.Model):
     # worker whose own phone has no NFC can still be scanned in on the admin phone.
     robifel_nfc_badge = fields.Char(string='NFC Badge UID', copy=False,
                                     groups='base.group_system')
+    fcm_token = fields.Char(string='FCM Push Token', copy=False)
 
     @api.model
     def register_badge(self, employee_id, uid):
