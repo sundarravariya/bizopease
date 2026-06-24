@@ -21,6 +21,7 @@ export default function HrSettings() {
   const [mode, setMode] = useState<'gps_selfie' | 'nfc' | 'qr'>('gps_selfie');
   const [qrData, setQrData] = useState<{ url: string; date: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [qrFixed, setQrFixed] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [nfcMsg, setNfcMsg] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export default function HrSettings() {
           setEnforce(!!s.enforce_work_hours); setWeeklyOff(s.weekly_off || '6');
           const m = s.attendance_mode || 'gps_selfie';
           setMode(m); setTags(parseTags(s.nfc_tag_ids));
-          setKioskEnabled(s.kiosk_enabled !== false); setGeoEnabled(!!s.geofence_enabled);
+          setKioskEnabled(s.kiosk_enabled !== false); setQrFixed(!!s.qr_fixed); setGeoEnabled(!!s.geofence_enabled);
           setGeoLat(s.geofence_lat ? String(s.geofence_lat) : '');
           setGeoLng(s.geofence_lng ? String(s.geofence_lng) : '');
           setGeoRadius(String(s.geofence_radius || 150));
@@ -85,6 +86,7 @@ export default function HrSettings() {
         attendance_mode: mode,
         nfc_tag_ids: tags.join(','),
         kiosk_enabled: kioskEnabled,
+        qr_fixed: qrFixed,
         geofence_enabled: geoEnabled,
         geofence_lat: parseFloat(geoLat) || 0,
         geofence_lng: parseFloat(geoLng) || 0,
@@ -200,7 +202,11 @@ export default function HrSettings() {
 
               {mode === 'qr' && (
                 <div className={`rounded-xl p-4 space-y-3 ${isDark ? 'bg-[#111827]' : 'bg-gray-50'}`}>
-                  <p className={`text-[11px] ${sub}`}>A new QR code is generated every day at midnight. Employees scan it to mark their attendance (in or out).</p>
+                  <p className={`text-[11px] ${sub}`}>{qrFixed ? 'Fixed QR mode — the code never rotates. Employees scan the same code every day.' : 'A new QR code is generated every day at midnight. Employees scan it to mark their attendance (in or out).'}</p>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={qrFixed} onChange={e => setQrFixed(e.target.checked)} className="w-4 h-4 rounded text-brand-violet" />
+                    <span className={`text-xs ${sub}`}>Use fixed QR — same code forever, no daily rotation</span>
+                  </label>
                   {qrLoading ? (
                     <div className="flex justify-center py-4"><RefreshCw size={18} className="animate-spin text-[#7367f0]" /></div>
                   ) : qrData ? (
@@ -208,7 +214,7 @@ export default function HrSettings() {
                       <div className="rounded-xl bg-white p-3">
                         <QRCodeSVG value={qrData.url} size={180} />
                       </div>
-                      <p className={`text-[11px] ${sub}`}>Valid: {qrData.date} · Rotates at midnight</p>
+                      <p className={`text-[11px] ${sub}`}>{qrFixed ? 'Fixed QR — does not rotate' : `Valid: ${qrData.date} · Rotates at midnight`}</p>
                       <button type="button" onClick={loadQr} disabled={qrLoading}
                         className="text-xs text-[#7367f0] flex items-center gap-1.5">
                         <RefreshCw size={12} className={qrLoading ? 'animate-spin' : ''} /> Refresh QR

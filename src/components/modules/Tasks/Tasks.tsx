@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { searchRead, createRecord, unlinkRecord, odooCall, readGroup, listInternalUsers, isModuleInstalled } from '../../../services/odoo';
@@ -66,6 +66,41 @@ const isCurrentMonth = (ym: string) => ym === today().slice(0, 7);
 
 const TASK_FIELDS = ['id', 'name', 'description', 'assignee_id', 'assigned_by_id', 'category', 'priority', 'state', 'task_date', 'deadline', 'done_date', 'points'];
 
+// ── Notification helpers ──────────────────────────────────────────────────────
+function playTaskSound(priority: string) {
+  try {
+    const ctx = new AudioContext();
+    const play = (freq: number, start: number, dur: number, vol = 0.35) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
+      gain.gain.setValueAtTime(vol, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur);
+    };
+    if (priority === '3') { play(1046, 0, 0.12, 0.5); play(1046, 0.17, 0.12, 0.5); play(1046, 0.34, 0.12, 0.5); }
+    else if (priority === '2') { play(880, 0, 0.18, 0.4); play(880, 0.28, 0.18, 0.4); }
+    else if (priority === '1') { play(660, 0, 0.28, 0.3); }
+    else { play(440, 0, 0.35, 0.18); }
+  } catch { /* AudioContext unavailable */ }
+}
+
+function sendTaskNotification(task: Task) {
+  playTaskSound(task.priority);
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    const pMeta = PRIORITIES.find(p => p.key === task.priority);
+    try {
+      new Notification(`New Task — ${pMeta?.label || ''} Priority`, {
+        body: task.name + (task.description ? `\n${task.description}` : ''),
+        icon: '/favicon.ico',
+        tag: `biz-task-${task.id}`,
+        requireInteraction: task.priority === '3',
+      });
+    } catch { /* blocked */ }
+  }
+}
+
 type ViewType = 'tasks' | 'leaderboard' | 'monthly';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -94,6 +129,18 @@ export default function Tasks() {
   // (robifel.task). Resolve once; '' until known so loaders wait for the right model.
   const [taskModel, setTaskModel] = useState<string>('');
   useEffect(() => { isModuleInstalled('biz_tasks').then(b => setTaskModel(b ? 'biz.task' : 'robifel.task')).catch(() => setTaskModel('robifel.task')); }, []);
+
+  // Refs for auto-refresh and new-task notification tracking
+  const createOpenRef = useRef(false);
+  const prevMyTaskIdsRef = useRef<Set<number>>(new Set());
+  const notifyInitializedRef = useRef(false);
+
+  // Request notification permission on first load
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Operations department employees can also assign tasks to any user
   const [isOpsEmployee, setIsOpsEmployee] = useState(false);
@@ -197,6 +244,28 @@ export default function Tasks() {
   useEffect(() => { if (view === 'leaderboard') loadLeaders(); }, [view, loadLeaders]);
   useEffect(() => { if (view === 'monthly') loadMonthlyLeaders(); }, [view, loadMonthlyLeaders]);
   useEffect(() => { if (canAssign) listInternalUsers().then(setUsers); }, [canAssign]);
+
+  // Keep createOpenRef in sync so the interval can check it without a dependency
+  useEffect(() => { createOpenRef.current = createOpen; }, [createOpen]);
+
+  // Auto-refresh every 30 seconds — skip if create dialog is open
+  useEffect(() => {
+    if (!taskModel) return;
+    const id = setInterval(() => { if (!createOpenRef.current) loadTasks(); }, 30_000);
+    return () => clearInterval(id);
+  }, [loadTasks, taskModel]);
+
+  // Detect newly assigned tasks and send push notification + sound
+  useEffect(() => {
+    if (!uid) return;
+    const myTasks = tasks.filter(t => Array.isArray(t.assignee_id) && t.assignee_id[0] === uid);
+    const currentIds = new Set(myTasks.map(t => t.id));
+    if (notifyInitializedRef.current) {
+      myTasks.forEach(t => { if (!prevMyTaskIdsRef.current.has(t.id)) sendTaskNotification(t); });
+    }
+    prevMyTaskIdsRef.current = currentIds;
+    notifyInitializedRef.current = true;
+  }, [tasks, uid]);
 
   // ── task actions ────────────────────────────────────────────────────────────
   const setTaskState = async (t: Task, state: Task['state']) => {

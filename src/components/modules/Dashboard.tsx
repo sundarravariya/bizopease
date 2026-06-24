@@ -67,6 +67,7 @@ export default function Dashboard() {
   const ws = workspace || user?.db || 'robifel';
 
   const [kpis, setKpis] = useState({ sales: 0, purchase: 0, invoices: 0, products: 0, revenue: 0, receivable: 0 });
+  const [attendanceStats, setAttendanceStats] = useState({ present: 0, absent: 0 });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [monthlyData, setMonthlyData] = useState<{ month: string; revenue: number; orders: number }[]>([]);
   const [categoryData, setCategoryData] = useState<{ name: string; value: number; color: string }[]>([]);
@@ -95,9 +96,23 @@ export default function Dashboard() {
   async function loadAll() {
     setLoading(true);
     try {
-      await Promise.all([loadKpis(), loadRecentOrders(), loadCharts()]);
+      await Promise.all([loadKpis(), loadRecentOrders(), loadCharts(), loadAttendanceStats()]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAttendanceStats() {
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    try {
+      const [present, absent] = await Promise.all([
+        searchCount('robifel.attendance.day', [['date', '=', todayStr], ['status', '=', 'present']]),
+        searchCount('robifel.attendance.day', [['date', '=', todayStr], ['status', '=', 'absent']]),
+      ]);
+      setAttendanceStats({ present: present || 0, absent: absent || 0 });
+    } catch {
+      setAttendanceStats({ present: 0, absent: 0 });
     }
   }
 
@@ -254,6 +269,18 @@ export default function Dashboard() {
           sub="Outstanding invoices" icon={CreditCard}
           gradient="bg-gradient-to-br from-[#f59e0b] to-[#ef4444]" isDark={isDark} />
       </div>
+
+      {/* Attendance Today */}
+      {(attendanceStats.present > 0 || attendanceStats.absent > 0) && (
+        <div className="grid grid-cols-2 gap-4">
+          <KpiCard title="Present Today" value={loading ? '...' : attendanceStats.present.toString()}
+            sub="Employees checked in" icon={Users}
+            gradient="bg-gradient-to-br from-emerald-500 to-teal-600" isDark={isDark} />
+          <KpiCard title="Absent Today" value={loading ? '...' : attendanceStats.absent.toString()}
+            sub="Marked absent today" icon={Users}
+            gradient="bg-gradient-to-br from-rose-500 to-pink-600" isDark={isDark} />
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">

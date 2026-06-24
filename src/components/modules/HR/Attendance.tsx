@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { searchRead, createRecord, writeRecord, odooCall, listStaffEmployees } from '../../../services/odoo';
 import { useTheme } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/AuthContext';
 import {
   RefreshCw, ChevronLeft, ChevronRight, CalendarDays, Clock,
   CheckCircle2, AlertCircle, MapPin, Camera, Users,
 } from 'lucide-react';
 
-interface Employee { id: number; name: string; job_title?: string | false; user_id?: [number, string] | false; }
+interface Employee { id: number; name: string; job_title?: string | false; user_id?: [number, string] | false; department_id?: [number, string] | false; }
 interface DayRec {
   id: number; employee_id: [number, string]; date: string; status: string;
   ot_hours: number; check_in?: string | false; check_out?: string | false;
@@ -29,8 +30,11 @@ const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function Attendance() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_admin;
+  const uid = user?.uid || 0;
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
-  const [tab, setTab] = useState<'today' | 'register'>('today');
+  const [tab, setTab] = useState<'today' | 'register'>(() => (user?.is_admin ? 'today' : 'register'));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [weeklyOff, setWeeklyOff] = useState(6);   // 0=Mon … 6=Sun (global)
   const [days, setDays] = useState<DayRec[]>([]);
@@ -53,14 +57,20 @@ export default function Attendance() {
     setLoading(true);
     try {
       const [emps, settings, dd] = await Promise.all([
-        listStaffEmployees<Employee>(['id', 'name', 'job_title']),
+        listStaffEmployees<Employee>(['id', 'name', 'job_title', 'user_id']),
         odooCall<{ weekly_off: string }>('robifel.hr.settings', 'get_settings', [], {}),
         searchRead<DayRec>('robifel.attendance.day', { fields: ['id', 'employee_id', 'date', 'status', 'ot_hours', 'check_in', 'check_out'], domain: [['date', '>=', monthStart], ['date', '<=', monthEnd]], limit: 0 }),
       ]);
       setEmployees(emps || []);
       setWeeklyOff(Number(settings?.weekly_off ?? '6'));
       setDays(dd || []);
-      if (!selEmp && emps?.length) setSelEmp(emps[0].id);
+      if (!isAdmin && uid) {
+        // Non-admin: auto-select own employee record
+        const own = (emps || []).find(e => Array.isArray(e.user_id) && e.user_id[0] === uid);
+        if (own) setSelEmp(own.id);
+      } else if (!selEmp && emps?.length) {
+        setSelEmp(emps[0].id);
+      }
     } catch (e: any) { showToast(false, e.message || 'Load failed'); }
     finally { setLoading(false); }
   }, [monthStart, monthEnd]); // eslint-disable-line
@@ -158,11 +168,16 @@ export default function Attendance() {
           </div>
           <button onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="p-1.5 rounded-lg hover:bg-white/5"><ChevronRight size={16} className={sub} /></button>
         </div>
-        <div className={`flex p-1 rounded-xl sm:ml-auto ${isDark ? 'bg-[#1e2440]' : 'bg-gray-100'}`}>
-          {([['today', 'Mark Today'], ['register', 'Register']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === k ? 'bg-[#7367f0] text-white shadow' : sub}`}>{l}</button>
-          ))}
-        </div>
+        {isAdmin && (
+          <div className={`flex p-1 rounded-xl sm:ml-auto ${isDark ? 'bg-[#1e2440]' : 'bg-gray-100'}`}>
+            {([['today', 'Mark Today'], ['register', 'Register']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === k ? 'bg-[#7367f0] text-white shadow' : sub}`}>{l}</button>
+            ))}
+          </div>
+        )}
+        {!isAdmin && (
+          <span className={`sm:ml-auto text-xs font-bold px-3 py-1.5 rounded-lg bg-[#7367f0] text-white`}>My Attendance Register</span>
+        )}
       </div>
 
       {/* ── MARK TODAY: all employees, quick chips ── */}
@@ -200,16 +215,21 @@ export default function Attendance() {
       {/* ── REGISTER: per-employee month grid ── */}
       {tab === 'register' && (
         <div className="space-y-4">
-          {/* Employee selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {employees.map(emp => (
-              <button key={emp.id} onClick={() => setSelEmp(emp.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${selEmp === emp.id ? 'bg-[#7367f0] text-white' : isDark ? 'bg-[#161b2e] text-[#8897b5] border border-[#2a3250]' : 'bg-white text-gray-500 border border-gray-200'}`}>
-                {emp.name}
-              </button>
-            ))}
-          </div>
+          {/* Employee selector — admins only */}
+          {isAdmin && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {employees.map(emp => (
+                <button key={emp.id} onClick={() => setSelEmp(emp.id)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${selEmp === emp.id ? 'bg-[#7367f0] text-white' : isDark ? 'bg-[#161b2e] text-[#8897b5] border border-[#2a3250]' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                  {emp.name}
+                </button>
+              ))}
+            </div>
+          )}
 
+          {!isAdmin && !selEmpObj && (
+            <p className={`text-center text-sm py-10 ${sub}`}>Your employee record was not found. Contact your admin to set it up.</p>
+          )}
           {selEmpObj && (() => {
             const s = summaryFor(selEmpObj.id);
             return (
@@ -251,19 +271,25 @@ export default function Attendance() {
                             <p className={`text-xs font-bold ${txt}`}>{WD[d.getDay()]} {pad(d.getDate())}</p>
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {STATUSES.map(sx => (
+                            {isAdmin ? STATUSES.map(sx => (
                               <button key={sx.key} disabled={busy === `${selEmpObj.id}-${ds}`}
                                 onClick={() => mark(selEmpObj.id, ds, sx.key)}
                                 className={`px-2 h-7 rounded-md text-[10px] font-black transition-all ${st === sx.key ? sx.cls : isDark ? 'bg-[#1e2440] text-[#5a6a8a]' : 'bg-gray-100 text-gray-400'}`}>
                                 {sx.short}
                               </button>
-                            ))}
+                            )) : (
+                              meta
+                                ? <span className={`px-2 h-7 flex items-center rounded-md text-[10px] font-black ${meta.cls}`}>{meta.label}</span>
+                                : <span className={`text-[10px] ${sub}`}>—</span>
+                            )}
                           </div>
                           <div className="w-14">
                             {r && (
-                              <input type="number" min={0} step={0.5} value={r.ot_hours || ''} placeholder="0"
-                                onChange={e => setOt(r, Number(e.target.value))}
-                                className={`w-full text-xs text-center rounded-md px-1 py-1 outline-none ${isDark ? 'bg-[#1e2440] text-white border border-[#2a3250]' : 'bg-gray-50 text-gray-900 border border-gray-200'}`} />
+                              isAdmin
+                                ? <input type="number" min={0} step={0.5} value={r.ot_hours || ''} placeholder="0"
+                                    onChange={e => setOt(r, Number(e.target.value))}
+                                    className={`w-full text-xs text-center rounded-md px-1 py-1 outline-none ${isDark ? 'bg-[#1e2440] text-white border border-[#2a3250]' : 'bg-gray-50 text-gray-900 border border-gray-200'}`} />
+                                : <span className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-700'}`}>{r.ot_hours ? `${r.ot_hours}h` : '—'}</span>
                             )}
                           </div>
                         </div>

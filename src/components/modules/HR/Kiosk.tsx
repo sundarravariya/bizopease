@@ -30,6 +30,7 @@ export default function Kiosk({ onAdminExit }: KioskProps = {}) {
   // QR state
   const [qrData, setQrData] = useState<{ url: string; date: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [qrFixed, setQrFixed] = useState(false);
 
   const runRef = useRef(false);
   const kindRef = useRef<'in' | 'out'>('in');
@@ -42,18 +43,22 @@ export default function Kiosk({ onAdminExit }: KioskProps = {}) {
     nfcStatus().then(setNfc);
     // Load current attendance mode from settings
     odooCall<any>('robifel.hr.settings', 'get_settings', [], {})
-      .then(s => { if (s?.attendance_mode) setAttendanceMode(s.attendance_mode); })
+      .then(s => {
+        if (s?.attendance_mode) setAttendanceMode(s.attendance_mode);
+        if (s?.qr_fixed) setQrFixed(true);
+      })
       .catch(() => {})
       .finally(() => setModeLoading(false));
   }, []);
 
-  // When mode becomes 'qr', auto-load and auto-refresh every 2 minutes
+  // When mode becomes 'qr', load QR; auto-refresh every 2 minutes unless fixed
   useEffect(() => {
     if (attendanceMode !== 'qr') return;
     loadQr();
+    if (qrFixed) return; // fixed QR — no auto-rotation
     const timer = setInterval(loadQr, 120_000);
     return () => clearInterval(timer);
-  }, [attendanceMode]);
+  }, [attendanceMode, qrFixed]);
 
   const loadQr = async () => {
     setQrLoading(true);
@@ -127,7 +132,7 @@ export default function Kiosk({ onAdminExit }: KioskProps = {}) {
               <div className="rounded-2xl bg-white p-4 shadow">
                 <QRCodeSVG value={qrData.url} size={220} />
               </div>
-              <p className={`text-xs text-center ${sub}`}>Valid: <span className="font-bold">{qrData.date}</span></p>
+              <p className={`text-xs text-center ${sub}`}>{qrFixed ? 'Fixed QR — does not rotate' : <>Valid: <span className="font-bold">{qrData.date}</span></>}</p>
               <button onClick={loadQr} disabled={qrLoading}
                 className="text-xs text-[#7367f0] flex items-center gap-1.5 hover:underline">
                 <RefreshCw size={12} className={qrLoading ? 'animate-spin' : ''} /> Refresh QR
