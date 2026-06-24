@@ -280,8 +280,9 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // 4) Must be checked in (present, with GPS).
-  const checkedIn = !!day && day.status === 'present' && (Math.abs(day.geo_lat_in) > 0 || Math.abs(day.geo_lng_in) > 0);
+  // 4) Must be checked in (present OR half-day — a late arrival is still checked in
+  //    and at work — with GPS captured).
+  const checkedIn = !!day && (day.status === 'present' || day.status === 'half') && (Math.abs(day.geo_lat_in) > 0 || Math.abs(day.geo_lng_in) > 0);
   if (!checkedIn) {
     return (
       <Shell>
