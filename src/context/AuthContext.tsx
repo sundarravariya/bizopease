@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { odooLogin, odooLogout, odooGetSession, userIsManager } from '../services/odoo';
+import { odooLogin, odooLogout, odooGetSession, userIsManager, odooCall } from '../services/odoo';
 import { getOdooDb } from '../config/tenant';
-import { syncFcmTokenToOdoo } from '../services/pushNotifications';
 
 interface User {
   uid: number;
@@ -185,8 +184,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('robifel-user', JSON.stringify(userData));
       saveCredentials(username, password, db);
 
-      // Sync any stored FCM token to the newly authenticated session
-      syncFcmTokenToOdoo();
+      // Sync any stored FCM device token to the newly authenticated session
+      try {
+        const fcmToken = localStorage.getItem('biz_fcm_token');
+        if (fcmToken) odooCall('robifel.hr.settings', 'save_fcm_token', [fcmToken], {}).catch(() => {});
+      } catch { /* localStorage unavailable */ }
 
       // Confirm manager role via group membership (authoritative).
       try {
