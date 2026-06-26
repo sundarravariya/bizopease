@@ -34,6 +34,11 @@ class RobifelAttendanceDay(models.Model):
 
     ot_hours = fields.Float(string='Overtime Hours', default=0.0)
 
+    # Reward points for punctuality — 10 for an on-time / early check-in
+    # (check-in at or before the configured work-start time).
+    points = fields.Integer(string='Reward Points', default=0,
+                            help='Bonus points awarded for an on-time / early check-in.')
+
     # Audit / source of the record.
     method = fields.Selection([
         ('self', 'Self (employee app)'),
@@ -64,6 +69,19 @@ class RobifelAttendanceDay(models.Model):
     ]
 
     @api.model
+    def _is_punctual(self, ist_min):
+        """True when a check-in at ist_min (minutes since IST midnight) is on time:
+        within [work_start - 30 min, work_start + 5 min] (e.g. 10:00 → 9:30–10:05)."""
+        settings = self.env['robifel.hr.settings'].sudo()._singleton()
+        ws = settings.work_start or '10:00'
+        try:
+            wh, wm = (int(x) for x in ws.split(':')[:2])
+            ws_min = wh * 60 + wm
+        except Exception:
+            ws_min = 10 * 60
+        return (ws_min - 30) <= ist_min <= (ws_min + 5)
+
+    @api.model
     def punch(self, employee_id, kind, lat=False, lng=False, selfie=False, when=False):
         """Create/update today's record from a check-in or check-out punch.
 
@@ -92,8 +110,11 @@ class RobifelAttendanceDay(models.Model):
             # Late arrival: check-in after 14:00 IST → half day
             ist_min = _ist_minutes(ts)
             status = 'half' if ist_min > 14 * 60 else 'present'
+            # Punctuality bonus: 10 pts if check-in is within the window
+            # [work_start - 30 min, work_start + 5 min] (e.g. 10:00 start → 9:30–10:05).
             vals = {'status': status, 'check_in': ts, 'method': 'self',
-                    'geo_lat_in': lat or 0.0, 'geo_lng_in': lng or 0.0}
+                    'geo_lat_in': lat or 0.0, 'geo_lng_in': lng or 0.0,
+                    'points': 10 if self._is_punctual(ist_min) else 0}
             if selfie:
                 vals['selfie_in'] = selfie
         else:

@@ -146,10 +146,39 @@ export default function Tasks() {
     finally { if (!silent) setLoading(false); }
   }, [canAssign, empFilter, dateFilter, taskModel]);
 
+  // Punctuality points from attendance, aggregated per user (employee -> user_id).
+  // Returns Map<uid, { points, name }>. Independent of taskModel — attendance lives
+  // in robifel.attendance.day on every workspace.
+  const loadAttendancePoints = useCallback(async (extraDomain: any[] = []) => {
+    const result = new Map<number, { points: number; name: string }>();
+    try {
+      const rows = await readGroup<any>('robifel.attendance.day', {
+        domain: [['points', '>', 0], ...extraDomain],
+        fields: ['points:sum', 'employee_id'],
+        groupby: ['employee_id'],
+      });
+      const list = (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r.employee_id));
+      if (!list.length) return result;
+      const emps = await searchRead<any>('hr.employee', {
+        fields: ['id', 'user_id'], domain: [['id', 'in', list.map(r => r.employee_id[0])]], limit: 0,
+      });
+      const empToUser = new Map<number, [number, string]>();
+      (Array.isArray(emps) ? emps : []).forEach(e => { if (Array.isArray(e.user_id)) empToUser.set(e.id, e.user_id); });
+      list.forEach(r => {
+        const u = empToUser.get(r.employee_id[0]);
+        if (!u) return;
+        const cur = result.get(u[0]) || { points: 0, name: u[1] };
+        cur.points += r.points || 0;
+        result.set(u[0], cur);
+      });
+    } catch { /* attendance points are best-effort */ }
+    return result;
+  }, []);
+
   const loadLeaders = useCallback(async () => {
     if (!taskModel) return;
     try {
-      const [doneRows, pendingRows] = await Promise.all([
+      const [doneRows, pendingRows, attPts] = await Promise.all([
         readGroup<any>(taskModel, {
           domain: [['state', '=', 'done']],
           fields: ['points:sum', 'assignee_id'],
@@ -160,6 +189,7 @@ export default function Tasks() {
           fields: ['assignee_id'],
           groupby: ['assignee_id'],
         }),
+        loadAttendancePoints(),
       ]);
 
       const pendingMap = new Map<number, number>();
@@ -174,17 +204,23 @@ export default function Tasks() {
           .sort((a, b) => b.count - a.count)
       );
 
-      const board: LeaderRow[] = (Array.isArray(doneRows) ? doneRows : [])
+      const byUid = new Map<number, LeaderRow>();
+      (Array.isArray(doneRows) ? doneRows : [])
         .filter(r => Array.isArray(r.assignee_id))
-        .map(r => ({
+        .forEach(r => byUid.set(r.assignee_id[0], {
           uid: r.assignee_id[0], name: r.assignee_id[1],
           done: r.__count || 0, points: r.points || 0,
           pending: pendingMap.get(r.assignee_id[0]) || 0,
-        }))
-        .sort((a, b) => b.points - a.points || b.done - a.done);
-      setLeaders(board);
+        }));
+      // Fold in attendance (punctuality) points — add to existing or create a row.
+      attPts.forEach((v, uid) => {
+        const ex = byUid.get(uid);
+        if (ex) ex.points += v.points;
+        else byUid.set(uid, { uid, name: v.name, done: 0, points: v.points, pending: pendingMap.get(uid) || 0 });
+      });
+      setLeaders(Array.from(byUid.values()).sort((a, b) => b.points - a.points || b.done - a.done));
     } catch { setLeaders([]); setBehind([]); }
-  }, [taskModel]);
+  }, [taskModel, loadAttendancePoints]);
 
   const loadMonthlyLeaders = useCallback(async () => {
     if (!taskModel) return;
@@ -192,18 +228,26 @@ export default function Tasks() {
     const firstDay = `${monthFilter}-01`;
     const lastDay = new Date(year, month, 0).toISOString().slice(0, 10);
     try {
-      const rows = await readGroup<any>(taskModel, {
-        domain: [['state', '=', 'done'], ['done_date', '>=', firstDay + ' 00:00:00'], ['done_date', '<=', lastDay + ' 23:59:59']],
-        fields: ['points:sum', 'assignee_id'],
-        groupby: ['assignee_id'],
-      });
-      const board: LeaderRow[] = (Array.isArray(rows) ? rows : [])
+      const [rows, attPts] = await Promise.all([
+        readGroup<any>(taskModel, {
+          domain: [['state', '=', 'done'], ['done_date', '>=', firstDay + ' 00:00:00'], ['done_date', '<=', lastDay + ' 23:59:59']],
+          fields: ['points:sum', 'assignee_id'],
+          groupby: ['assignee_id'],
+        }),
+        loadAttendancePoints([['date', '>=', firstDay], ['date', '<=', lastDay]]),
+      ]);
+      const byUid = new Map<number, LeaderRow>();
+      (Array.isArray(rows) ? rows : [])
         .filter(r => Array.isArray(r.assignee_id))
-        .map(r => ({ uid: r.assignee_id[0], name: r.assignee_id[1], done: r.__count || 0, points: r.points || 0, pending: 0 }))
-        .sort((a, b) => b.points - a.points || b.done - a.done);
-      setMonthlyLeaders(board);
+        .forEach(r => byUid.set(r.assignee_id[0], { uid: r.assignee_id[0], name: r.assignee_id[1], done: r.__count || 0, points: r.points || 0, pending: 0 }));
+      attPts.forEach((v, uid) => {
+        const ex = byUid.get(uid);
+        if (ex) ex.points += v.points;
+        else byUid.set(uid, { uid, name: v.name, done: 0, points: v.points, pending: 0 });
+      });
+      setMonthlyLeaders(Array.from(byUid.values()).sort((a, b) => b.points - a.points || b.done - a.done));
     } catch { setMonthlyLeaders([]); }
-  }, [monthFilter, taskModel]);
+  }, [monthFilter, taskModel, loadAttendancePoints]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
   useEffect(() => { if (view === 'leaderboard') loadLeaders(); }, [view, loadLeaders]);

@@ -10,7 +10,7 @@ import {
 interface Employee { id: number; name: string; job_title?: string | false; user_id?: [number, string] | false; department_id?: [number, string] | false; }
 interface DayRec {
   id: number; employee_id: [number, string]; date: string; status: string;
-  ot_hours: number; check_in?: string | false; check_out?: string | false;
+  ot_hours: number; check_in?: string | false; check_out?: string | false; points?: number;
 }
 
 const STATUSES: { key: string; label: string; short: string; cls: string }[] = [
@@ -59,7 +59,7 @@ export default function Attendance() {
       const [emps, settings, dd] = await Promise.all([
         listStaffEmployees<Employee>(['id', 'name', 'job_title', 'user_id']),
         odooCall<{ weekly_off: string }>('robifel.hr.settings', 'get_settings', [], {}),
-        searchRead<DayRec>('robifel.attendance.day', { fields: ['id', 'employee_id', 'date', 'status', 'ot_hours', 'check_in', 'check_out'], domain: [['date', '>=', monthStart], ['date', '<=', monthEnd]], limit: 0 }),
+        searchRead<DayRec>('robifel.attendance.day', { fields: ['id', 'employee_id', 'date', 'status', 'ot_hours', 'check_in', 'check_out', 'points'], domain: [['date', '>=', monthStart], ['date', '<=', monthEnd]], limit: 0 }),
       ]);
       setEmployees(emps || []);
       setWeeklyOff(Number(settings?.weekly_off ?? '6'));
@@ -130,13 +130,14 @@ export default function Attendance() {
 
   // Per-employee month summary
   const summaryFor = (empId: number) => {
-    let present = 0, half = 0, absent = 0, leave = 0;
+    let present = 0, half = 0, absent = 0, leave = 0, points = 0;
     for (const d of monthDays) {
       const r = recOf(empId, ymd(d));
       const st = r?.status ?? (isWeeklyOff(d) ? 'week_off' : (ymd(d) <= today ? 'absent' : ''));
       if (st === 'present') present++; else if (st === 'half') half += 1; else if (st === 'absent') absent++; else if (st === 'paid_leave') leave++;
+      points += r?.points || 0;
     }
-    return { present, half, absent, leave };
+    return { present, half, absent, leave, points };
   };
 
   return (
@@ -250,6 +251,18 @@ export default function Attendance() {
                       <p className={`text-[10px] font-semibold ${sub}`}>{l as string}</p>
                     </div>
                   ))}
+                </div>
+
+                {/* Punctuality reward points (10 per on-time/early check-in) */}
+                <div className="card border border-amber-400/40 bg-gradient-to-r from-amber-400/10 to-amber-500/5 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⭐</span>
+                    <div>
+                      <p className={`text-xs font-bold ${txt}`}>Punctuality Points</p>
+                      <p className={`text-[10px] ${sub}`}>+10 for each on-time / early check-in</p>
+                    </div>
+                  </div>
+                  <p className="text-xl font-black text-amber-500">{s.points} pts</p>
                 </div>
 
                 {/* Day rows */}
