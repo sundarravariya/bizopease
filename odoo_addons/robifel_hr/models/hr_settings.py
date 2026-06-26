@@ -196,13 +196,19 @@ class RobifelHrSettings(models.Model):
 
     @api.model
     def punch_by_qr(self, token, date_str, lat=False, lng=False, selfie=False):
-        """Any employee. Validates the QR token (current or previous window) then punches."""
+        """Any employee. Validates the QR token then punches.
+
+        Fixed QR (qr_fixed) never expires — only the token is checked. Rotating QR
+        additionally requires the embedded date to match today and the token to be
+        within the current/previous 2-minute window.
+        """
         rec = self._singleton()
-        today_str = fields.Date.to_string(fields.Date.context_today(self))
-        if rec.qr_token_date != fields.Date.from_string(today_str) or date_str != today_str:
-            raise UserError(_("This QR code has expired. Ask your manager to refresh it."))
         valid_tokens = {t for t in (rec.qr_daily_token, rec.qr_token_prev) if t}
-        if token not in valid_tokens:
+        if not rec.qr_fixed:
+            today_str = fields.Date.to_string(fields.Date.context_today(self))
+            if rec.qr_token_date != fields.Date.from_string(today_str) or date_str != today_str:
+                raise UserError(_("This QR code has expired. Ask your manager to refresh it."))
+        if not token or token not in valid_tokens:
             raise UserError(_("Invalid QR code."))
         emp = self.env['hr.employee'].search([('user_id', '=', self.env.user.id)], limit=1)
         if not emp:

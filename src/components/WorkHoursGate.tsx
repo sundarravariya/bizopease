@@ -151,6 +151,15 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
     if (!empId) return;
     setPunching(true); setErr(null);
     try {
+      // Check-OUT in QR/NFC mode does NOT require a scan — you already verified your
+      // presence at check-in. Just record location + time and punch out.
+      if (kind === 'out' && (qrActive || nfcActive)) {
+        const pos = await getPosition();
+        await odooCall('robifel.attendance.day', 'punch', [empId, 'out', pos?.lat || 0, pos?.lng || 0, false], {});
+        setConfirmOut(false);
+        await loadState();
+        return;
+      }
       if (qrActive) {
         // QR mode: scan the admin's daily rotating QR code. GPS still recorded.
         let qrText: string;
@@ -324,15 +333,15 @@ export default function WorkHoursGate({ children }: { children: ReactNode }) {
             <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-500/15 flex items-center justify-center mb-3"><LogOut size={24} className="text-rose-400" /></div>
             <h3 className="text-white font-black text-base">Check out for today?</h3>
             <p className="text-[#8897b5] text-sm mt-1.5">
-              {qrActive ? 'Scan the QR code to record your check-out.' : nfcActive ? 'Tap the workplace tag to record your check-out.' : 'This records your check-out location & selfie.'}
+              {qrActive || nfcActive ? 'This records your check-out location & time.' : 'This records your check-out location & selfie.'}
               {' '}The app then locks until tomorrow.
             </p>
             {err && <div className="mt-3 text-[12px] text-rose-400 bg-rose-500/10 rounded-lg px-3 py-2 flex items-center gap-1.5"><AlertCircle size={13} /> {err}</div>}
             <div className="flex gap-2 mt-5">
               <button onClick={() => setConfirmOut(false)} disabled={punching} className="flex-1 py-2.5 rounded-xl bg-[#1e2440] text-[#8897b5] font-bold text-sm">Cancel</button>
               <button onClick={() => punch('out')} disabled={punching} className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm flex items-center justify-center gap-1.5">
-                {punching ? <RefreshCw size={15} className="animate-spin" /> : qrActive ? <QrCode size={15} /> : nfcActive ? <Nfc size={15} /> : <LogOut size={15} />}
-                {punching ? (qrActive ? 'Scanning QR…' : nfcActive ? 'Tap tag…' : 'Saving…') : 'Check Out'}
+                {punching ? <RefreshCw size={15} className="animate-spin" /> : <LogOut size={15} />}
+                {punching ? 'Saving…' : 'Check Out'}
               </button>
             </div>
           </div>
